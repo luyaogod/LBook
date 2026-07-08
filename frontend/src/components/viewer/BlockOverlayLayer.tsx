@@ -10,6 +10,7 @@ interface BlockOverlayLayerProps {
   pdfPageHeight: number;
   ocrPageWidth: number | null;
   ocrPageHeight: number | null;
+  overlayOpaque: boolean;
 }
 
 export function BlockOverlayLayer({
@@ -21,6 +22,7 @@ export function BlockOverlayLayer({
   pdfPageHeight,
   ocrPageWidth,
   ocrPageHeight,
+  overlayOpaque,
 }: BlockOverlayLayerProps) {
   if (blocks.length === 0) return null;
 
@@ -41,6 +43,7 @@ export function BlockOverlayLayer({
           onHover={onBlockHover}
           scaleX={scaleX}
           scaleY={scaleY}
+          opaque={overlayOpaque}
         />
       ))}
     </div>

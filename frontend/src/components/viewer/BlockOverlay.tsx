@@ -8,9 +8,10 @@ interface BlockOverlayProps {
   onHover: (id: number | null) => void;
   scaleX: number;
   scaleY: number;
+  opaque: boolean;
 }
 
-export function BlockOverlay({ block, scale, isHighlighted, onHover, scaleX, scaleY }: BlockOverlayProps) {
+export function BlockOverlay({ block, scale, isHighlighted, onHover, scaleX, scaleY, opaque }: BlockOverlayProps) {
   const [x1, y1, x2, y2] = block.block_bbox;
   const colors = BLOCK_LABEL_COLORS[block.block_label] ?? BLOCK_LABEL_COLORS.__default__;
 
@@ -28,7 +29,11 @@ export function BlockOverlay({ block, scale, isHighlighted, onHover, scaleX, sca
         width: Math.round((pdfX2 - pdfX1) * scale),
         height: Math.round((pdfY2 - pdfY1) * scale),
         border: `1px solid ${colors.border}`,
-        backgroundColor: isHighlighted ? colors.highlightBg : colors.bg,
+        backgroundColor: opaque
+          ? colors.border
+          : isHighlighted
+            ? colors.highlightBg
+            : colors.bg,
         pointerEvents: "auto",
       }}
       onMouseEnter={() => onHover(block.id)}

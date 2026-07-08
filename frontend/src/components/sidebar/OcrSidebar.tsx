@@ -1,6 +1,6 @@
 import { BlockCard } from "./BlockCard";
 import type { OcrBlock } from "@/types";
-import { CheckCircle, Copy, Loader2, AlignLeft, FileText } from "lucide-react";
+import { CheckCircle, Copy, Loader2, AlignLeft, FileText, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -15,6 +15,8 @@ interface OcrSidebarProps {
   onBlockHover: (id: number | null) => void;
   loading?: boolean;
   markdownText?: string | null;
+  overlayOpaque: boolean;
+  onOverlayOpaqueChange: (v: boolean) => void;
 }
 
 export function OcrSidebar({
@@ -24,6 +26,8 @@ export function OcrSidebar({
   onBlockHover,
   loading = false,
   markdownText,
+  overlayOpaque,
+  onOverlayOpaqueChange,
 }: OcrSidebarProps) {
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<"blocks" | "markdown">("blocks");
@@ -78,9 +82,19 @@ export function OcrSidebar({
             Markdown
           </Button>
         )}
-        <span className="ml-2 text-xs text-muted-foreground">
-          Page {pageNum}
-        </span>
+        <Button
+          variant={overlayOpaque ? "secondary" : "ghost"}
+          size="icon-sm"
+          className="h-7 w-7"
+          onClick={() => onOverlayOpaqueChange(!overlayOpaque)}
+          title={overlayOpaque ? "Make overlays transparent" : "Make overlays opaque"}
+        >
+          {overlayOpaque ? (
+            <EyeOff className="h-3.5 w-3.5" />
+          ) : (
+            <Eye className="h-3.5 w-3.5" />
+          )}
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"

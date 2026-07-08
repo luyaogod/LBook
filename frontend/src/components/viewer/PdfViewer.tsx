@@ -20,6 +20,8 @@ interface PdfViewerProps {
   onPageSizeReady: (width: number, height: number) => void;
   ocrPageWidth: number | null;
   ocrPageHeight: number | null;
+  overlayOpaque: boolean;
+  onWheelZoom: (delta: number) => void;
 }
 
 export function PdfViewer({
@@ -32,16 +34,37 @@ export function PdfViewer({
   onPageSizeReady,
   ocrPageWidth,
   ocrPageHeight,
+  overlayOpaque,
+  onWheelZoom,
 }: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
   const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
+  const onWheelZoomRef = useRef(onWheelZoom);
+  onWheelZoomRef.current = onWheelZoom;
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [loading, setLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [pdfPageSize, setPdfPageSize] = useState({ width: 0, height: 0 });
+
+  // Wheel zoom: use native listener with passive=false to prevent browser zoom
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        onWheelZoomRef.current(e.deltaY > 0 ? -1 : 1);
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -194,6 +217,7 @@ export function PdfViewer({
               pdfPageWidth={pdfPageSize.width}
               pdfPageHeight={pdfPageSize.height}
               ocrPageWidth={ocrPageWidth}
+              overlayOpaque={overlayOpaque}
               ocrPageHeight={ocrPageHeight}
             />
           </div>

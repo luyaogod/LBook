@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { HomePage } from "@/components/home/HomePage";
 import { UploadDialog } from "@/components/home/UploadDialog";
@@ -18,6 +18,8 @@ function App() {
   const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
   const [showUpload, setShowUpload] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [overlayOpaque, setOverlayOpaque] = useState(false);
+  const initialFitDone = useRef(false);
 
   const { pdf, loading: pdfLoading, error: pdfError } = usePdfDocument(selectedPdfId);
   const { page, loading: pageLoading } = usePdfPage(selectedPdfId, currentPage);
@@ -33,8 +35,8 @@ function App() {
     setSelectedPdfId(id);
     setCurrentPage(1);
     setHighlightedBlockId(null);
-    setScale(1.0);
     setPageSize({ width: 0, height: 0 });
+    initialFitDone.current = false;
   }, []);
 
   const handleBack = useCallback(() => {
@@ -59,16 +61,30 @@ function App() {
     [totalPages]
   );
 
+  const handleWheelZoom = useCallback((delta: number) => {
+    setScale((s) => {
+      const step = delta > 0 ? 0.1 : -0.1;
+      return +Math.min(3.0, Math.max(0.3, +(s + step).toFixed(1)));
+    });
+  }, []);
+
   const handleFitWidth = useCallback(() => {
     if (pageSize.width > 0) {
-      const viewerWidth = window.innerWidth - 480 - 40;
-      const newScale = viewerWidth / pageSize.width;
+      const availW = window.innerWidth - 480 - 48;
+      const newScale = availW / pageSize.width;
       setScale(+Math.min(3.0, Math.max(0.3, newScale)).toFixed(1));
     }
   }, [pageSize.width]);
 
   const handlePageSizeReady = useCallback((width: number, height: number) => {
     setPageSize({ width, height });
+    if (!initialFitDone.current && width > 0 && height > 0) {
+      initialFitDone.current = true;
+      const availW = window.innerWidth - 480 - 48;
+      const availH = window.innerHeight - 56 - 48 - 48;
+      const fitScale = Math.min(availW / width, availH / height);
+      setScale(+Math.min(3.0, Math.max(0.3, fitScale)).toFixed(1));
+    }
   }, []);
 
   const handleBlockHover = useCallback((id: number | null) => {
@@ -156,6 +172,8 @@ function App() {
             onPageSizeReady={handlePageSizeReady}
             ocrPageWidth={page?.page_width ?? null}
             ocrPageHeight={page?.page_height ?? null}
+            overlayOpaque={overlayOpaque}
+            onWheelZoom={handleWheelZoom}
           />
         </div>
         {/* Right: sidebar */}
@@ -166,6 +184,8 @@ function App() {
           onBlockHover={handleBlockHover}
           loading={pageLoading}
           markdownText={page?.markdown_text ?? null}
+          overlayOpaque={overlayOpaque}
+          onOverlayOpaqueChange={setOverlayOpaque}
         />
       </div>
     </div>
