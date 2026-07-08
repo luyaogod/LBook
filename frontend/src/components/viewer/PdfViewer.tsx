@@ -103,9 +103,11 @@ export function PdfViewer({
 
       const scaledViewport = page.getViewport({ scale });
       const dpr = window.devicePixelRatio || 1;
+      // Create a DPR-scaled viewport so the render fills the canvas bitmap
+      const renderViewport = page.getViewport({ scale: scale * dpr });
 
-      canvas.width = Math.floor(scaledViewport.width * dpr);
-      canvas.height = Math.floor(scaledViewport.height * dpr);
+      canvas.width = Math.floor(renderViewport.width);
+      canvas.height = Math.floor(renderViewport.height);
       canvas.style.width = `${scaledViewport.width}px`;
       canvas.style.height = `${scaledViewport.height}px`;
       setCanvasSize({
@@ -119,7 +121,7 @@ export function PdfViewer({
 
       const renderContext = {
         canvasContext,
-        viewport: scaledViewport,
+        viewport: renderViewport,
       };
 
       try {
