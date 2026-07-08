@@ -1,6 +1,8 @@
 import { apiGet } from "./client";
 import type { PdfDocument, PdfDocumentDetail, OcrPage, OcrPageBrief } from "../types";
 
+const BASE_URL = "http://localhost:8000/api";
+
 export function fetchPdfs(): Promise<PdfDocument[]> {
   return apiGet<PdfDocument[]>("/pdfs/");
 }
@@ -18,5 +20,26 @@ export function fetchPdfPage(pdfId: number, pageNum: number): Promise<OcrPage> {
 }
 
 export function getPdfFileUrl(pdfId: number): string {
-  return `http://localhost:8000/api/pdfs/${pdfId}/file`;
+  return `${BASE_URL}/pdfs/${pdfId}/file`;
+}
+
+export async function uploadPdf(
+  pdfFile: File,
+  ocrFile: File,
+): Promise<PdfDocument> {
+  const formData = new FormData();
+  formData.append("pdf", pdfFile);
+  formData.append("ocr_json", ocrFile);
+
+  const res = await fetch(`${BASE_URL}/pdfs/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Upload failed (${res.status})`);
+  }
+
+  return res.json();
 }

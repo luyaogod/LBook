@@ -1,15 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException
+import json
+import os
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models import PdfDocument, OcrPage, OcrBlock
 from schemas import PdfDocumentOut, PdfDocumentDetail, OcrPageBrief, OcrPageOut
+from import_utils import sha256_bytes, validate_ocr_json, import_ocr_data
 
 router = APIRouter(
     prefix="/api/pdfs",
     tags=["pdfs"],
 )
+
+MAX_PDF_SIZE = 200 * 1024 * 1024   # 200 MB
+MAX_JSON_SIZE = 50 * 1024 * 1024   # 50 MB
 
 
 @router.get("/", response_model=list[PdfDocumentOut])
@@ -68,3 +75,71 @@ def get_pdf_file(pdf_id: int, db: Session = Depends(get_db)):
         media_type="application/pdf",
         filename=pdf.file_name,
     )
+
+
+@router.post("/upload", response_model=PdfDocumentOut, status_code=201)
+def upload_pdf(
+    pdf: UploadFile = File(...),
+    ocr_json: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    # ── Validate PDF ──
+    if not pdf.filename or not pdf.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+
+    if pdf.content_type and pdf.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Invalid PDF file")
+
+    pdf_bytes = pdf.file.read()
+    if len(pdf_bytes) > MAX_PDF_SIZE:
+        raise HTTPException(status_code=400, detail="PDF file too large (max 200 MB)")
+
+    # ── Validate JSON ──
+    if not ocr_json.filename or not ocr_json.filename.lower().endswith(".json"):
+        raise HTTPException(status_code=400, detail="File must be a JSON file")
+
+    json_bytes = ocr_json.file.read()
+    if len(json_bytes) > MAX_JSON_SIZE:
+        raise HTTPException(status_code=400, detail="JSON file too large (max 50 MB)")
+
+    try:
+        json_str = json_bytes.decode("utf-8")
+        ocr_data = json.loads(json_str)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise HTTPException(status_code=400, detail="Invalid JSON file")
+
+    # ── Validate OCR structure ──
+    valid, err_msg = validate_ocr_json(ocr_data)
+    if not valid:
+        raise HTTPException(status_code=400, detail=f"Not a valid PaddleOCR JSON: {err_msg}")
+
+    # ── Duplicate detection ──
+    pdf_hash = sha256_bytes(pdf_bytes)
+    existing = db.query(PdfDocument).filter(PdfDocument.file_hash == pdf_hash).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"This PDF has already been imported (id={existing.id})",
+        )
+
+    # ── Save PDF to uploads ──
+    uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+    os.makedirs(uploads_dir, exist_ok=True)
+    dest_name = f"{pdf_hash}_{pdf.filename}"
+    dest_path = os.path.join(uploads_dir, dest_name)
+    with open(dest_path, "wb") as f:
+        f.write(pdf_bytes)
+
+    # ── Import into database ──
+    doc = import_ocr_data(
+        session=db,
+        pdf_name=pdf.filename,
+        pdf_path=dest_path,
+        pdf_hash=pdf_hash,
+        pdf_size=len(pdf_bytes),
+        ocr_data=ocr_data,
+    )
+
+    # Refresh to get created_at and other defaults
+    db.refresh(doc)
+    return doc

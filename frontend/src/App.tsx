@@ -1,30 +1,42 @@
 import { useState, useCallback, useMemo } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { HomePage } from "@/components/home/HomePage";
+import { UploadDialog } from "@/components/home/UploadDialog";
 import { PdfToolbar } from "@/components/viewer/PdfToolbar";
 import { PdfViewer } from "@/components/viewer/PdfViewer";
 import { OcrSidebar } from "@/components/sidebar/OcrSidebar";
 import { usePdfDocument } from "@/hooks/usePdfDocument";
 import { usePdfPage } from "@/hooks/usePdfPage";
-import { Loader2, AlertTriangle, BookOpen } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// v1: hardcoded to the first imported document
-const PDF_ID = 1;
-
 function App() {
+  const [selectedPdfId, setSelectedPdfId] = useState<number | null>(null);
   const [scale, setScale] = useState(1.0);
   const [currentPage, setCurrentPage] = useState(1);
   const [highlightedBlockId, setHighlightedBlockId] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
+  const [showUpload, setShowUpload] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const { pdf, loading: pdfLoading, error: pdfError } = usePdfDocument(PDF_ID);
-  const { page, loading: pageLoading } = usePdfPage(PDF_ID, currentPage);
+  const { pdf, loading: pdfLoading, error: pdfError } = usePdfDocument(selectedPdfId);
+  const { page, loading: pageLoading } = usePdfPage(selectedPdfId, currentPage);
 
   const totalPages = pdf?.page_count ?? 1;
   const blocks = page?.blocks ?? [];
-
-  // Derived: blocks on this page
   const pageBlocks = useMemo(() => blocks, [blocks]);
+
+  const handleOpenPdf = useCallback((id: number) => {
+    setSelectedPdfId(id);
+    setCurrentPage(1);
+    setHighlightedBlockId(null);
+    setScale(1.0);
+    setPageSize({ width: 0, height: 0 });
+  }, []);
+
+  const handleBack = useCallback(() => {
+    setSelectedPdfId(null);
+  }, []);
 
   const handleZoomIn = useCallback(() => {
     setScale((s) => Math.min(3.0, +(s + 0.1).toFixed(1)));
@@ -46,8 +58,7 @@ function App() {
 
   const handleFitWidth = useCallback(() => {
     if (pageSize.width > 0) {
-      // Estimate available width (viewer area minus some padding)
-      const viewerWidth = window.innerWidth - 480 - 40; // minus sidebar and padding
+      const viewerWidth = window.innerWidth - 480 - 40;
       const newScale = viewerWidth / pageSize.width;
       setScale(+Math.min(3.0, Math.max(0.3, newScale)).toFixed(1));
     }
@@ -61,60 +72,65 @@ function App() {
     setHighlightedBlockId(id);
   }, []);
 
-  // Loading state for PDF document
-  if (pdfLoading) {
+  const handleUploadSuccess = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
+
+  // Home page
+  if (selectedPdfId === null) {
     return (
-      <div className="flex h-svh items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="text-sm">Loading document...</span>
+      <div className="flex h-svh flex-col bg-background">
+        <AppHeader mode="home" onUploadClick={() => setShowUpload(true)} />
+        <HomePage onOpenPdf={handleOpenPdf} refreshKey={refreshKey} />
+        <UploadDialog
+          open={showUpload}
+          onClose={() => setShowUpload(false)}
+          onSuccess={handleUploadSuccess}
+        />
+      </div>
+    );
+  }
+
+  // Viewer: loading (or pdf not yet set)
+  if (pdfLoading || !pdf) {
+    return (
+      <div className="flex h-svh flex-col bg-background">
+        <AppHeader mode="viewer" onBack={handleBack} />
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            <span className="text-sm">Loading document...</span>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Error state
+  // Viewer: error
   if (pdfError) {
     return (
-      <div className="flex h-svh items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4 text-center max-w-md">
-          <AlertTriangle className="h-10 w-10 text-destructive" />
-          <div>
-            <p className="font-semibold text-foreground">Failed to load document</p>
-            <p className="mt-1 text-sm text-muted-foreground">{pdfError}</p>
-          </div>
-          <Button variant="outline" onClick={() => window.location.reload()}>
-            Retry
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // No documents imported yet
-  if (!pdf) {
-    return (
-      <div className="flex h-svh items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4 text-center max-w-md">
-          <BookOpen className="h-10 w-10 text-muted-foreground" />
-          <div>
-            <p className="font-semibold text-foreground">No documents found</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Run the import script to add a PDF with OCR data:
-              <br />
-              <code className="mt-2 block rounded bg-muted px-3 py-1.5 text-xs">
-                uv run python scripts/import_ocr.py --pdf &lt;path&gt; --ocr &lt;path&gt;
-              </code>
-            </p>
+      <div className="flex h-svh flex-col bg-background">
+        <AppHeader mode="viewer" onBack={handleBack} />
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-4 text-center max-w-md">
+            <AlertTriangle className="h-10 w-10 text-destructive" />
+            <div>
+              <p className="font-semibold text-foreground">Failed to load document</p>
+              <p className="mt-1 text-sm text-muted-foreground">{pdfError}</p>
+            </div>
+            <Button variant="outline" onClick={handleBack}>
+              Back to Home
+            </Button>
           </div>
         </div>
       </div>
     );
   }
 
+  // Viewer: normal
   return (
     <div className="flex h-svh flex-col bg-background">
-      <AppHeader fileName={pdf.file_name} />
+      <AppHeader mode="viewer" fileName={pdf?.file_name} onBack={handleBack} />
       <div className="flex flex-1 overflow-hidden">
         {/* Left: toolbar + viewer */}
         <div className="flex flex-1 flex-col min-w-0">
@@ -128,7 +144,7 @@ function App() {
             onFitWidth={handleFitWidth}
           />
           <PdfViewer
-            pdfId={PDF_ID}
+            pdfId={selectedPdfId}
             pageNum={currentPage}
             scale={scale}
             blocks={pageBlocks}
@@ -139,7 +155,7 @@ function App() {
             ocrPageHeight={page?.page_height ?? null}
           />
         </div>
-        {/* Right: sidebar, full height */}
+        {/* Right: sidebar */}
         <OcrSidebar
           blocks={pageBlocks}
           pageNum={currentPage}
