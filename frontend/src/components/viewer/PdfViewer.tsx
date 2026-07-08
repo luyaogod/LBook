@@ -169,7 +169,7 @@ export function PdfViewer({
   }
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-auto bg-muted/30">
+    <div ref={containerRef} className="flex-1 overflow-auto bg-[#f8fafc]">
       <div className="flex min-h-full items-start justify-center p-4">
         {loading && (
           <div className="flex items-center gap-2 text-muted-foreground py-20">

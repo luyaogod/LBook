@@ -1,6 +1,10 @@
 import type { OcrBlock } from "@/types";
 import { BLOCK_LABEL_COLORS } from "@/components/viewer/blockColors";
 import { Image, Table2, FileText } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 
 interface BlockCardProps {
   block: OcrBlock;
@@ -52,7 +56,7 @@ export function BlockCard({ block, isHighlighted, onHover }: BlockCardProps) {
         )}
       </div>
 
-      <div className="text-sm leading-relaxed" dir="auto">
+      <div className="text-sm leading-relaxed markdown-body" dir="auto">
         {isImageBlock(block) ? (
           <span className="inline-flex items-center gap-1 text-muted-foreground italic">
             <Image className="h-3.5 w-3.5" />
@@ -64,7 +68,9 @@ export function BlockCard({ block, isHighlighted, onHover }: BlockCardProps) {
             Table block
           </span>
         ) : block.block_content ? (
-          <span className="whitespace-pre-wrap">{block.block_content}</span>
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+            {block.block_content}
+          </ReactMarkdown>
         ) : (
           <span className="text-muted-foreground italic">
             <FileText className="mr-1 inline h-3.5 w-3.5" />

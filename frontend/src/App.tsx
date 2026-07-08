@@ -115,33 +115,38 @@ function App() {
   return (
     <div className="flex h-svh flex-col bg-background">
       <AppHeader fileName={pdf.file_name} />
-      <PdfToolbar
-        scale={scale}
-        pageNum={currentPage}
-        totalPages={totalPages}
-        onZoomIn={handleZoomIn}
-        onZoomOut={handleZoomOut}
-        onPageChange={handlePageChange}
-        onFitWidth={handleFitWidth}
-      />
       <div className="flex flex-1 overflow-hidden">
-        <PdfViewer
-          pdfId={PDF_ID}
-          pageNum={currentPage}
-          scale={scale}
-          blocks={pageBlocks}
-          highlightedBlockId={highlightedBlockId}
-          onBlockHover={handleBlockHover}
-          onPageSizeReady={handlePageSizeReady}
-          ocrPageWidth={page?.page_width ?? null}
-          ocrPageHeight={page?.page_height ?? null}
-        />
+        {/* Left: toolbar + viewer */}
+        <div className="flex flex-1 flex-col min-w-0">
+          <PdfToolbar
+            scale={scale}
+            pageNum={currentPage}
+            totalPages={totalPages}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            onPageChange={handlePageChange}
+            onFitWidth={handleFitWidth}
+          />
+          <PdfViewer
+            pdfId={PDF_ID}
+            pageNum={currentPage}
+            scale={scale}
+            blocks={pageBlocks}
+            highlightedBlockId={highlightedBlockId}
+            onBlockHover={handleBlockHover}
+            onPageSizeReady={handlePageSizeReady}
+            ocrPageWidth={page?.page_width ?? null}
+            ocrPageHeight={page?.page_height ?? null}
+          />
+        </div>
+        {/* Right: sidebar, full height */}
         <OcrSidebar
           blocks={pageBlocks}
           pageNum={currentPage}
           highlightedBlockId={highlightedBlockId}
           onBlockHover={handleBlockHover}
           loading={pageLoading}
+          markdownText={page?.markdown_text ?? null}
         />
       </div>
     </div>
