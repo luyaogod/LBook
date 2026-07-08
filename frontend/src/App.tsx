@@ -133,6 +133,8 @@ function App() {
           highlightedBlockId={highlightedBlockId}
           onBlockHover={handleBlockHover}
           onPageSizeReady={handlePageSizeReady}
+          ocrPageWidth={page?.page_width ?? null}
+          ocrPageHeight={page?.page_height ?? null}
         />
         <OcrSidebar
           blocks={pageBlocks}

@@ -5,7 +5,6 @@ import { BlockOverlayLayer } from "./BlockOverlayLayer";
 import type { OcrBlock } from "@/types";
 import { Loader2 } from "lucide-react";
 
-// Configure the PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
@@ -19,6 +18,8 @@ interface PdfViewerProps {
   highlightedBlockId: number | null;
   onBlockHover: (id: number | null) => void;
   onPageSizeReady: (width: number, height: number) => void;
+  ocrPageWidth: number | null;
+  ocrPageHeight: number | null;
 }
 
 export function PdfViewer({
@@ -29,60 +30,82 @@ export function PdfViewer({
   highlightedBlockId,
   onBlockHover,
   onPageSizeReady,
+  ocrPageWidth,
+  ocrPageHeight,
 }: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
   const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [loading, setLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [pdfPageSize, setPdfPageSize] = useState({ width: 0, height: 0 });
 
-  // Load the PDF document
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setPdfError(null);
+    setPdfDoc(null);
+    pdfDocRef.current = null;
 
     const url = getPdfFileUrl(pdfId);
-    pdfjsLib
-      .getDocument({ url })
-      .promise.then((doc) => {
-        if (!cancelled) {
-          pdfDocRef.current = doc;
-          setLoading(false);
-        }
-      })
-      .catch((err: Error) => {
-        if (!cancelled) {
-          setPdfError(err.message);
-          setLoading(false);
-        }
-      });
+    const loadingTask = pdfjsLib.getDocument({ url });
+
+    loadingTask.promise.then((doc) => {
+      if (!cancelled) {
+        pdfDocRef.current = doc;
+        setPdfDoc(doc);
+        setLoading(false);
+      } else {
+        doc.cleanup();
+      }
+    }).catch((err: Error) => {
+      if (!cancelled) {
+        setPdfError(err.message);
+        setLoading(false);
+      }
+    });
 
     return () => {
       cancelled = true;
-      pdfDocRef.current?.cleanup();
-      pdfDocRef.current = null;
+      loadingTask.destroy();
+      // Use ref for cleanup, not stale closure state
+      if (pdfDocRef.current) {
+        pdfDocRef.current.cleanup();
+        pdfDocRef.current = null;
+      }
     };
   }, [pdfId]);
 
-  // Render the current page
   useEffect(() => {
-    const pdfDoc = pdfDocRef.current;
-    if (!pdfDoc || !canvasRef.current) return;
+    if (!pdfDoc) return;
 
     let cancelled = false;
-    const canvas = canvasRef.current;
+
+    if (renderTaskRef.current) {
+      renderTaskRef.current.cancel();
+      renderTaskRef.current = null;
+    }
 
     pdfDoc.getPage(pageNum).then((page) => {
       if (cancelled) return;
 
+      // Check canvas ref inside async callback — it may have been
+      // unmounted/remounted since the effect first ran
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
       const viewport = page.getViewport({ scale: 1.0 });
+      setPdfPageSize({ width: viewport.width, height: viewport.height });
       onPageSizeReady(viewport.width, viewport.height);
 
       const scaledViewport = page.getViewport({ scale });
-      canvas.width = Math.floor(scaledViewport.width);
-      canvas.height = Math.floor(scaledViewport.height);
+      const dpr = window.devicePixelRatio || 1;
+
+      canvas.width = Math.floor(scaledViewport.width * dpr);
+      canvas.height = Math.floor(scaledViewport.height * dpr);
       canvas.style.width = `${scaledViewport.width}px`;
       canvas.style.height = `${scaledViewport.height}px`;
       setCanvasSize({
@@ -90,16 +113,43 @@ export function PdfViewer({
         height: Math.floor(scaledViewport.height),
       });
 
-      page.render({
-        canvas: canvas,
+      // pdf.js v4 expects canvasContext (2D context), not the canvas element
+      const canvasContext = canvas.getContext("2d");
+      if (!canvasContext) return;
+
+      const renderContext = {
+        canvasContext,
         viewport: scaledViewport,
-      });
+      };
+
+      try {
+        const task = page.render(renderContext);
+        renderTaskRef.current = task;
+        task.promise.then(() => {
+          if (!cancelled) {
+            renderTaskRef.current = null;
+          }
+        }).catch((err) => {
+          if (err.name !== "RenderingCancelledException") {
+            console.error("PDF render error:", err);
+          }
+          renderTaskRef.current = null;
+        });
+      } catch (err) {
+        console.error("Failed to start PDF render:", err);
+      }
+    }).catch((err) => {
+      console.error("Failed to get page:", err);
     });
 
     return () => {
       cancelled = true;
+      if (renderTaskRef.current) {
+        renderTaskRef.current.cancel();
+        renderTaskRef.current = null;
+      }
     };
-  }, [pageNum, scale, onPageSizeReady]);
+  }, [pdfDoc, pageNum, scale, onPageSizeReady]);
 
   const handleBlockHover = useCallback(
     (id: number | null) => {
@@ -125,7 +175,7 @@ export function PdfViewer({
             Loading PDF...
           </div>
         )}
-        {!loading && pdfDocRef.current && (
+        {!loading && pdfDoc && (
           <div
             className="relative shrink-0 shadow-lg"
             style={{
@@ -133,12 +183,16 @@ export function PdfViewer({
               height: canvasSize.height || "auto",
             }}
           >
-            <canvas ref={canvasRef} className="block" />
+            <canvas ref={canvasRef} className="block bg-white" />
             <BlockOverlayLayer
               blocks={blocks}
               scale={scale}
               highlightedBlockId={highlightedBlockId}
               onBlockHover={handleBlockHover}
+              pdfPageWidth={pdfPageSize.width}
+              pdfPageHeight={pdfPageSize.height}
+              ocrPageWidth={ocrPageWidth}
+              ocrPageHeight={ocrPageHeight}
             />
           </div>
         )}

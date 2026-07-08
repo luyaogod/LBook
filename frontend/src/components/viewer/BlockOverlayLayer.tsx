@@ -6,6 +6,10 @@ interface BlockOverlayLayerProps {
   scale: number;
   highlightedBlockId: number | null;
   onBlockHover: (id: number | null) => void;
+  pdfPageWidth: number;
+  pdfPageHeight: number;
+  ocrPageWidth: number | null;
+  ocrPageHeight: number | null;
 }
 
 export function BlockOverlayLayer({
@@ -13,8 +17,15 @@ export function BlockOverlayLayer({
   scale,
   highlightedBlockId,
   onBlockHover,
+  pdfPageWidth,
+  pdfPageHeight,
+  ocrPageWidth,
+  ocrPageHeight,
 }: BlockOverlayLayerProps) {
   if (blocks.length === 0) return null;
+
+  const scaleX = ocrPageWidth ? pdfPageWidth / ocrPageWidth : 1;
+  const scaleY = ocrPageHeight ? pdfPageHeight / ocrPageHeight : 1;
 
   return (
     <div
@@ -28,6 +39,8 @@ export function BlockOverlayLayer({
           scale={scale}
           isHighlighted={block.id === highlightedBlockId}
           onHover={onBlockHover}
+          scaleX={scaleX}
+          scaleY={scaleY}
         />
       ))}
     </div>
