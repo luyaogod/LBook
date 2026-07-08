@@ -113,19 +113,21 @@ def upload_pdf(
     if not valid:
         raise HTTPException(status_code=400, detail=f"Not a valid PaddleOCR JSON: {err_msg}")
 
-    # ── Duplicate detection ──
+    # ── Duplicate detection (combined PDF + OCR hash) ──
     pdf_hash = sha256_bytes(pdf_bytes)
-    existing = db.query(PdfDocument).filter(PdfDocument.file_hash == pdf_hash).first()
+    ocr_hash = sha256_bytes(json_bytes)[:12]
+    combined_hash = f"{pdf_hash}_{ocr_hash}"
+    existing = db.query(PdfDocument).filter(PdfDocument.file_hash == combined_hash).first()
     if existing:
         raise HTTPException(
             status_code=409,
-            detail=f"This PDF has already been imported (id={existing.id})",
+            detail=f"This PDF+OCR combination has already been imported (id={existing.id})",
         )
 
     # ── Save PDF to uploads ──
     uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
     os.makedirs(uploads_dir, exist_ok=True)
-    dest_name = f"{pdf_hash}_{pdf.filename}"
+    dest_name = f"{combined_hash}_{pdf.filename}"
     dest_path = os.path.join(uploads_dir, dest_name)
     with open(dest_path, "wb") as f:
         f.write(pdf_bytes)
@@ -135,7 +137,7 @@ def upload_pdf(
         session=db,
         pdf_name=pdf.filename,
         pdf_path=dest_path,
-        pdf_hash=pdf_hash,
+        pdf_hash=combined_hash,
         pdf_size=len(pdf_bytes),
         ocr_data=ocr_data,
     )

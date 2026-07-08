@@ -60,14 +60,15 @@ def main():
     with open(ocr_path, "r", encoding="utf-8") as f:
         ocr_data = json.load(f)
 
-    # Validate structure
-    from import_utils import validate_ocr_json
+    # Validate and normalize
+    from import_utils import validate_ocr_json, normalize_ocr_json
     valid, err = validate_ocr_json(ocr_data)
     if not valid:
         print(f"ERROR: {err}")
         sys.exit(1)
 
-    num_pages = len(ocr_data["layoutParsingResults"])
+    layout_results, _ = normalize_ocr_json(ocr_data)
+    num_pages = len(layout_results)
     print(f"Found {num_pages} pages in OCR data")
 
     # Create tables if they don't exist

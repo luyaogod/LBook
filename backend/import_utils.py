@@ -112,6 +112,22 @@ def import_ocr_data(
         page_num = i + 1
         page_width = pruned.get("width")
         page_height = pruned.get("height")
+
+        # Estimate dimensions from max bbox if not provided by the OCR engine
+        parsing_list = pruned.get("parsing_res_list", [])
+        if (page_width is None or page_height is None) and parsing_list:
+            max_x = max(
+                (b.get("block_bbox", [0, 0, 0, 0])[2] for b in parsing_list),
+                default=0,
+            )
+            max_y = max(
+                (b.get("block_bbox", [0, 0, 0, 0])[3] for b in parsing_list),
+                default=0,
+            )
+            if page_width is None:
+                page_width = max_x
+            if page_height is None:
+                page_height = max_y
         model_settings = (
             json.dumps(pruned.get("model_settings", {}), ensure_ascii=False)
             if pruned.get("model_settings")
