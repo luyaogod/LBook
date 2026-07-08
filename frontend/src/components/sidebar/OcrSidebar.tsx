@@ -1,6 +1,6 @@
 import { BlockCard } from "./BlockCard";
 import type { OcrBlock } from "@/types";
-import { CheckCircle, Copy } from "lucide-react";
+import { CheckCircle, Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
@@ -9,6 +9,7 @@ interface OcrSidebarProps {
   pageNum: number;
   highlightedBlockId: number | null;
   onBlockHover: (id: number | null) => void;
+  loading?: boolean;
 }
 
 export function OcrSidebar({
@@ -16,6 +17,7 @@ export function OcrSidebar({
   pageNum,
   highlightedBlockId,
   onBlockHover,
+  loading = false,
 }: OcrSidebarProps) {
   const [copied, setCopied] = useState(false);
 
@@ -62,7 +64,13 @@ export function OcrSidebar({
 
       {/* Block list */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {blocks.length === 0 && (
+        {loading && blocks.length === 0 && (
+          <div className="flex items-center justify-center gap-2 text-muted-foreground py-8">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Loading OCR data...</span>
+          </div>
+        )}
+        {!loading && blocks.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">
             No blocks on this page
           </p>

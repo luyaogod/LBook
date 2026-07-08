@@ -18,7 +18,7 @@ function App() {
   const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
 
   const { pdf, loading: pdfLoading, error: pdfError } = usePdfDocument(PDF_ID);
-  const { page } = usePdfPage(PDF_ID, currentPage);
+  const { page, loading: pageLoading } = usePdfPage(PDF_ID, currentPage);
 
   const totalPages = pdf?.page_count ?? 1;
   const blocks = page?.blocks ?? [];
@@ -141,6 +141,7 @@ function App() {
           pageNum={currentPage}
           highlightedBlockId={highlightedBlockId}
           onBlockHover={handleBlockHover}
+          loading={pageLoading}
         />
       </div>
     </div>
