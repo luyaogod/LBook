@@ -1,0 +1,125 @@
+export const BLOCK_LABEL_COLORS: Record<
+  string,
+  { border: string; bg: string; highlightBg: string; text: string }
+> = {
+  text: {
+    border: "#3b82f6",
+    bg: "rgba(59,130,246,0.06)",
+    highlightBg: "rgba(59,130,246,0.20)",
+    text: "#1d4ed8",
+  },
+  paragraph_title: {
+    border: "#22c55e",
+    bg: "rgba(34,197,94,0.06)",
+    highlightBg: "rgba(34,197,94,0.20)",
+    text: "#15803d",
+  },
+  header: {
+    border: "#f59e0b",
+    bg: "rgba(245,158,11,0.06)",
+    highlightBg: "rgba(245,158,11,0.20)",
+    text: "#b45309",
+  },
+  footer: {
+    border: "#94a3b8",
+    bg: "rgba(148,163,184,0.06)",
+    highlightBg: "rgba(148,163,184,0.20)",
+    text: "#475569",
+  },
+  image: {
+    border: "#ef4444",
+    bg: "rgba(239,68,68,0.06)",
+    highlightBg: "rgba(239,68,68,0.20)",
+    text: "#b91c1c",
+  },
+  header_image: {
+    border: "#ef4444",
+    bg: "rgba(239,68,68,0.04)",
+    highlightBg: "rgba(239,68,68,0.18)",
+    text: "#b91c1c",
+  },
+  footer_image: {
+    border: "#ef4444",
+    bg: "rgba(239,68,68,0.04)",
+    highlightBg: "rgba(239,68,68,0.18)",
+    text: "#b91c1c",
+  },
+  table: {
+    border: "#8b5cf6",
+    bg: "rgba(139,92,246,0.06)",
+    highlightBg: "rgba(139,92,246,0.20)",
+    text: "#6d28d9",
+  },
+  figure_title: {
+    border: "#ec4899",
+    bg: "rgba(236,72,153,0.06)",
+    highlightBg: "rgba(236,72,153,0.20)",
+    text: "#be185d",
+  },
+  vision_footnote: {
+    border: "#6b7280",
+    bg: "rgba(107,114,128,0.06)",
+    highlightBg: "rgba(107,114,128,0.20)",
+    text: "#374151",
+  },
+  doc_title: {
+    border: "#0ea5e9",
+    bg: "rgba(14,165,233,0.06)",
+    highlightBg: "rgba(14,165,233,0.20)",
+    text: "#0369a1",
+  },
+  number: {
+    border: "#94a3b8",
+    bg: "rgba(148,163,184,0.04)",
+    highlightBg: "rgba(148,163,184,0.15)",
+    text: "#475569",
+  },
+  chart: {
+    border: "#f97316",
+    bg: "rgba(249,115,22,0.06)",
+    highlightBg: "rgba(249,115,22,0.20)",
+    text: "#c2410c",
+  },
+  formula: {
+    border: "#14b8a6",
+    bg: "rgba(20,184,166,0.06)",
+    highlightBg: "rgba(20,184,166,0.20)",
+    text: "#0f766e",
+  },
+  display_formula: {
+    border: "#14b8a6",
+    bg: "rgba(20,184,166,0.06)",
+    highlightBg: "rgba(20,184,166,0.20)",
+    text: "#0f766e",
+  },
+  inline_formula: {
+    border: "#14b8a6",
+    bg: "rgba(20,184,166,0.06)",
+    highlightBg: "rgba(20,184,166,0.20)",
+    text: "#0f766e",
+  },
+  content: {
+    border: "#3b82f6",
+    bg: "rgba(59,130,246,0.04)",
+    highlightBg: "rgba(59,130,246,0.15)",
+    text: "#1d4ed8",
+  },
+  aside_text: {
+    border: "#a78bfa",
+    bg: "rgba(167,139,250,0.06)",
+    highlightBg: "rgba(167,139,250,0.20)",
+    text: "#6d28d9",
+  },
+  vertical_text: {
+    border: "#6366f1",
+    bg: "rgba(99,102,241,0.06)",
+    highlightBg: "rgba(99,102,241,0.20)",
+    text: "#4338ca",
+  },
+  __default__: {
+    border: "#6b7280",
+    bg: "rgba(107,114,128,0.06)",
+    highlightBg: "rgba(107,114,128,0.20)",
+    text: "#374151",
+  },
+};
