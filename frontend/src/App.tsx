@@ -24,7 +24,10 @@ function App() {
 
   const totalPages = pdf?.page_count ?? 1;
   const blocks = page?.blocks ?? [];
-  const pageBlocks = useMemo(() => blocks, [blocks]);
+  const pageBlocks = useMemo(
+    () => blocks.filter((b) => !["image", "header_image", "footer_image"].includes(b.block_label)),
+    [blocks]
+  );
 
   const handleOpenPdf = useCallback((id: number) => {
     setSelectedPdfId(id);
