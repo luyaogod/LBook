@@ -22,6 +22,8 @@ interface PdfViewerProps {
   ocrPageHeight: number | null;
   overlayOpaque: boolean;
   onWheelZoom: (delta: number) => void;
+  scrollToBlockId: number | null;
+  onBlockClick: (id: number) => void;
 }
 
 export function PdfViewer({
@@ -36,6 +38,8 @@ export function PdfViewer({
   ocrPageHeight,
   overlayOpaque,
   onWheelZoom,
+  scrollToBlockId,
+  onBlockClick,
 }: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,6 +69,15 @@ export function PdfViewer({
     el.addEventListener("wheel", handleWheel, { passive: false });
     return () => el.removeEventListener("wheel", handleWheel);
   }, []);
+
+  // Scroll to block when clicked in sidebar
+  useEffect(() => {
+    if (scrollToBlockId === null) return;
+    const el = containerRef.current?.querySelector(`[data-block-id="${scrollToBlockId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [scrollToBlockId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -219,6 +232,7 @@ export function PdfViewer({
               ocrPageWidth={ocrPageWidth}
               overlayOpaque={overlayOpaque}
               ocrPageHeight={ocrPageHeight}
+              onBlockClick={onBlockClick}
             />
           </div>
         )}

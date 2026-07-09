@@ -18,10 +18,9 @@ export function AppHeader({ mode, fileName, onBack, onUploadClick }: AppHeaderPr
         <div className="flex items-center gap-1.5 text-sm min-w-0">
           <button
             onClick={onBack}
-            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+            className="rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
           >
-            <Home className="h-3.5 w-3.5" />
-            <span>LBook</span>
+            LBook
           </button>
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <span className="text-foreground font-medium truncate">

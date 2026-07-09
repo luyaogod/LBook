@@ -2,11 +2,12 @@ import { BlockCard } from "./BlockCard";
 import type { OcrBlock } from "@/types";
 import { CheckCircle, Copy, Loader2, AlignLeft, FileText, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import rehypeRaw from "rehype-raw";
 
 interface OcrSidebarProps {
   blocks: OcrBlock[];
@@ -17,6 +18,8 @@ interface OcrSidebarProps {
   markdownText?: string | null;
   overlayOpaque: boolean;
   onOverlayOpaqueChange: (v: boolean) => void;
+  onBlockClick: (id: number) => void;
+  scrollToBlockId: number | null;
 }
 
 export function OcrSidebar({
@@ -28,9 +31,20 @@ export function OcrSidebar({
   markdownText,
   overlayOpaque,
   onOverlayOpaqueChange,
+  onBlockClick,
+  scrollToBlockId,
 }: OcrSidebarProps) {
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<"blocks" | "markdown">("blocks");
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollToBlockId === null) return;
+    const el = listRef.current?.querySelector(`[data-block-id="${scrollToBlockId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [scrollToBlockId]);
 
   const totalChars = blocks.reduce(
     (sum, b) => sum + (b.block_content?.length ?? 0),
@@ -111,7 +125,7 @@ export function OcrSidebar({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div ref={listRef} className="flex-1 overflow-y-auto p-3 space-y-2">
         {loading && blocks.length === 0 && (
           <div className="flex items-center justify-center gap-2 text-muted-foreground py-8">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -120,7 +134,7 @@ export function OcrSidebar({
         )}
         {viewMode === "markdown" && markdownText ? (
           <div className="text-sm leading-relaxed markdown-body">
-            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]}>
               {markdownText}
             </ReactMarkdown>
           </div>
@@ -137,6 +151,7 @@ export function OcrSidebar({
                 block={block}
                 isHighlighted={block.id === highlightedBlockId}
                 onHover={onBlockHover}
+                onClick={onBlockClick}
               />
             ))}
           </>

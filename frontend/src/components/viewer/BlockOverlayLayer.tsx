@@ -11,6 +11,7 @@ interface BlockOverlayLayerProps {
   ocrPageWidth: number | null;
   ocrPageHeight: number | null;
   overlayOpaque: boolean;
+  onBlockClick: (id: number) => void;
 }
 
 export function BlockOverlayLayer({
@@ -23,6 +24,7 @@ export function BlockOverlayLayer({
   ocrPageWidth,
   ocrPageHeight,
   overlayOpaque,
+  onBlockClick,
 }: BlockOverlayLayerProps) {
   if (blocks.length === 0) return null;
 
@@ -44,6 +46,7 @@ export function BlockOverlayLayer({
           scaleX={scaleX}
           scaleY={scaleY}
           opaque={overlayOpaque}
+          onClick={onBlockClick}
         />
       ))}
     </div>

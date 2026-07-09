@@ -19,6 +19,7 @@ function App() {
   const [showUpload, setShowUpload] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [overlayOpaque, setOverlayOpaque] = useState(false);
+  const [scrollTarget, setScrollTarget] = useState<{ id: number; from: "sidebar" | "overlay" } | null>(null);
   const initialFitDone = useRef(false);
 
   const { pdf, loading: pdfLoading, error: pdfError } = usePdfDocument(selectedPdfId);
@@ -89,6 +90,10 @@ function App() {
 
   const handleBlockHover = useCallback((id: number | null) => {
     setHighlightedBlockId(id);
+  }, []);
+
+  const handleBlockClick = useCallback((id: number, from: "sidebar" | "overlay") => {
+    setScrollTarget({ id, from });
   }, []);
 
   const handleUploadSuccess = useCallback(() => {
@@ -174,6 +179,8 @@ function App() {
             ocrPageHeight={page?.page_height ?? null}
             overlayOpaque={overlayOpaque}
             onWheelZoom={handleWheelZoom}
+            scrollToBlockId={scrollTarget?.from === "sidebar" ? scrollTarget.id : null}
+            onBlockClick={(id) => handleBlockClick(id, "overlay")}
           />
         </div>
         {/* Right: sidebar */}
@@ -186,6 +193,8 @@ function App() {
           markdownText={page?.markdown_text ?? null}
           overlayOpaque={overlayOpaque}
           onOverlayOpaqueChange={setOverlayOpaque}
+          onBlockClick={(id) => handleBlockClick(id, "sidebar")}
+          scrollToBlockId={scrollTarget?.from === "overlay" ? scrollTarget.id : null}
         />
       </div>
     </div>

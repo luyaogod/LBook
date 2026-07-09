@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import PdfDocument, OcrPage, OcrBlock
-from schemas import PdfDocumentOut, PdfDocumentDetail, OcrPageBrief, OcrPageOut
-from import_utils import sha256_bytes, validate_ocr_json, import_ocr_data
+from schemas import PdfDocumentOut, PdfDocumentDetail, OcrPageBrief, OcrPageOut, BlockUpdateIn
+from import_utils import sha256_bytes, validate_ocr_json, import_ocr_data, detect_html
 
 router = APIRouter(
     prefix="/api/pdfs",
@@ -145,3 +145,15 @@ def upload_pdf(
     # Refresh to get created_at and other defaults
     db.refresh(doc)
     return doc
+
+
+@router.patch("/blocks/{block_id}")
+def update_block(block_id: int, body: BlockUpdateIn, db: Session = Depends(get_db)):
+    block = db.query(OcrBlock).filter(OcrBlock.id == block_id).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="Block not found")
+    block.block_content = body.block_content
+    block.is_html_content = detect_html(body.block_content)
+    db.commit()
+    db.refresh(block)
+    return block

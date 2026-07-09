@@ -9,9 +9,10 @@ interface BlockOverlayProps {
   scaleX: number;
   scaleY: number;
   opaque: boolean;
+  onClick: (id: number) => void;
 }
 
-export function BlockOverlay({ block, scale, isHighlighted, onHover, scaleX, scaleY, opaque }: BlockOverlayProps) {
+export function BlockOverlay({ block, scale, isHighlighted, onHover, scaleX, scaleY, opaque, onClick }: BlockOverlayProps) {
   const [x1, y1, x2, y2] = block.block_bbox;
   const colors = BLOCK_LABEL_COLORS[block.block_label] ?? BLOCK_LABEL_COLORS.__default__;
 
@@ -36,8 +37,10 @@ export function BlockOverlay({ block, scale, isHighlighted, onHover, scaleX, sca
             : colors.bg,
         pointerEvents: "auto",
       }}
+      data-block-id={block.id}
       onMouseEnter={() => onHover(block.id)}
       onMouseLeave={() => onHover(null)}
+      onClick={(e) => { e.stopPropagation(); onClick(block.id); }}
       title={`${block.block_label}: ${block.block_content?.slice(0, 100) ?? ""}`}
     />
   );

@@ -69,3 +69,9 @@ class PdfDocumentOut(BaseModel):
 class PdfDocumentDetail(PdfDocumentOut):
     data_info: Optional[str] = None
     pages: list[OcrPageBrief] = []
+
+
+# ── Block Update ──
+
+class BlockUpdateIn(BaseModel):
+    block_content: str

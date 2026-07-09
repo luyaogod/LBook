@@ -23,6 +23,18 @@ export function getPdfFileUrl(pdfId: number): string {
   return `${BASE_URL}/pdfs/${pdfId}/file`;
 }
 
+export async function updateBlock(id: number, blockContent: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/blocks/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ block_content: blockContent }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Update failed (${res.status})`);
+  }
+}
+
 export async function uploadPdf(
   pdfFile: File,
   ocrFile: File,
