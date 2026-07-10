@@ -20,6 +20,7 @@ interface OcrSidebarProps {
   onOverlayOpaqueChange: (v: boolean) => void;
   onBlockClick: (id: number) => void;
   scrollToBlockId: number | null;
+  width: number;
 }
 
 export function OcrSidebar({
@@ -33,6 +34,7 @@ export function OcrSidebar({
   onOverlayOpaqueChange,
   onBlockClick,
   scrollToBlockId,
+  width,
 }: OcrSidebarProps) {
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<"blocks" | "markdown">("blocks");
@@ -73,7 +75,7 @@ export function OcrSidebar({
   }
 
   return (
-    <aside className="flex w-[480px] shrink-0 flex-col border-l border-border bg-card">
+    <aside className="flex shrink-0 flex-col border-l border-border bg-card" style={{ width }}>
       {/* Header */}
       <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-2">
         <Button

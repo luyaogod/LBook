@@ -29,6 +29,12 @@ function formatLabel(label: string): string {
   return label.replace(/_/g, " ");
 }
 
+function handleClick(onClick: (id: number) => void, blockId: number) {
+  const sel = window.getSelection();
+  if (sel && sel.toString().length > 0) return; // user is selecting text, skip
+  onClick(blockId);
+}
+
 export function BlockCard({ block, isHighlighted, onHover, onClick, onUpdated }: BlockCardProps) {
   const colors = BLOCK_LABEL_COLORS[block.block_label] ?? BLOCK_LABEL_COLORS.__default__;
   const [hovering, setHovering] = useState(false);
@@ -132,7 +138,7 @@ export function BlockCard({ block, isHighlighted, onHover, onClick, onUpdated }:
       style={{ borderColor: isHighlighted ? colors.border : undefined }}
       onMouseEnter={() => { onHover(block.id); setHovering(true); }}
       onMouseLeave={() => { onHover(null); setHovering(false); }}
-      onClick={() => onClick(block.id)}
+      onClick={() => handleClick(onClick, block.id)}
     >
       <div className="mb-1 flex items-center gap-2">
         <span

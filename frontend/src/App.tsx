@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { HomePage } from "@/components/home/HomePage";
 import { UploadDialog } from "@/components/home/UploadDialog";
@@ -23,7 +23,33 @@ function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [overlayOpaque, setOverlayOpaque] = useState(false);
   const [scrollTarget, setScrollTarget] = useState<{ id: number; from: "sidebar" | "overlay" } | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(480);
+  const [dragging, setDragging] = useState(false);
+  const dragStartX = useRef(0);
+  const dragStartW = useRef(480);
   const initialFitDone = useRef(false);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragStartX.current = e.clientX;
+    dragStartW.current = sidebarWidth;
+    setDragging(true);
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (!dragging) return;
+    const handleMove = (e: MouseEvent) => {
+      const delta = dragStartX.current - e.clientX;
+      setSidebarWidth(Math.min(800, Math.max(240, dragStartW.current + delta)));
+    };
+    const handleUp = () => setDragging(false);
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, [dragging]);
 
   const { pdf, loading: pdfLoading, error: pdfError } = usePdfDocument(selectedPdfId);
   const { page, loading: pageLoading } = usePdfPage(selectedPdfId, currentPage);
@@ -74,7 +100,7 @@ function App() {
 
   const handleFitWidth = useCallback(() => {
     if (pageSize.width > 0) {
-      const availW = window.innerWidth - 480 - 48;
+      const availW = window.innerWidth - sidebarWidth - 48;
       const newScale = availW / pageSize.width;
       setScale(+Math.min(3.0, Math.max(0.3, newScale)).toFixed(1));
     }
@@ -84,7 +110,7 @@ function App() {
     setPageSize({ width, height });
     if (!initialFitDone.current && width > 0 && height > 0) {
       initialFitDone.current = true;
-      const availW = window.innerWidth - 480 - 48;
+      const availW = window.innerWidth - sidebarWidth - 48;
       const availH = window.innerHeight - 56 - 48 - 48;
       const fitScale = Math.min(availW / width, availH / height);
       setScale(+Math.min(3.0, Math.max(0.3, fitScale)).toFixed(1));
@@ -192,6 +218,13 @@ function App() {
             onBlockClick={(id) => handleBlockClick(id, "overlay")}
           />
         </div>
+        {/* Resize handle */}
+        <div
+          className={`relative shrink-0 w-1.5 cursor-col-resize group ${dragging ? "bg-[#0090f1]" : "hover:bg-[#0090f1]/30"}`}
+          onMouseDown={handleResizeStart}
+        >
+          {dragging && <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-[#0090f1]" />}
+        </div>
         {/* Right: sidebar */}
         <OcrSidebar
           blocks={pageBlocks}
@@ -204,6 +237,7 @@ function App() {
           onOverlayOpaqueChange={setOverlayOpaque}
           onBlockClick={(id) => handleBlockClick(id, "sidebar")}
           scrollToBlockId={scrollTarget?.from === "overlay" ? scrollTarget.id : null}
+          width={sidebarWidth}
         />
       </div>
     </div>
