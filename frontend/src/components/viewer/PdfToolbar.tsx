@@ -10,6 +10,7 @@ interface PdfToolbarProps {
   onZoomOut: () => void;
   onPageChange: (page: number) => void;
   onFitWidth: () => void;
+  flowMode?: boolean;
 }
 
 export function PdfToolbar({
@@ -20,6 +21,7 @@ export function PdfToolbar({
   onZoomOut,
   onPageChange,
   onFitWidth,
+  flowMode,
 }: PdfToolbarProps) {
   const [pageInput, setPageInput] = useState(String(pageNum));
 

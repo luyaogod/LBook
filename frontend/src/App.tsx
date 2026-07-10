@@ -3,9 +3,10 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { HomePage } from "@/components/home/HomePage";
 import { UploadDialog } from "@/components/home/UploadDialog";
 import { EditDialog } from "@/components/home/EditDialog";
-import type { PdfDocument } from "@/types";
+import type { PdfDocument, OcrBlock } from "@/types";
 import { PdfToolbar } from "@/components/viewer/PdfToolbar";
 import { PdfViewer } from "@/components/viewer/PdfViewer";
+import { FlowViewer } from "@/components/viewer/FlowViewer";
 import { OcrSidebar } from "@/components/sidebar/OcrSidebar";
 import { usePdfDocument } from "@/hooks/usePdfDocument";
 import { usePdfPage } from "@/hooks/usePdfPage";
@@ -22,6 +23,16 @@ function App() {
   const [editPdf, setEditPdf] = useState<PdfDocument | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [overlayOpaque, setOverlayOpaque] = useState(false);
+  const [flowMode, setFlowMode] = useState(false);
+  const [visiblePage, setVisiblePage] = useState(1);
+  const [visiblePageBlocks, setVisiblePageBlocks] = useState<OcrBlock[]>([]);
+  const [visiblePageMarkdown, setVisiblePageMarkdown] = useState<string | null>(null);
+  const [flowScrollToPage, setFlowScrollToPage] = useState<number | null>(null);
+  const [flowPagesData, setFlowPagesData] = useState<Array<{
+    pageNum: number;
+    blocks: OcrBlock[];
+    markdownText: string | null;
+  }>>([]);
   const [scrollTarget, setScrollTarget] = useState<{ id: number; from: "sidebar" | "overlay" } | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(480);
   const [dragging, setDragging] = useState(false);
@@ -61,6 +72,12 @@ function App() {
     [blocks]
   );
 
+  // Sidebar data: in flow mode, use visible page data; otherwise use current page data
+  const sidebarBlocks = flowMode ? visiblePageBlocks : pageBlocks;
+  const sidebarPageNum = flowMode ? visiblePage : currentPage;
+  const sidebarMarkdown = flowMode ? visiblePageMarkdown : (page?.markdown_text ?? null);
+  const sidebarLoading = flowMode ? false : pageLoading;
+
   const handleOpenPdf = useCallback((id: number) => {
     setSelectedPdfId(id);
     setCurrentPage(1);
@@ -84,11 +101,51 @@ function App() {
   const handlePageChange = useCallback(
     (page: number) => {
       if (page >= 1 && page <= totalPages) {
-        setCurrentPage(page);
+        if (flowMode) {
+          setFlowScrollToPage(page);
+        } else {
+          setCurrentPage(page);
+          setHighlightedBlockId(null);
+        }
+      }
+    },
+    [totalPages, flowMode]
+  );
+
+  const handleVisiblePageChange = useCallback(
+    (pageNum: number, blocks: OcrBlock[], markdownText: string | null) => {
+      setVisiblePage(pageNum);
+      setVisiblePageBlocks(blocks);
+      setVisiblePageMarkdown(markdownText);
+    },
+    []
+  );
+
+  const handleFlowScrollToPageHandled = useCallback(() => {
+    setFlowScrollToPage(null);
+  }, []);
+
+  const handleFlowPagesChange = useCallback(
+    (pages: Array<{ pageNum: number; blocks: OcrBlock[]; markdownText: string | null }>) => {
+      setFlowPagesData(pages);
+    },
+    []
+  );
+
+  const handleFlowModeToggle = useCallback(
+    (v: boolean) => {
+      if (v) {
+        // Entering flow mode: start from current page
+        setVisiblePage(currentPage);
+        setFlowMode(true);
+      } else {
+        // Exiting flow mode: go to the page that was visible in flow
+        setCurrentPage(visiblePage);
+        setFlowMode(false);
         setHighlightedBlockId(null);
       }
     },
-    [totalPages]
+    [currentPage, visiblePage]
   );
 
   const handleWheelZoom = useCallback((delta: number) => {
@@ -195,28 +252,47 @@ function App() {
         <div className="flex flex-1 flex-col min-w-0">
           <PdfToolbar
             scale={scale}
-            pageNum={currentPage}
+            pageNum={sidebarPageNum}
             totalPages={totalPages}
             onZoomIn={handleZoomIn}
             onZoomOut={handleZoomOut}
             onPageChange={handlePageChange}
             onFitWidth={handleFitWidth}
+            flowMode={flowMode}
           />
-          <PdfViewer
-            pdfId={selectedPdfId}
-            pageNum={currentPage}
-            scale={scale}
-            blocks={pageBlocks}
-            highlightedBlockId={highlightedBlockId}
-            onBlockHover={handleBlockHover}
-            onPageSizeReady={handlePageSizeReady}
-            ocrPageWidth={page?.page_width ?? null}
-            ocrPageHeight={page?.page_height ?? null}
-            overlayOpaque={overlayOpaque}
-            onWheelZoom={handleWheelZoom}
-            scrollToBlockId={scrollTarget?.from === "sidebar" ? scrollTarget.id : null}
-            onBlockClick={(id) => handleBlockClick(id, "overlay")}
-          />
+          {flowMode ? (
+            <FlowViewer
+              pdfId={selectedPdfId}
+              scale={scale}
+              overlayOpaque={overlayOpaque}
+              highlightedBlockId={highlightedBlockId}
+              onBlockHover={handleBlockHover}
+              onBlockClick={(id) => handleBlockClick(id, "overlay")}
+              onVisiblePageChange={handleVisiblePageChange}
+              onVisiblePagesChange={handleFlowPagesChange}
+              scrollToBlockId={scrollTarget?.from === "sidebar" ? scrollTarget.id : null}
+              scrollToPage={flowScrollToPage}
+              onScrollToPageHandled={handleFlowScrollToPageHandled}
+              onWheelZoom={handleWheelZoom}
+              initialPage={currentPage}
+            />
+          ) : (
+            <PdfViewer
+              pdfId={selectedPdfId}
+              pageNum={currentPage}
+              scale={scale}
+              blocks={pageBlocks}
+              highlightedBlockId={highlightedBlockId}
+              onBlockHover={handleBlockHover}
+              onPageSizeReady={handlePageSizeReady}
+              ocrPageWidth={page?.page_width ?? null}
+              ocrPageHeight={page?.page_height ?? null}
+              overlayOpaque={overlayOpaque}
+              onWheelZoom={handleWheelZoom}
+              scrollToBlockId={scrollTarget?.from === "sidebar" ? scrollTarget.id : null}
+              onBlockClick={(id) => handleBlockClick(id, "overlay")}
+            />
+          )}
         </div>
         {/* Resize handle */}
         <div
@@ -227,17 +303,20 @@ function App() {
         </div>
         {/* Right: sidebar */}
         <OcrSidebar
-          blocks={pageBlocks}
-          pageNum={currentPage}
+          blocks={sidebarBlocks}
+          pageNum={sidebarPageNum}
           highlightedBlockId={highlightedBlockId}
           onBlockHover={handleBlockHover}
-          loading={pageLoading}
-          markdownText={page?.markdown_text ?? null}
+          loading={sidebarLoading}
+          markdownText={sidebarMarkdown}
           overlayOpaque={overlayOpaque}
           onOverlayOpaqueChange={setOverlayOpaque}
           onBlockClick={(id) => handleBlockClick(id, "sidebar")}
           scrollToBlockId={scrollTarget?.from === "overlay" ? scrollTarget.id : null}
           width={sidebarWidth}
+          flowMode={flowMode}
+          onFlowModeChange={handleFlowModeToggle}
+          flowPagesData={flowPagesData}
         />
       </div>
     </div>

@@ -1,14 +1,8 @@
-import { useRef, useEffect, useCallback, useState } from "react";
-import * as pdfjsLib from "pdfjs-dist";
-import { getPdfFileUrl } from "@/api/pdfs";
-import { BlockOverlayLayer } from "./BlockOverlayLayer";
+import { useRef, useEffect, useCallback } from "react";
+import { usePdfDocumentProxy } from "@/hooks/usePdfDocumentProxy";
+import { PdfPageUnit } from "./PdfPageUnit";
 import type { OcrBlock } from "@/types";
 import { Loader2 } from "lucide-react";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
 
 interface PdfViewerProps {
   pdfId: number;
@@ -41,17 +35,11 @@ export function PdfViewer({
   scrollToBlockId,
   onBlockClick,
 }: PdfViewerProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
-  const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const onWheelZoomRef = useRef(onWheelZoom);
   onWheelZoomRef.current = onWheelZoom;
-  const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [pdfError, setPdfError] = useState<string | null>(null);
-  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
-  const [pdfPageSize, setPdfPageSize] = useState({ width: 0, height: 0 });
+
+  const { pdfDoc, loading, error } = usePdfDocumentProxy(pdfId);
 
   // Wheel zoom: use native listener with passive=false to prevent browser zoom
   useEffect(() => {
@@ -73,121 +61,13 @@ export function PdfViewer({
   // Scroll to block when clicked in sidebar
   useEffect(() => {
     if (scrollToBlockId === null) return;
-    const el = containerRef.current?.querySelector(`[data-block-id="${scrollToBlockId}"]`);
+    const el = containerRef.current?.querySelector(
+      `[data-block-id="${scrollToBlockId}"]`
+    );
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [scrollToBlockId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setPdfError(null);
-    setPdfDoc(null);
-    pdfDocRef.current = null;
-
-    const url = getPdfFileUrl(pdfId);
-    const loadingTask = pdfjsLib.getDocument({ url });
-
-    loadingTask.promise.then((doc) => {
-      if (!cancelled) {
-        pdfDocRef.current = doc;
-        setPdfDoc(doc);
-        setLoading(false);
-      } else {
-        doc.cleanup();
-      }
-    }).catch((err: Error) => {
-      if (!cancelled) {
-        setPdfError(err.message);
-        setLoading(false);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      loadingTask.destroy();
-      // Use ref for cleanup, not stale closure state
-      if (pdfDocRef.current) {
-        pdfDocRef.current.cleanup();
-        pdfDocRef.current = null;
-      }
-    };
-  }, [pdfId]);
-
-  useEffect(() => {
-    if (!pdfDoc) return;
-
-    let cancelled = false;
-
-    if (renderTaskRef.current) {
-      renderTaskRef.current.cancel();
-      renderTaskRef.current = null;
-    }
-
-    pdfDoc.getPage(pageNum).then((page) => {
-      if (cancelled) return;
-
-      // Check canvas ref inside async callback — it may have been
-      // unmounted/remounted since the effect first ran
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const viewport = page.getViewport({ scale: 1.0 });
-      setPdfPageSize({ width: viewport.width, height: viewport.height });
-      onPageSizeReady(viewport.width, viewport.height);
-
-      const scaledViewport = page.getViewport({ scale });
-      const dpr = window.devicePixelRatio || 1;
-      // Create a DPR-scaled viewport so the render fills the canvas bitmap
-      const renderViewport = page.getViewport({ scale: scale * dpr });
-
-      canvas.width = Math.floor(renderViewport.width);
-      canvas.height = Math.floor(renderViewport.height);
-      canvas.style.width = `${scaledViewport.width}px`;
-      canvas.style.height = `${scaledViewport.height}px`;
-      setCanvasSize({
-        width: Math.floor(scaledViewport.width),
-        height: Math.floor(scaledViewport.height),
-      });
-
-      // pdf.js v4 expects canvasContext (2D context), not the canvas element
-      const canvasContext = canvas.getContext("2d");
-      if (!canvasContext) return;
-
-      const renderContext = {
-        canvasContext,
-        viewport: renderViewport,
-      };
-
-      try {
-        const task = page.render(renderContext);
-        renderTaskRef.current = task;
-        task.promise.then(() => {
-          if (!cancelled) {
-            renderTaskRef.current = null;
-          }
-        }).catch((err) => {
-          if (err.name !== "RenderingCancelledException") {
-            console.error("PDF render error:", err);
-          }
-          renderTaskRef.current = null;
-        });
-      } catch (err) {
-        console.error("Failed to start PDF render:", err);
-      }
-    }).catch((err) => {
-      console.error("Failed to get page:", err);
-    });
-
-    return () => {
-      cancelled = true;
-      if (renderTaskRef.current) {
-        renderTaskRef.current.cancel();
-        renderTaskRef.current = null;
-      }
-    };
-  }, [pdfDoc, pageNum, scale, onPageSizeReady]);
 
   const handleBlockHover = useCallback(
     (id: number | null) => {
@@ -196,10 +76,10 @@ export function PdfViewer({
     [onBlockHover]
   );
 
-  if (pdfError) {
+  if (error) {
     return (
       <div className="flex h-full items-center justify-center text-destructive">
-        <p>Failed to load PDF: {pdfError}</p>
+        <p>Failed to load PDF: {error}</p>
       </div>
     );
   }
@@ -214,27 +94,20 @@ export function PdfViewer({
           </div>
         )}
         {!loading && pdfDoc && (
-          <div
-            className="relative shrink-0 shadow-lg"
-            style={{
-              width: canvasSize.width || "auto",
-              height: canvasSize.height || "auto",
-            }}
-          >
-            <canvas ref={canvasRef} className="block bg-white" />
-            <BlockOverlayLayer
-              blocks={blocks}
-              scale={scale}
-              highlightedBlockId={highlightedBlockId}
-              onBlockHover={handleBlockHover}
-              pdfPageWidth={pdfPageSize.width}
-              pdfPageHeight={pdfPageSize.height}
-              ocrPageWidth={ocrPageWidth}
-              overlayOpaque={overlayOpaque}
-              ocrPageHeight={ocrPageHeight}
-              onBlockClick={onBlockClick}
-            />
-          </div>
+          <PdfPageUnit
+            pdfDoc={pdfDoc}
+            pageNum={pageNum}
+            scale={scale}
+            blocks={blocks}
+            highlightedBlockId={highlightedBlockId}
+            onBlockHover={handleBlockHover}
+            onBlockClick={onBlockClick}
+            overlayOpaque={overlayOpaque}
+            ocrPageWidth={ocrPageWidth}
+            ocrPageHeight={ocrPageHeight}
+            onPageSizeReady={onPageSizeReady}
+            className="shadow-lg"
+          />
         )}
       </div>
     </div>
