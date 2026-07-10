@@ -4,6 +4,7 @@ export interface PdfDocument {
   page_count: number;
   file_size: number;
   status: string;
+  cover_path: string | null;
   created_at: string;
 }
 

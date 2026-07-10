@@ -16,6 +16,7 @@ class PdfDocument(Base):
     page_count = Column(Integer, default=0)
     file_size = Column(Integer, default=0)
     data_info = Column(Text, nullable=True)  # JSON string
+    cover_path = Column(String, nullable=True)  # cover image file path
     status = Column(String, default="completed")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

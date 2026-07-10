@@ -81,6 +81,7 @@ def get_pdf_file(pdf_id: int, db: Session = Depends(get_db)):
 def upload_pdf(
     pdf: UploadFile = File(...),
     ocr_json: UploadFile = File(...),
+    cover: UploadFile = File(None),
     db: Session = Depends(get_db),
 ):
     # ── Validate PDF ──
@@ -142,6 +143,20 @@ def upload_pdf(
         ocr_data=ocr_data,
     )
 
+    # ── Save cover image if provided ──
+    if cover and cover.filename:
+        cover_data = cover.file.read()
+        if len(cover_data) <= 10 * 1024 * 1024:  # max 10 MB
+            covers_dir = os.path.join(uploads_dir, "covers")
+            os.makedirs(covers_dir, exist_ok=True)
+            ext = os.path.splitext(cover.filename)[1] or ".jpg"
+            cover_name = f"{combined_hash}{ext}"
+            cover_path = os.path.join(covers_dir, cover_name)
+            with open(cover_path, "wb") as f:
+                f.write(cover_data)
+            doc.cover_path = cover_path
+            db.commit()
+
     # Refresh to get created_at and other defaults
     db.refresh(doc)
     return doc
@@ -157,3 +172,93 @@ def update_block(block_id: int, body: BlockUpdateIn, db: Session = Depends(get_d
     db.commit()
     db.refresh(block)
     return block
+
+
+# ── Cover image ──
+
+@router.get("/{pdf_id}/cover")
+def get_cover(pdf_id: int, db: Session = Depends(get_db)):
+    pdf = db.query(PdfDocument).filter(PdfDocument.id == pdf_id).first()
+    if not pdf or not pdf.cover_path or not os.path.exists(pdf.cover_path):
+        raise HTTPException(status_code=404, detail="Cover not found")
+    return FileResponse(pdf.cover_path, media_type="image/jpeg")
+
+
+@router.post("/{pdf_id}/cover")
+def upload_cover(
+    pdf_id: int,
+    cover: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    pdf = db.query(PdfDocument).filter(PdfDocument.id == pdf_id).first()
+    if not pdf:
+        raise HTTPException(status_code=404, detail="PDF not found")
+
+    cover_data = cover.file.read()
+    if len(cover_data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Cover image too large (max 10 MB)")
+
+    uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+    covers_dir = os.path.join(uploads_dir, "covers")
+    os.makedirs(covers_dir, exist_ok=True)
+    ext = os.path.splitext(cover.filename or "cover.jpg")[1] or ".jpg"
+    cover_name = f"{pdf.file_hash}_{ext}"
+    cover_path = os.path.join(covers_dir, cover_name)
+    with open(cover_path, "wb") as f:
+        f.write(cover_data)
+
+    pdf.cover_path = cover_path
+    db.commit()
+    return {"message": "Cover uploaded"}
+
+
+# ── Replace OCR data ──
+
+@router.post("/{pdf_id}/ocr", response_model=PdfDocumentOut)
+def replace_ocr(
+    pdf_id: int,
+    ocr_json: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    pdf = db.query(PdfDocument).filter(PdfDocument.id == pdf_id).first()
+    if not pdf:
+        raise HTTPException(status_code=404, detail="PDF not found")
+
+    # Validate JSON
+    json_bytes = ocr_json.file.read()
+    if len(json_bytes) > MAX_JSON_SIZE:
+        raise HTTPException(status_code=400, detail="JSON file too large (max 50 MB)")
+
+    try:
+        ocr_data = json.loads(json_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise HTTPException(status_code=400, detail="Invalid JSON file")
+
+    valid, err_msg = validate_ocr_json(ocr_data)
+    if not valid:
+        raise HTTPException(status_code=400, detail=f"Not a valid PaddleOCR JSON: {err_msg}")
+
+    # Delete old pages and blocks (cascade)
+    db.query(OcrPage).filter(OcrPage.pdf_id == pdf_id).delete()
+    db.flush()
+
+    # Re-import
+    import_ocr_data(
+        session=db,
+        pdf_name=pdf.file_name,
+        pdf_path=pdf.file_path,
+        pdf_hash=pdf.file_hash,
+        pdf_size=pdf.file_size,
+        ocr_data=ocr_data,
+    )
+
+    # Update page count
+    pdf.page_count = len(ocr_data.get("layoutParsingResults", ocr_data if isinstance(ocr_data, list) else []))
+    if isinstance(ocr_data, list):
+        pdf.page_count = len(ocr_data)
+    elif isinstance(ocr_data, dict):
+        pdf.page_count = len(ocr_data.get("layoutParsingResults", []))
+
+    db.commit()
+    db.refresh(pdf)
+    return pdf

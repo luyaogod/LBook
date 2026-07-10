@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 interface HomePageProps {
   onOpenPdf: (id: number) => void;
   refreshKey?: number;
+  onEditPdf: (pdf: PdfDocument) => void;
 }
 
 const ITEMS_PER_PAGE = 10;
 
-export function HomePage({ onOpenPdf, refreshKey = 0 }: HomePageProps) {
+export function HomePage({ onOpenPdf, refreshKey = 0, onEditPdf }: HomePageProps) {
   const [pdfs, setPdfs] = useState<PdfDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,7 +149,7 @@ export function HomePage({ onOpenPdf, refreshKey = 0 }: HomePageProps) {
               </p>
             ) : (
               pageItems.map((pdf) => (
-                <PdfFileRow key={pdf.id} pdf={pdf} onOpen={onOpenPdf} />
+                <PdfFileRow key={pdf.id} pdf={pdf} onOpen={onOpenPdf} onEdit={onEditPdf} />
               ))
             )}
           </div>

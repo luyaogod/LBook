@@ -23,6 +23,10 @@ export function getPdfFileUrl(pdfId: number): string {
   return `${BASE_URL}/pdfs/${pdfId}/file`;
 }
 
+export function getCoverUrl(pdfId: number): string {
+  return `${BASE_URL}/pdfs/${pdfId}/cover`;
+}
+
 export async function updateBlock(id: number, blockContent: string): Promise<void> {
   const res = await fetch(`${BASE_URL}/blocks/${id}`, {
     method: "PATCH",
@@ -38,10 +42,12 @@ export async function updateBlock(id: number, blockContent: string): Promise<voi
 export async function uploadPdf(
   pdfFile: File,
   ocrFile: File,
+  coverFile?: File,
 ): Promise<PdfDocument> {
   const formData = new FormData();
   formData.append("pdf", pdfFile);
   formData.append("ocr_json", ocrFile);
+  if (coverFile) formData.append("cover", coverFile);
 
   const res = await fetch(`${BASE_URL}/pdfs/upload`, {
     method: "POST",
@@ -54,4 +60,36 @@ export async function uploadPdf(
   }
 
   return res.json();
+}
+
+export async function replaceOcr(pdfId: number, ocrFile: File): Promise<PdfDocument> {
+  const formData = new FormData();
+  formData.append("ocr_json", ocrFile);
+
+  const res = await fetch(`${BASE_URL}/pdfs/${pdfId}/ocr`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Replace failed (${res.status})`);
+  }
+
+  return res.json();
+}
+
+export async function uploadCover(pdfId: number, coverFile: File): Promise<void> {
+  const formData = new FormData();
+  formData.append("cover", coverFile);
+
+  const res = await fetch(`${BASE_URL}/pdfs/${pdfId}/cover`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Cover upload failed (${res.status})`);
+  }
 }

@@ -63,6 +63,7 @@ class PdfDocumentOut(BaseModel):
     page_count: int
     file_size: int
     status: str
+    cover_path: Optional[str] = None
     created_at: datetime
 
 

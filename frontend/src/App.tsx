@@ -2,6 +2,8 @@ import { useState, useCallback, useMemo, useRef } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { HomePage } from "@/components/home/HomePage";
 import { UploadDialog } from "@/components/home/UploadDialog";
+import { EditDialog } from "@/components/home/EditDialog";
+import type { PdfDocument } from "@/types";
 import { PdfToolbar } from "@/components/viewer/PdfToolbar";
 import { PdfViewer } from "@/components/viewer/PdfViewer";
 import { OcrSidebar } from "@/components/sidebar/OcrSidebar";
@@ -17,6 +19,7 @@ function App() {
   const [highlightedBlockId, setHighlightedBlockId] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
   const [showUpload, setShowUpload] = useState(false);
+  const [editPdf, setEditPdf] = useState<PdfDocument | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [overlayOpaque, setOverlayOpaque] = useState(false);
   const [scrollTarget, setScrollTarget] = useState<{ id: number; from: "sidebar" | "overlay" } | null>(null);
@@ -105,10 +108,16 @@ function App() {
     return (
       <div className="flex h-svh flex-col bg-background">
         <AppHeader mode="home" onUploadClick={() => setShowUpload(true)} />
-        <HomePage onOpenPdf={handleOpenPdf} refreshKey={refreshKey} />
+        <HomePage onOpenPdf={handleOpenPdf} refreshKey={refreshKey} onEditPdf={setEditPdf} />
         <UploadDialog
           open={showUpload}
           onClose={() => setShowUpload(false)}
+          onSuccess={handleUploadSuccess}
+        />
+        <EditDialog
+          open={editPdf !== null}
+          pdf={editPdf}
+          onClose={() => setEditPdf(null)}
           onSuccess={handleUploadSuccess}
         />
       </div>

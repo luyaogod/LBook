@@ -1,11 +1,12 @@
 import type { PdfDocument } from "@/types";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PdfThumbnail } from "./PdfThumbnail";
 
 interface PdfFileRowProps {
   pdf: PdfDocument;
   onOpen: (id: number) => void;
+  onEdit: (pdf: PdfDocument) => void;
 }
 
 function formatFileSize(bytes: number): string {
@@ -23,16 +24,14 @@ function formatDate(dateStr: string): string {
   });
 }
 
-export function PdfFileRow({ pdf, onOpen }: PdfFileRowProps) {
+export function PdfFileRow({ pdf, onOpen, onEdit }: PdfFileRowProps) {
   return (
     <div
       className="px-5 py-5 border-b border-border hover:bg-accent/30 transition-colors flex items-center gap-4 cursor-pointer"
       onClick={() => onOpen(pdf.id)}
     >
-      {/* PDF thumbnail */}
-      <PdfThumbnail pdfId={pdf.id} />
+      <PdfThumbnail pdfId={pdf.id} coverPath={pdf.cover_path} />
 
-      {/* File info */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{pdf.file_name}</p>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -47,7 +46,16 @@ export function PdfFileRow({ pdf, onOpen }: PdfFileRowProps) {
         </div>
       </div>
 
-      {/* Open button */}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="shrink-0"
+        onClick={(e) => { e.stopPropagation(); onEdit(pdf); }}
+        title="Edit OCR / Cover"
+      >
+        <Pencil className="h-4 w-4" />
+      </Button>
+
       <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={(e) => { e.stopPropagation(); onOpen(pdf.id); }}>
         <span>Open</span>
         <ExternalLink className="h-3.5 w-3.5" />

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { uploadPdf } from "@/api/pdfs";
 import { Button } from "@/components/ui/button";
-import { Loader2, Upload, FileText, FileJson, X, AlertCircle } from "lucide-react";
+import { Loader2, Upload, FileText, FileJson, X, AlertCircle, ImageIcon } from "lucide-react";
 
 interface UploadDialogProps {
   open: boolean;
@@ -24,6 +24,8 @@ export function UploadDialog({ open, onClose, onSuccess }: UploadDialogProps) {
   const [fieldErrors, setFieldErrors] = useState<FieldError>({});
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
 
   const validateFields = useCallback((): boolean => {
     const errors: FieldError = {};
@@ -56,7 +58,7 @@ export function UploadDialog({ open, onClose, onSuccess }: UploadDialogProps) {
     setServerError(null);
 
     try {
-      await uploadPdf(pdfFile, jsonFile);
+      await uploadPdf(pdfFile, jsonFile, coverFile ?? undefined);
       setState("success");
       setTimeout(() => {
         onSuccess();
@@ -71,6 +73,7 @@ export function UploadDialog({ open, onClose, onSuccess }: UploadDialogProps) {
   const handleClose = useCallback(() => {
     setPdfFile(null);
     setJsonFile(null);
+    setCoverFile(null);
     setState("idle");
     setServerError(null);
     setFieldErrors({});
@@ -233,6 +236,55 @@ export function UploadDialog({ open, onClose, onSuccess }: UploadDialogProps) {
             accept=".json,application/json"
             className="hidden"
             onChange={handleJsonChange}
+          />
+        </div>
+
+        {/* Cover image input */}
+        <div className="mb-6">
+          <label className="text-sm font-medium text-foreground mb-1.5 block">
+            Cover Image (optional)
+          </label>
+          <div
+            onClick={() => coverInputRef.current?.click()}
+            className={`flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed p-4 transition-colors ${
+              coverFile
+                ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20"
+                : "border-border hover:border-primary/50 hover:bg-accent/30"
+            }`}
+          >
+            <ImageIcon
+              className={`h-8 w-8 shrink-0 ${
+                coverFile ? "text-emerald-500" : "text-muted-foreground"
+              }`}
+            />
+            <div className="min-w-0">
+              {coverFile ? (
+                <>
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {coverFile.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {(coverFile.size / 1024).toFixed(0)} KB
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Click to select a cover image
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    JPG, PNG, etc.
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
           />
         </div>
 
