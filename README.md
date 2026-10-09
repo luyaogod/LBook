@@ -1,217 +1,96 @@
 # LBook
 
-A PDF OCR viewer that renders PaddleOCR-parsed PDF documents. Browse imported PDFs, view pages with layout block overlays, and read extracted text in a sidebar — with both block-level and full-page Markdown views.
+一个 Windows 桌面应用，用来**管理、阅读和校对 PaddleOCR-VL 扫描出来的书籍**。
 
-## Architecture
+LBook 本身**不做 OCR**。扫描与识别由外部的 PaddleOCR-VL / PP-StructureV3 完成并产出 JSON，LBook 把这份 JSON 与原始 PDF 组织成一本可读的书：PDF 渲染、OCR 结果叠加、逐块校对、阅读进度记录。
 
-```
-┌───────────── Frontend (React 19 + Vite + Tailwind) ─────────────┐
-│  HomePage ──→ PdfViewer (pdf.js canvas + OCR overlays)           │
-│                ├─ PdfToolbar (zoom, page nav)                    │
-│                ├─ BlockOverlayLayer (bounding boxes)             │
-│                └─ OcrSidebar (blocks / markdown toggle)          │
-└──────────────────────┬───────────────────────────────────────────┘
-                       │ REST API (localhost:8000)
-┌──────────────────────┴───────────────────────────────────────────┐
-│  Backend (FastAPI + SQLAlchemy + SQLite)                         │
-│  pdf_documents ──→ ocr_pages ──→ ocr_blocks                     │
-└──────────────────────────────────────────────────────────────────┘
-```
+**装上即用**——不依赖 Python、Node 或任何外部服务。
 
-## Project Structure
+---
+
+## 核心概念：`.lbook`
+
+一本书就是一个 `.lbook` 文件。**它本质是一个 ZIP，从不解压**：
 
 ```
-LBook/
-├── backend/                    # Python backend (FastAPI)
-│   ├── main.py                 # App entry point, CORS, lifespan
-│   ├── database.py             # SQLite engine + session + Base
-│   ├── models.py               # ORM models (3 tables)
-│   ├── schemas.py              # Pydantic schemas
-│   ├── routers/
-│   │   ├── hello.py            # Health check endpoint
-│   │   └── pdfs.py             # PDF/OCR API endpoints
-│   ├── scripts/
-│   │   └── import_ocr.py       # CLI script to ingest PDF + OCR JSON
-│   └── uploads/                # Uploaded PDF storage (gitignored)
-│
-├── frontend/                   # React frontend (Vite + TypeScript)
-│   └── src/
-│       ├── App.tsx             # Root component (home + viewer routing)
-│       ├── api/                # API client functions
-│       ├── hooks/              # Custom React hooks
-│       ├── types/              # TypeScript interfaces
-│       └── components/
-│           ├── layout/         # AppHeader
-│           ├── home/           # HomePage, PdfFileRow, PdfThumbnail
-│           ├── viewer/         # PdfViewer, PdfToolbar, overlays
-│           └── sidebar/        # OcrSidebar, BlockCard
-│
-└── dev-data/                   # Reference data (gitignored)
-    ├── db_schema.md            # Full planned database schema
-    └── *.html                  # UI mockup wireframes
+Book.lbook
+├── manifest.json    格式版本 / uid / 标题 / 作者 / 页数 / 封面引用
+├── book.pdf         书本体（必须 STORE 存储，可随机寻址）
+├── ocr.json         PaddleOCR-VL 原始输出
+├── cover.jpg        封面（可选）
+└── assets/          OCR 引用的图片（格式预留）
 ```
 
-## Tech Stack
+文件本身**就是文档**，编辑后写回文件——和 Excel 处理 `.xlsx` 是同一个模型：运行时改动先落在工作副本里，显式保存（`Ctrl+S`）时才重写包。
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend framework** | React 19, TypeScript |
-| **Build tool** | Vite 8 |
-| **Styling** | Tailwind CSS v4, shadcn/ui |
-| **PDF rendering** | pdf.js (pdfjs-dist v4) |
-| **Markdown** | react-markdown + remark-gfm + remark-math + rehype-katex |
-| **Icons** | lucide-react |
-| **Backend framework** | FastAPI (Python 3.11) |
-| **ORM** | SQLAlchemy 2.0 |
-| **Database** | SQLite |
-| **Package manager** | uv (Python), npm (JavaScript) |
+---
 
-## Getting Started
-
-### Prerequisites
-
-- **Python** 3.11+
-- **Node.js** 18+
-- **uv** (Python package manager)
-
-### 1. Backend Setup
+## 快速开始
 
 ```bash
-cd backend
-
-# Install dependencies
-uv sync
-
-# Start the dev server
-uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000
-```
-
-The API is available at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
-
-### 2. Import a PDF + OCR Data
-
-```bash
-cd backend
-
-uv run python scripts/import_ocr.py \
-    --pdf "d:/我的项目/LBook/dev-data/Oxford Picture Dictionary 3 ed.pdf" \
-    --ocr "d:/我的项目/LBook/dev-data/Oxford Picture Dictionary 3 ed.ocr.json"
-```
-
-The script:
-- Computes a SHA-256 hash for deduplication
-- Copies the PDF to `backend/uploads/`
-- Parses the PaddleOCR JSON and populates all database tables
-- Skips if the same file was already imported
-
-### 3. Frontend Setup
-
-```bash
-cd frontend
-
-# Install dependencies
 npm install
-
-# Start the dev server
 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser.
+`npm run dev` 一条命令同时起 Vite、监听主进程改动、启动 Electron。渲染层改动热更新，主进程改动自动重启。
 
-## API Endpoints
+打包成安装包：
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/` | Health check |
-| `GET` | `/api/hello` | Hello world |
-| `GET` | `/api/pdfs/` | List all PDFs |
-| `GET` | `/api/pdfs/{id}` | PDF detail with page list |
-| `GET` | `/api/pdfs/{id}/pages` | List pages for a PDF |
-| `GET` | `/api/pdfs/{id}/pages/{page_num}` | Single page with OCR blocks |
-| `GET` | `/api/pdfs/{id}/file` | Serve the PDF file |
-
-## Database Schema (v1 — Implemented)
-
-Three tables based on the PaddleOCR-VL output format:
-
-### pdf_documents
-Stores imported PDF metadata: filename, path, SHA-256 hash, page count, file size, original `dataInfo` JSON.
-
-### ocr_pages
-Per-page OCR results: page dimensions, model settings, full-page Markdown text, raw `prunedResult` JSON backup. Unique on `(pdf_id, page_num)`.
-
-### ocr_blocks
-Individual layout blocks from each page's `parsing_res_list`: block label (text/image/table/header/footer/…), content, bounding box `[x1,y1,x2,y2]`, reading order. About 8,600 blocks across 294 pages in the Oxford Picture Dictionary.
-
-> See [dev-data/db_schema.md](dev-data/db_schema.md) for the planned full schema (9 tables including audio resources, line-level text, and tagging).
-
-## Frontend Features
-
-### Home Page
-- Lists all imported PDFs with first-page thumbnails
-- Client-side search by filename
-- Paginated results (10 per page)
-
-### PDF Viewer
-- **pdf.js canvas rendering** with zoom controls (30%–300%) and fit-width
-- **Page navigation**: first/prev/next/last buttons + direct page number input
-- **OCR block overlays**: color-coded bounding boxes positioned over the PDF canvas
-  - Coordinate mapping between OCR bbox space and PDF page dimensions
-  - 18 block label types each with distinct colors (blue=text, green=title, red=image, purple=table, etc.)
-
-### OCR Sidebar (480px)
-- **Blocks view**: individual block cards with type badges, content rendered as Markdown
-- **Markdown view**: full-page Markdown rendering with GFM tables, math formulas (KaTeX)
-- **Copy to clipboard**: all text from blocks or full Markdown
-- **Cross-highlighting**: hover a sidebar card ↔ corresponding overlay highlights on the PDF
-- Block count + character count footer
-
-## Data Format
-
-The application expects PaddleOCR-VL (PP-StructureV3) output JSON:
-
-```json
-{
-  "layoutParsingResults": [
-    {
-      "prunedResult": {
-        "width": 1224,
-        "height": 1584,
-        "model_settings": { ... },
-        "parsing_res_list": [
-          {
-            "block_label": "paragraph_title",
-            "block_content": "### Title text",
-            "block_bbox": [443, 222, 682, 265],
-            "block_id": 0,
-            "group_id": 0,
-            "block_order": 1
-          }
-        ]
-      },
-      "markdown": {
-        "text": "Full page markdown...",
-        "images": {}
-      }
-    }
-  ],
-  "dataInfo": {
-    "type": "pdf",
-    "numPages": 294,
-    "pages": [{ "width": 1224, "height": 1584 }]
-  }
-}
+```bash
+npm run pack      # 产出 release/LBook-Setup-<version>.exe
 ```
 
-## Roadmap
+遇到问题先看 [BUILD.md](./BUILD.md) 的"常见错误速查"。
 
-- [ ] PDF upload via the UI (currently CLI import only)
-- [ ] Per-line text extraction (`ocr_block_lines` table)
-- [ ] Audio resource linking
-- [ ] Custom tagging system
-- [ ] Full-text search across OCR content
-- [ ] Multi-document management improvements
+---
 
-## License
+## 数据放在哪
 
-MIT
+| 内容 | 位置 |
+|---|---|
+| 配置 `config.json` | `%APPDATA%\LBook\` |
+| 索引 `lbook.db` | `%APPDATA%\LBook\` |
+| 书本 `*.lbook` | 用户可配置的库目录，默认 `文档\LBook Library` |
+
+数据库与书本刻意分开：库目录可以放在移动硬盘或网络盘上，而索引必须始终在本地，不能跟着一起失联。把 `.lbook` 文件手工拷进库目录，应用下次扫描就会自动发现。
+
+---
+
+## 技术栈
+
+| 层 | 选型 |
+|---|---|
+| 桌面壳 | Electron 44（`contextIsolation` + `sandbox`，无 Node 集成） |
+| 主进程 | TypeScript，esbuild 打包为 CJS |
+| 渲染层 | React 19 + Vite 8 + Tailwind v4，经 `app://` 自定义协议加载 |
+| PDF | pdf.js 4.10，通过 IPC 的 `PDFDataRangeTransport` 按需取字节 |
+| 数据库 | better-sqlite3（N-API 预编译二进制，无需 C++ 工具链） |
+| 包格式 | 自研 `.lbook`（ZIP），读写分别用 `yauzl` / `yazl` |
+| 测试 | Vitest，纯 Node 环境，不启动 Electron |
+| 更新 | electron-updater + GitHub Releases |
+
+---
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [DESIGN.md](./DESIGN.md) | 架构、`.lbook` 格式规范、IPC 契约、安全模型、**已知限制** |
+| [BUILD.md](./BUILD.md) | 开发、构建、发布、原生模块排错、常见错误速查 |
+| [TEST.md](./TEST.md) | 测试范围、黄金回归用例、手工冒烟清单 |
+| [AGENTS.md](./AGENTS.md) | 协约：目录 README 规则与文档索引规则 |
+
+源码各目录的说明见其自身的 `README.md`，从下面两个入口进入：
+
+- [src/main/README.md](./src/main/README.md) —— 主进程
+- [src/renderer/README.md](./src/renderer/README.md) —— 渲染层
+
+---
+
+## 两个值得知道的设计决定
+
+**PDF 不走自定义协议。** 直觉上 `lbook://pdf/…` 配 HTTP Range 最自然，但 pdf.js 只对 `http(s)` 发范围请求（`pdf.mjs` 里的 `isHttp = /^https?:/i.test(source.url)`），对自定义 scheme 会退化成把整个文件读进内存——最大的一本书有 189MB。所以 PDF 走 IPC。
+
+**`.lbook` 里的 `book.pdf` 必须是 STORE（不压缩）。** 压缩条目的字节范围无法寻址，每读一块都要从字节 0 重新解压，读完整本书是 O(n²)。
+
+两处的完整依据见 [DESIGN.md](./DESIGN.md)。

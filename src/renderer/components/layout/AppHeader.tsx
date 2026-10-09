@@ -1,0 +1,88 @@
+import { Bolt, BookOpen, ChevronRight, Plus } from "lucide-react";
+import { WindowControls } from "./WindowControls";
+import { Button } from "@/components/ui/button";
+
+interface AppHeaderProps {
+  mode: "home" | "viewer";
+  fileName?: string;
+  /** Returns to the library. The breadcrumb is the only affordance left for it. */
+  onBack?: () => void;
+  onUploadClick?: () => void;
+  /** Entry point for the settings page, which does not exist yet. */
+  onSettingsClick?: () => void;
+  /** True when edits have not been written back into the .lbook yet. */
+  dirty?: boolean;
+}
+
+/**
+ * The app's own top row, and — because the window has no OS title bar — also the
+ * window's drag handle.
+ *
+ * There is deliberately no Save button: saving is `Ctrl+S` (handled in
+ * `App.tsx`), and all the button did was repeat a keyboard shortcut. What it did
+ * carry that matters is the unsaved state, which survives here as a dot beside
+ * the title.
+ *
+ * The right edge stays clear of the native window buttons Electron draws over
+ * it (`titleBarOverlay`), hence the fixed padding.
+ */
+export function AppHeader({
+  mode,
+  fileName,
+  onBack,
+  onUploadClick,
+  onSettingsClick,
+  dirty = false,
+}: AppHeaderProps) {
+  return (
+    <header className="drag-region flex h-14 shrink-0 items-center gap-2 border-b border-border pl-4">
+      <BookOpen className="h-5 w-5 text-primary shrink-0" />
+
+      {/* Breadcrumb */}
+      {mode === "viewer" ? (
+        <div className="flex items-center gap-1.5 text-sm min-w-0">
+          <button
+            onClick={onBack}
+            title="Back to library"
+            className="no-drag rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+          >
+            LBook
+          </button>
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span className="text-foreground font-medium truncate">{fileName}</span>
+          {dirty && (
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
+              title="Edits have not been written into the .lbook yet — Ctrl+S to save"
+            />
+          )}
+        </div>
+      ) : (
+        <span className="font-semibold text-foreground">LBook</span>
+      )}
+
+      {/* Spacer + actions */}
+      <div className="flex-1" />
+      {mode === "home" && (
+        <>
+          <Button size="sm" className="no-drag gap-1.5" onClick={onUploadClick}>
+            <Plus className="h-4 w-4" />
+            Upload PDF
+          </Button>
+          {/* Opens the settings panel (General / Translate). */}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="no-drag"
+            onClick={onSettingsClick}
+            title="Settings"
+          >
+            <Bolt className="h-4 w-4" />
+          </Button>
+        </>
+      )}
+
+      <WindowControls />
+    </header>
+  );
+}

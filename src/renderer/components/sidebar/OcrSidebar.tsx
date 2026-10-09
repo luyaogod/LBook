@@ -1,0 +1,566 @@
+import { BlockCard } from "./BlockCard";
+import type { OcrBlock } from "@/types";
+import { PageNav } from "@/components/viewer/PageNav";
+import { SelectionPopup } from "@/components/translate/SelectionPopup";
+import { useFlowPages } from "@/hooks/useFlowPages";
+import { CheckCircle, Copy, Loader2, AlignLeft, FileText, Eye, EyeOff, ArrowLeftRight, ArrowDownUp, Maximize2, Minimize2, PanelRightClose } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import rehypeRaw from "rehype-raw";
+
+interface FlowPageData {
+  pageNum: number;
+  blocks: OcrBlock[];
+  markdownText: string | null;
+}
+
+/** Blocks a reader cares about; image-only blocks are the PDF's business. */
+function textBlocksOf(blocks: OcrBlock[]): OcrBlock[] {
+  return blocks.filter(
+    (b) => !["image", "header_image", "footer_image"].includes(b.block_label)
+  );
+}
+
+/** One page kept above the reader's position, and three appended per scroll. */
+const FLOW_PAGES_BEFORE = 1;
+const FLOW_APPEND_STEP = 3;
+
+// Hide images when rendering markdown (markdown view mode).
+const markdownComponents = {
+  img: () => null,
+};
+
+interface OcrSidebarProps {
+  blocks: OcrBlock[];
+  pageNum: number;
+  highlightedBlockId: number | null;
+  onBlockHover: (id: number | null) => void;
+  loading?: boolean;
+  markdownText?: string | null;
+  overlayOpaque: boolean;
+  onOverlayOpaqueChange: (v: boolean) => void;
+  onBlockClick: (id: number) => void;
+  scrollToBlockId: number | null;
+  width: number;
+  flowMode: boolean;
+  onFlowModeChange: (v: boolean) => void;
+  flowPagesData?: FlowPageData[];
+  /** Fired after an inline edit, so the viewer can flag unsaved changes. */
+  onBlockEdited?: () => void;
+  /** Book uid, used to resolve relative image references. */
+  bookUid?: string;
+  /** Book id, needed only when this panel loads pages itself. */
+  pdfId?: number;
+  /** True when the page area is hidden and this panel fills the row. */
+  expanded: boolean;
+  onExpandedChange: (v: boolean) => void;
+  /** Hides this panel entirely; the toolbar brings it back. */
+  onCollapse: () => void;
+  /** Page count, for the navigator shown while expanded. */
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  /** Jump requested from the toolbar/TOC, consumed here while expanded. */
+  scrollToPage?: number | null;
+  onScrollToPageHandled?: () => void;
+  /** Reports the page being read, so progress and the TOC stay in step. */
+  onVisiblePageChange?: (pageNum: number, blocks: OcrBlock[], markdownText: string | null) => void;
+  /** Opens the settings panel from the translation card's error state. */
+  onOpenSettings?: () => void;
+}
+
+function computePageStats(blocks: OcrBlock[]) {
+  const totalChars = blocks.reduce(
+    (sum, b) => sum + (b.block_content?.length ?? 0),
+    0
+  );
+  const textBlocks = blocks.filter(
+    (b) => !["image", "header_image", "footer_image"].includes(b.block_label)
+  );
+  return { totalChars, textBlocks };
+}
+
+function PageFooterDivider({ blocks, pageNum }: { blocks: OcrBlock[]; pageNum: number }) {
+  const { totalChars, textBlocks } = computePageStats(blocks);
+  return (
+    <div className="flex h-10 shrink-0 items-center justify-between border-t border-border px-4 text-[11px] text-muted-foreground my-3 pt-2">
+      <span>
+        {blocks.length} blocks · {textBlocks.length} text · {totalChars} chars
+      </span>
+      <span>Page {pageNum}</span>
+    </div>
+  );
+}
+
+export function OcrSidebar({
+  blocks,
+  pageNum,
+  highlightedBlockId,
+  onBlockHover,
+  loading = false,
+  markdownText,
+  overlayOpaque,
+  onOverlayOpaqueChange,
+  onBlockClick,
+  scrollToBlockId,
+  width,
+  flowMode,
+  onFlowModeChange,
+  flowPagesData,
+  onBlockEdited,
+  bookUid,
+  pdfId,
+  expanded,
+  onExpandedChange,
+  onCollapse,
+  totalPages,
+  onPageChange,
+  scrollToPage,
+  onScrollToPageHandled,
+  onVisiblePageChange,
+  onOpenSettings,
+}: OcrSidebarProps) {
+  const [copied, setCopied] = useState(false);
+  // Markdown is the default: it is the shape the text was reconstructed into,
+  // and the one a proof-reader reads top to bottom.
+  const [viewMode, setViewMode] = useState<"blocks" | "markdown">("markdown");
+  const listRef = useRef<HTMLDivElement>(null);
+  const prevPageNumRef = useRef(pageNum);
+
+  /**
+   * Expanded + flow means the page area — and with it the FlowViewer, which is
+   * what normally feeds `flowPagesData` — is unmounted. Left alone the panel
+   * would sit on "Scroll to load pages..." forever, so it loads its own pages
+   * and drives its own scroll position instead.
+   */
+  const selfFlow = expanded && flowMode && typeof pdfId === "number";
+  const { getPage, prefetch, version } = useFlowPages(pdfId ?? 0);
+  const [flowWindow, setFlowWindow] = useState({ from: 1, to: 3 });
+  const reportedPageRef = useRef(0);
+
+  /** Pages this panel renders: one before the reader, three ahead. */
+  const windowFor = useCallback(
+    (page: number) => {
+      const from = Math.max(1, page - FLOW_PAGES_BEFORE);
+      const to = Math.min(Math.max(totalPages, 1), page + FLOW_APPEND_STEP);
+      return { from, to };
+    },
+    [totalPages]
+  );
+
+  const prefetchRange = useCallback(
+    (from: number, to: number) => {
+      const range: number[] = [];
+      for (let p = from; p <= to; p++) range.push(p);
+      prefetch(range);
+    },
+    [prefetch]
+  );
+
+  // Entering the panel (or switching books) starts the window at the page the
+  // reader was on.
+  useEffect(() => {
+    if (!selfFlow) return;
+    const next = windowFor(pageNum);
+    setFlowWindow(next);
+    prefetchRange(next.from, next.to);
+    // `pageNum` is deliberately not a dependency: it also changes as a result of
+    // this panel's own scrolling, and re-centring on every report would fight
+    // the reader. Jumps arrive through `scrollToPage` below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selfFlow, pdfId, totalPages]);
+
+  // A jump from the toolbar or the table of contents re-centres the window.
+  useEffect(() => {
+    if (!selfFlow || scrollToPage == null) return;
+    const next = windowFor(scrollToPage);
+    setFlowWindow(next);
+    prefetchRange(next.from, next.to);
+    const timer = setTimeout(() => {
+      listRef.current
+        ?.querySelector(`[data-page-num="${scrollToPage}"]`)
+        ?.scrollIntoView({ block: "start" });
+      onScrollToPageHandled?.();
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [selfFlow, scrollToPage, windowFor, prefetchRange, onScrollToPageHandled]);
+
+  // Scrolling drives both the growth of the window and the "current page"
+  // report, so the TOC highlight and the saved progress keep up.
+  useEffect(() => {
+    if (!selfFlow) return;
+    const container = listRef.current;
+    if (!container) return;
+
+    let rafId: number | null = null;
+    const onScroll = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+
+        if (
+          container.scrollTop + container.clientHeight >
+          container.scrollHeight - 700
+        ) {
+          setFlowWindow((current) => {
+            if (current.to >= totalPages) return current;
+            const to = Math.min(totalPages, current.to + FLOW_APPEND_STEP);
+            prefetchRange(current.to + 1, to);
+            return { from: current.from, to };
+          });
+        }
+
+        const sections = container.querySelectorAll<HTMLElement>("[data-page-num]");
+        let current = reportedPageRef.current;
+        for (const section of sections) {
+          if (section.offsetTop - container.offsetTop <= container.scrollTop + 8) {
+            current = Number(section.dataset.pageNum);
+          } else {
+            break;
+          }
+        }
+        if (current && current !== reportedPageRef.current) {
+          reportedPageRef.current = current;
+          const page = getPage(current);
+          onVisiblePageChange?.(
+            current,
+            page ? textBlocksOf(page.blocks) : [],
+            page?.markdown_text ?? null
+          );
+        }
+      });
+    };
+
+    container.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", onScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [selfFlow, totalPages, prefetchRange, getPage, onVisiblePageChange]);
+
+  // When this panel drives the scroll, following the PDF's page back is wrong:
+  // the report comes from the panel in the first place.
+  useEffect(() => {
+    if (scrollToBlockId === null) return;
+    const el = listRef.current?.querySelector(`[data-block-id="${scrollToBlockId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [scrollToBlockId]);
+
+  // Flow mode: scroll sidebar to current page section when page changes
+  useEffect(() => {
+    if (!flowMode || selfFlow) return;
+    if (pageNum === prevPageNumRef.current) return;
+    prevPageNumRef.current = pageNum;
+
+    // Small delay to let new page content render
+    const timer = setTimeout(() => {
+      const el = listRef.current?.querySelector(`[data-page-num="${pageNum}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [flowMode, selfFlow, pageNum]);
+
+  /**
+   * What flow mode renders: this panel's own window of pages, or the viewer's
+   * report. `version` is what makes a freshly arrived page appear — the cache
+   * itself is a ref.
+   */
+  const flowPages: FlowPageData[] = useMemo(() => {
+    if (!selfFlow) return flowPagesData ?? [];
+    const pages: FlowPageData[] = [];
+    for (let p = flowWindow.from; p <= flowWindow.to; p++) {
+      const page = getPage(p);
+      pages.push({
+        pageNum: p,
+        blocks: page ? textBlocksOf(page.blocks) : [],
+        markdownText: page?.markdown_text ?? null,
+      });
+    }
+    return pages;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selfFlow, flowPagesData, flowWindow, getPage, version]);
+
+  // Single-page stats (for page-flip mode)
+  const { totalChars, textBlocks } = computePageStats(blocks);
+
+  function handleCopyAll() {
+    let text: string;
+    if (flowMode) {
+      // Flow mode: copy every page currently loaded
+      text = flowPages
+        .map(({ pageNum, blocks: pageBlocks }) => {
+          const pageTextBlocks = pageBlocks.filter(
+            (b) => !["image", "header_image", "footer_image"].includes(b.block_label)
+          );
+          const pageText = pageTextBlocks
+            .map((b) => b.block_content)
+            .filter(Boolean)
+            .join("\n\n");
+          return pageText ? `--- Page ${pageNum} ---\n\n${pageText}` : null;
+        })
+        .filter(Boolean)
+        .join("\n\n\n");
+    } else {
+      text = textBlocks
+        .map((b) => b.block_content)
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function handleCopyMarkdown() {
+    let text: string;
+    if (flowMode) {
+      text = flowPages
+        .map(({ pageNum, markdownText: md }) =>
+          md ? `--- Page ${pageNum} ---\n\n${md}` : null
+        )
+        .filter(Boolean)
+        .join("\n\n\n");
+    } else if (markdownText) {
+      text = markdownText;
+    } else {
+      return;
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  // Check if markdown is available (either single page or any flow page)
+  const hasMarkdown = flowMode
+    ? flowPages.some((p) => p.markdownText != null)
+    : markdownText != null;
+
+  // Markdown is the default, but a page whose OCR carries none shows the blocks
+  // instead — and the buttons must highlight whichever one is really on screen.
+  const effectiveMode = viewMode === "markdown" && hasMarkdown ? "markdown" : "blocks";
+
+  return (
+    <aside
+      className={
+        expanded
+          ? "flex min-w-0 flex-1 flex-col bg-card"
+          : "flex shrink-0 flex-col border-l border-border bg-card"
+      }
+      // Expanded mode has no page area to size against, so the width is
+      // whatever the row has left instead of the dragged value.
+      style={expanded ? undefined : { width }}
+    >
+      {/* Header */}
+      <div className="flex h-12 shrink-0 items-center gap-1 px-2">
+        {/* Expanded over the page area, the toolbar goes with it — so that row's
+            own controls (page navigation, and the button that puts the panel
+            away) reappear at the left end, where the toolbar's row began. */}
+        {expanded && (
+          <>
+            <PageNav pageNum={pageNum} totalPages={totalPages} onPageChange={onPageChange} />
+            <Button variant="ghost" size="icon-sm" onClick={onCollapse} title="Hide this panel">
+              <PanelRightClose className="h-4 w-4" />
+            </Button>
+            <div className="mx-1 h-5 w-px bg-border" />
+          </>
+        )}
+
+        {/* Markdown first: it is the default view. */}
+        {hasMarkdown && (
+          <Button
+            variant={effectiveMode === "markdown" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setViewMode("markdown")}
+          >
+            <FileText className="mr-1 h-3.5 w-3.5" />
+            Markdown
+          </Button>
+        )}
+        <Button
+          variant={effectiveMode === "blocks" ? "secondary" : "ghost"}
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => setViewMode("blocks")}
+        >
+          <AlignLeft className="mr-1 h-3.5 w-3.5" />
+          Blocks
+        </Button>
+        <Button
+          variant={overlayOpaque ? "secondary" : "ghost"}
+          size="icon-sm"
+          className="h-7 w-7"
+          onClick={() => onOverlayOpaqueChange(!overlayOpaque)}
+          title={overlayOpaque ? "Make overlays transparent" : "Make overlays opaque"}
+        >
+          {overlayOpaque ? (
+            <EyeOff className="h-3.5 w-3.5" />
+          ) : (
+            <Eye className="h-3.5 w-3.5" />
+          )}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="h-7 w-7"
+          onClick={() => onFlowModeChange(!flowMode)}
+          title={flowMode ? "Switch to page mode" : "Switch to scroll mode"}
+        >
+          {flowMode ? (
+            <ArrowLeftRight className="h-3.5 w-3.5" />
+          ) : (
+            <ArrowDownUp className="h-3.5 w-3.5" />
+          )}
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="ml-auto"
+          onClick={effectiveMode === "markdown" ? handleCopyMarkdown : handleCopyAll}
+          title={effectiveMode === "markdown" ? "Copy markdown" : "Copy all text"}
+        >
+          {copied ? (
+            <CheckCircle className="h-4 w-4 text-emerald-500" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
+        </Button>
+        <Button
+          variant={expanded ? "secondary" : "ghost"}
+          size="icon-sm"
+          onClick={() => onExpandedChange(!expanded)}
+          title={expanded ? "Show the page again" : "Hide the page and use the full width"}
+        >
+          {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </Button>
+      </div>
+
+      {/* Content */}
+      <div ref={listRef} className="flex-1 overflow-y-auto p-3 space-y-2">
+        {/* 划词翻译只在 Markdown 视图下生效：块视图里选中的是分块文本，
+            那不是"读一段话"的场景。 */}
+        <SelectionPopup
+          containerRef={listRef}
+          enabled={effectiveMode === "markdown"}
+          onOpenSettings={onOpenSettings}
+        />
+        {/* Loading state (page-flip mode only) */}
+        {!flowMode && loading && blocks.length === 0 && (
+          <div className="flex items-center justify-center gap-2 text-muted-foreground py-8">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Loading OCR data...</span>
+          </div>
+        )}
+
+        {/* Flow mode: render all loaded pages with per-page footer dividers */}
+        {flowMode ? (
+          <>
+            {flowPages.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Scroll to load pages...
+              </p>
+            )}
+            {flowPages.map(({ pageNum: pn, blocks: pageBlocks, markdownText: pageMd }) => {
+              if (effectiveMode === "markdown" && pageMd) {
+                return (
+                  <div key={pn} data-page-num={pn} className="space-y-2">
+                    <div className="text-sm leading-relaxed markdown-body mb-2">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex, rehypeRaw]}
+                        components={markdownComponents}
+                      >
+                        {pageMd}
+                      </ReactMarkdown>
+                    </div>
+                    <PageFooterDivider blocks={pageBlocks} pageNum={pn} />
+                  </div>
+                );
+              }
+
+              return (
+                <div key={pn} data-page-num={pn} className="space-y-2">
+                  {pageBlocks.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-2">
+                      Page {pn} — loading...
+                    </p>
+                  )}
+                  {pageBlocks.map((block) => (
+                    <BlockCard
+                      key={block.id}
+                      block={block}
+                      isHighlighted={block.id === highlightedBlockId}
+                      onHover={onBlockHover}
+                      onClick={onBlockClick}
+                      onUpdated={onBlockEdited}
+                      bookUid={bookUid}
+                    />
+                  ))}
+                  <PageFooterDivider blocks={pageBlocks} pageNum={pn} />
+                </div>
+              );
+            })}
+          </>
+        ) : null}
+
+        {/* Page-flip mode: single page rendering */}
+        {!flowMode && (
+          <>
+            {effectiveMode === "markdown" && markdownText ? (
+              <div className="text-sm leading-relaxed markdown-body">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex, rehypeRaw]}
+                  components={markdownComponents}
+                >
+                  {markdownText}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <>
+                {!loading && blocks.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No blocks on this page
+                  </p>
+                )}
+                {blocks.map((block) => (
+                  <BlockCard
+                    key={block.id}
+                    block={block}
+                    isHighlighted={block.id === highlightedBlockId}
+                    onHover={onBlockHover}
+                    onClick={onBlockClick}
+                    onUpdated={onBlockEdited}
+                      bookUid={bookUid}
+                  />
+                ))}
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Footer stats — only in page-flip mode */}
+      {!flowMode && (
+        <div className="flex h-10 shrink-0 items-center justify-between border-t border-border px-4 text-[11px] text-muted-foreground">
+          <span>
+            {effectiveMode === "markdown"
+              ? `${markdownText?.length ?? 0} chars`
+              : `${blocks.length} blocks · ${textBlocks.length} text · ${totalChars} chars`}
+          </span>
+          <span>Page {pageNum}</span>
+        </div>
+      )}
+    </aside>
+  );
+}

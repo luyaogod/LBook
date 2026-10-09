@@ -1,0 +1,51 @@
+appId: com.luyao.lbook
+productName: LBook
+copyright: Copyright © 2026 luyao
+
+directories:
+  output: release
+  buildResources: resources
+
+# Only the compiled output is shipped; sources never reach the installer.
+files:
+  - out/main/**/*
+  - out/preload/**/*
+  - out/renderer/**/*
+  - package.json
+  - "!**/*.map"
+
+asar: true
+
+# better-sqlite3 is a native module: a .node file cannot be dlopen'd from inside
+# an asar archive, and it locates its binary through `bindings`, which reads the
+# filesystem directly.
+asarUnpack:
+  - node_modules/better-sqlite3/**
+  - node_modules/bindings/**
+  - node_modules/file-uri-to-path/**
+
+# Rebuild native modules against Electron's ABI during packaging.
+npmRebuild: true
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # resources/icon.ico is used when present; Electron's default is used otherwise.
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: LBook
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+# electron-updater reads this at build time and writes app-update.yml into the
+# installer; the owner/repo must be real or every update check fails silently.
+publish:
+  provider: github
+  owner: luyaogod
+  repo: LBook
+  releaseType: release

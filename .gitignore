@@ -1,2 +1,27 @@
+# Build output
+out/
+release/
+dist/
+
+# Dependencies
+node_modules/
+
+# Local-only data: the original PaddleOCR fixtures used by the migration test.
+# Kept on disk, never committed (the OCR JSON is ~150 MB).
 dev-data/
+
+# Migration artifact
+migration-report.json
+
+# Logs
+*.log
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Legacy data directories, kept ignored in case an old checkout still has them
 backend/uploads/

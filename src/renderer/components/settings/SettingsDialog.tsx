@@ -1,0 +1,104 @@
+import { useEffect, useState } from "react";
+import { Bolt, Languages, Settings2, X } from "lucide-react";
+import type { Settings } from "@shared/ipc";
+import { GeneralSettings } from "./GeneralSettings";
+import { TranslateSettings } from "./TranslateSettings";
+
+interface SettingsDialogProps {
+  open: boolean;
+  onClose: () => void;
+  /** Fired whenever main returns a fresh settings payload, so App stays in sync. */
+  onSettings: (settings: Settings) => void;
+  settings: Settings | null;
+}
+
+type SectionId = "general" | "translate";
+
+const SECTIONS: Array<{ id: SectionId; label: string; icon: typeof Settings2 }> = [
+  { id: "general", label: "General", icon: Settings2 },
+  { id: "translate", label: "Translate", icon: Languages },
+];
+
+/**
+ * 设置面板。
+ *
+ * 结构照 Claude Desktop 的设置：左边一列目录，右边是内容，整体一个浮层。
+ * 目录先给 General 与 Translate 两项，General 暂时空着——它将来放主题、库目录、
+ * 更新检查这些已经有 IPC 的项。
+ */
+export function SettingsDialog({ open, onClose, onSettings, settings }: SettingsDialogProps) {
+  const [section, setSection] = useState<SectionId>("general");
+
+  // Every open starts on General rather than wherever the user left off: the
+  // panel is a place people come back to for the same few things, and landing on
+  // the section you last touched makes "the default" depend on history.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) setSection("general");
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+
+      <div className="relative flex h-[600px] max-h-[86vh] w-[880px] max-w-[94vw] overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+        {/* Left: sections */}
+        <nav className="flex w-56 shrink-0 flex-col border-r border-border bg-muted/30 p-3">
+          <p className="px-2 pb-2 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Settings
+          </p>
+          {SECTIONS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setSection(id)}
+              className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+                section === id
+                  ? "bg-accent font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {label}
+            </button>
+          ))}
+
+          <div className="mt-auto flex items-center gap-1.5 px-2 text-[11px] text-muted-foreground">
+            <Bolt className="h-3 w-3" />
+            LBook {settings?.version ?? ""}
+          </div>
+        </nav>
+
+        {/* Right: content */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
+            <h2 className="text-base font-semibold text-foreground">
+              {SECTIONS.find((item) => item.id === section)?.label}
+            </h2>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground" title="关闭">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            {section === "general" && <GeneralSettings />}
+            {section === "translate" && settings && (
+              <TranslateSettings settings={settings} onSettings={onSettings} />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
