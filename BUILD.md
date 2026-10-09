@@ -151,6 +151,57 @@ git -c http.proxy=http://127.0.0.1:10808 push origin main --tags
 HTTPS_PROXY=http://127.0.0.1:10808 npm run release
 ```
 
+### 手工发布（备用路径，0.0.1 实测走通）
+
+`npm run release` 的**发布阶段**在网络不稳时不可靠（见第 9 节）。Release 里**必须同时有三个文件**，缺任何一个都等于没发布：
+
+| 文件 | 缺了会怎样 |
+|---|---|
+| `LBook-Setup-<version>.exe` | 能查到新版本，下载 404 |
+| `LBook-Setup-<version>.exe.blockmap` | 增量下载退化为全量下载（还能用，白费带宽） |
+| `latest.yml` | 更新检查直接 404，表现为"永远是最新版" |
+
+```bash
+# 1. 先生成 latest.yml。它在「打包」阶段写出——publish 失败时不会留下，
+#    所以这一步只打包、不发布。--prepackaged 复用已有的 win-unpacked。
+npx electron-builder --win --publish never --prepackaged release/win-unpacked \
+  --config.electronDist=node_modules/electron/dist
+
+# 2. 大小文件分开传：小文件用 gh，122MB 的 exe 用 curl。
+#    gh 在窄代理下会长时间没有字节流动，被 GitHub 按「不活跃」408 掐断；
+#    curl 流式推送实测 598 KB/s、204 秒完成（同一条代理，gh 则直接挂死）。
+export GH_TOKEN=$(gh auth token)
+RID=$(gh api repos/luyaogod/LBook/releases --jq '.[0].id')   # 或先 gh release create
+gh release upload v0.0.1 release/latest.yml release/LBook-Setup-0.0.1.exe.blockmap --clobber
+curl -sS --http1.1 -X POST -H "Authorization: Bearer $GH_TOKEN" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @release/LBook-Setup-0.0.1.exe -x http://127.0.0.1:10808 \
+  "https://uploads.github.com/repos/luyaogod/LBook/releases/$RID/assets?name=LBook-Setup-0.0.1.exe"
+
+# 3. 验收：三个文件都在，且 latest.yml 的 sha512/size 与 exe 对得上
+gh api repos/luyaogod/LBook/releases --jq '.[] | [.assets[] | "\(.name) \(.state) \(.size)"][]'
+node -e "const f=require('fs'),c=require('crypto');const b=f.readFileSync('release/LBook-Setup-0.0.1.exe');console.log(c.createHash('sha512').update(b).digest('base64'),b.length)"
+```
+
+**上传中的资产不会出现在 API 里**，要等传完才可见——别拿"资产列表为空"当失败判据。
+
+### 手工安装与装后必查
+
+NSIS 是**每用户安装**，静默装到指定目录：
+
+```bash
+# /D 必须是最后一个参数、不加引号；MSYS2_ARG_CONV_EXCL 是关键，见第 9 节
+MSYS2_ARG_CONV_EXCL='*' ./release/LBook-Setup-0.0.1.exe /S '/D=D:\APPS\LBook'
+```
+
+装完三件事都要核，缺一件就可能装了个永远不会更新的版本：
+
+```bash
+cat "D:\APPS\LBook\resources\app-update.yml"   # 应是真实 owner/repo，不是 YOUR_GITHUB_USER
+powershell "(Get-Item 'D:\APPS\LBook\LBook.exe').VersionInfo.FileVersion"   # 应是新版本号
+ls "$LOCALAPPDATA/Programs/LBook"               # 不该存在；存在即 /D= 没生效，装出了第二份
+```
+
 ---
 
 ## 7. 应用图标
@@ -207,6 +258,11 @@ NSIS 配置为**每用户安装**（不需要管理员）、**可修改安装目
 | 更新检查 404 | Release 里缺 `latest.yml` | 用 `npm run release` 上传，不要手工只传 `.exe` |
 | 打包后 exe 还是 Electron 默认图标 | `resources/icon.ico` 缺失或不是 256×256 起 | 按第 7 节重新生成 |
 | `npm run pack` 报 `read ECONNRESET` / `connect ETIMEDOUT` 且卡在 `packaging` | electron-builder 每次打包都要从 GitHub 取 Electron 压缩包，网络被重置 | 用本地已有的那份，完全不联网：`npx electron-builder --win --publish never --config.electronDist=node_modules/electron/dist` |
+| `npm run release` 在 `publishing` 阶段长时间无输出，最后 `HTTP 408: Upload body timed out due to inactivity` | `gh` 上传 122MB 资产走窄代理时会长时间没有字节流动，GitHub 的上传端点按"不活跃"掐断连接 | 大资产改用 `curl --data-binary @…` 直传（第 6 节手工发布），实测 598 KB/s、204 秒完成 |
+| 发布报 `422 Unprocessable Entity`，`code: already_exists` / `field: tag_name`，日志里有两行 `creating GitHub release` | electron-builder 并发发起了两次 release 创建，且它先判定"release 不存在"再撞上已存在 | 删掉残缺 release 重发：`gh release delete v<version> --yes`（tag 会保留）；或直接走第 6 节的手工发布 |
+| 发布失败后 `latest.yml` 不见了，或内容还是上一版 | `latest.yml` 在**打包阶段**写出，publish 挂掉时它还没生成 | 重跑打包再手工上传：`npx electron-builder --win --publish never --prepackaged release/win-unpacked --config.electronDist=node_modules/electron/dist` |
+| Git Bash 里跑安装包，`/S` 静默失效、弹出图形界面一直等点击 | MSYS 参数转换把 `/S` 当路径改写成了 `C:/Program Files/Git/S` | 前面加 `MSYS2_ARG_CONV_EXCL='*'`；`/D=` 也一并写单引号：`MSYS2_ARG_CONV_EXCL='*' ./LBook-Setup-x.y.z.exe /S '/D=D:\APPS\LBook'` |
+| 装完了版本没变，或更新检查永远说"已是最新版" | `resources/app-update.yml` 是**打包时**写进安装包的，占位符会让该版本的更新器永久失效 | 改 `electron-builder.yml` 的 `publish.owner` 后**重新打包并手工重装一次**；按第 6 节的"装后必查"核对 |
 
 ---
 
