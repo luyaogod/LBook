@@ -176,7 +176,9 @@ export function BlockCard({
         </span>
       </div>
 
-      <div className="text-sm leading-relaxed markdown-body" dir="auto">
+      {/* No `text-sm`: the size comes from `.markdown-body` (index.css), which is
+          driven by the reading font size the user picked in settings. */}
+      <div className="leading-relaxed markdown-body" dir="auto">
         {isImageBlock(block) ? (
           <span className="inline-flex items-center gap-1 text-muted-foreground italic">
             <Image className="h-3.5 w-3.5" />

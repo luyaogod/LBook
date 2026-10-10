@@ -1,5 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
+import { READING_FONT_SIZE } from "../../shared/ipc"
 
 export const CONFIG_VERSION = 1
 
@@ -33,6 +34,8 @@ export interface AppConfig {
   libraryDir: string | null
   theme: Theme
   autoCheckUpdates: boolean
+  /** Reading-panel font size in px, clamped to `READING_FONT_SIZE`. */
+  readingFontSize: number
   translate: TranslateConfig
 }
 
@@ -46,8 +49,22 @@ export function defaultConfig(): AppConfig {
     libraryDir: null,
     theme: "system",
     autoCheckUpdates: true,
+    readingFontSize: READING_FONT_SIZE.default,
     translate: defaultTranslateConfig(),
   }
+}
+
+/**
+ * Rounds, then clamps into range; anything non-finite becomes the default.
+ *
+ * Applied on the way *in* (settings:set) as well as on the way out (a
+ * hand-edited file), so the stored value can never be off the slider's scale: a
+ * size of 400 would scroll the reading panel into a single column of letters,
+ * and the UI would then have no way back without editing the file by hand.
+ */
+export function clampReadingFontSize(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return READING_FONT_SIZE.default
+  return Math.min(READING_FONT_SIZE.max, Math.max(READING_FONT_SIZE.min, Math.round(raw)))
 }
 
 /** Keeps only string values, so a hand-edited file cannot inject objects. */
@@ -98,6 +115,9 @@ function coerce(raw: unknown): AppConfig {
     theme: theme === "light" || theme === "dark" ? theme : "system",
     autoCheckUpdates:
       typeof record.autoCheckUpdates === "boolean" ? record.autoCheckUpdates : true,
+    // Missing in every config written before the font setting existed; the clamp
+    // turns that (and anything a hand edit produced) into 14.
+    readingFontSize: clampReadingFontSize(record.readingFontSize),
     // Missing in every config written before translation existed; coerce fills it.
     translate: coerceTranslate(record.translate),
   }

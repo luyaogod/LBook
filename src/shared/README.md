@@ -20,7 +20,7 @@
 
 ## 对外接口
 
-`IPC`、`IPC_MAP` 类型、`LbookApi`、`UpdateStatus`、`Settings`、`ScanResult`、`FileKind`；`PdfDocument` 等全部领域类型；`parseToc()`、`flattenToc()`、`findActiveTocId()`、`tocAncestorIds()`、`countTocNodes()`、`TOC_FORMAT_VERSION`；`coverUrl()`、`assetUrl()`、`resolveAssetUrls()`。
+`IPC`、`IPC_MAP` 类型、`LbookApi`、`UpdateStatus`、`Settings`、`SettingsPatch`、`READING_FONT_SIZE`、`ScanResult`、`FileKind`；`PdfDocument` 等全部领域类型；`parseToc()`、`flattenToc()`、`findActiveTocId()`、`tocAncestorIds()`、`countTocNodes()`、`TOC_FORMAT_VERSION`；`coverUrl()`、`assetUrl()`、`resolveAssetUrls()`。
 
 ## 依赖方向
 

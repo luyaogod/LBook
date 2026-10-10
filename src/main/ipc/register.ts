@@ -5,7 +5,7 @@ import {
   type FileKind,
   type ScanResult,
   type Settings,
-  type TranslationSettingsPatch,
+  type SettingsPatch,
 } from "../../shared/ipc"
 import type { AppContext } from "../context"
 import type { Theme } from "../config/config"
@@ -25,6 +25,7 @@ function settingsPayload(context: AppContext): Settings {
     libraryDirIsDefault: context.isLibraryDirDefault(),
     theme: context.config.theme,
     autoCheckUpdates: context.config.autoCheckUpdates,
+    readingFontSize: context.config.readingFontSize,
     version: app.getVersion(),
     translate: context.translate.settingsView(),
   }
@@ -227,16 +228,17 @@ export function registerIpcHandlers(
 
   ipcMain.handle(
     IPC.settingsSet,
-    (
-      _event,
-      patch: {
-        theme?: Settings["theme"]
-        autoCheckUpdates?: boolean
-        translate?: TranslationSettingsPatch
-      },
-    ) => {
-      if (patch.theme !== undefined || patch.autoCheckUpdates !== undefined) {
-        context.updateSettings({ theme: patch.theme, autoCheckUpdates: patch.autoCheckUpdates })
+    (_event, patch: SettingsPatch) => {
+      if (
+        patch.theme !== undefined ||
+        patch.autoCheckUpdates !== undefined ||
+        patch.readingFontSize !== undefined
+      ) {
+        context.updateSettings({
+          theme: patch.theme,
+          autoCheckUpdates: patch.autoCheckUpdates,
+          readingFontSize: patch.readingFontSize,
+        })
         if (patch.theme !== undefined) hooks.onThemeChanged?.(patch.theme)
       }
       if (patch.translate) context.translate.updateSettings(patch.translate)

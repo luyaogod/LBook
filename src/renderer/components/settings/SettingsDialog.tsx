@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Bolt, Languages, Settings2, X } from "lucide-react";
+import { Bolt, Languages, Settings2, Type, X } from "lucide-react";
 import type { Settings } from "@shared/ipc";
 import { GeneralSettings } from "./GeneralSettings";
+import { FontSettings } from "./FontSettings";
 import { TranslateSettings } from "./TranslateSettings";
 
 interface SettingsDialogProps {
@@ -12,10 +13,11 @@ interface SettingsDialogProps {
   settings: Settings | null;
 }
 
-type SectionId = "general" | "translate";
+type SectionId = "general" | "font" | "translate";
 
 const SECTIONS: Array<{ id: SectionId; label: string; icon: typeof Settings2 }> = [
   { id: "general", label: "General", icon: Settings2 },
+  { id: "font", label: "Font", icon: Type },
   { id: "translate", label: "Translate", icon: Languages },
 ];
 
@@ -23,8 +25,8 @@ const SECTIONS: Array<{ id: SectionId; label: string; icon: typeof Settings2 }> 
  * 设置面板。
  *
  * 结构照 Claude Desktop 的设置：左边一列目录，右边是内容，整体一个浮层。
- * 目录先给 General 与 Translate 两项，General 暂时空着——它将来放主题、库目录、
- * 更新检查这些已经有 IPC 的项。
+ * 目前三项：General（外观）、Font（阅读字号）、Translate（翻译供应商与凭据）。
+ * Font 排在 Translate 前面，因为它是**读的时候**想改的，而不是配一次就不再碰的。
  */
 export function SettingsDialog({ open, onClose, onSettings, settings }: SettingsDialogProps) {
   const [section, setSection] = useState<SectionId>("general");
@@ -93,6 +95,9 @@ export function SettingsDialog({ open, onClose, onSettings, settings }: Settings
 
           <div className="flex-1 overflow-y-auto px-6 py-5">
             {section === "general" && <GeneralSettings />}
+            {section === "font" && settings && (
+              <FontSettings settings={settings} onSettings={onSettings} />
+            )}
             {section === "translate" && settings && (
               <TranslateSettings settings={settings} onSettings={onSettings} />
             )}

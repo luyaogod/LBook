@@ -82,6 +82,17 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    /* Reading-area text (see the .markdown-body block below). Light keeps
+       `--foreground`'s own value: on paper-white the near-black was never the
+       problem, so this must not change anything about the light theme. */
+    --reading-foreground: oklch(0.145 0 0);
+    /* Links stay on `--primary` in light; the violet is a dark-only choice. */
+    --reading-link: oklch(0.205 0 0);
+    /* Reading size, in px. Overwritten at runtime from the stored setting (see
+       renderer/lib/readingFont.ts) — this is what applies before the settings
+       payload arrives. Deliberately not per-theme: a size the reader picked
+       works in both. */
+    --reading-font-size: 14px;
 }
 
 .dark {
@@ -96,7 +107,7 @@
     --secondary: oklch(0.269 0 0);
     --secondary-foreground: oklch(0.985 0 0);
     --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
+    --muted-foreground: oklch(0.767 0 0);
     --accent: oklch(0.269 0 0);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
@@ -116,6 +127,13 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    /* Reading-area text. `--reading-foreground` is a step below `--foreground`
+       (oklch(0.985) ≈ #fafafa): ≈ #c8c8c8, i.e. 10.7:1 on `--card`, which is
+       where Obsidian's own #dadada lands on its lighter page (11.4:1). The link
+       violet is Obsidian's dark `--color-accent-1`. See the .markdown-body
+       block below for the reasoning. */
+    --reading-foreground: oklch(0.833 0 0);
+    --reading-link: oklch(0.7058 0.1593 293.51);
 }
 
 @layer base {
@@ -183,16 +201,51 @@ html {
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
-/* Markdown content styles */
+/*
+ * Markdown content styles.
+ *
+ * Colours come from the `--reading-*` tokens rather than the inherited
+ * `--foreground`. `--foreground` is near-white in dark mode, which is right for
+ * chrome (buttons, headers, dialogs) but glaring on a panel whose entire job is
+ * to be read for minutes at a time — and this app is a reader, so that panel is
+ * most of the window at night. Body is therefore a step down; the light values
+ * equal `--foreground`, so the light theme is untouched.
+ *
+ * The rest follows Obsidian's default dark theme, read out of its own app.css
+ * (1.14.4, extracted from obsidian.asar) rather than off a screenshot. What
+ * makes its reading view quiet is mostly what it refuses to brighten:
+ *
+ * - `--h1-color`…`--h6-color`, `--bold-color` and `--blockquote-color` are all
+ *   `inherit`. Headings, bold text and quotes use the body colour and are told
+ *   apart by size, weight and the quote's own rule — hence there is no heading
+ *   token here: a heading that out-shines the paragraph under it is exactly the
+ *   glare we set out to remove.
+ * - Links are the accent, not white (`--link-color: var(--text-accent)`), so the
+ *   one thing that has to stand out does it by hue rather than by brightness.
+ *
+ * Body is deliberately dimmer than Obsidian's `#dadada`: their page is
+ * `#1C1C1C` and ours is `--card` `#171717`, so the same white lands *harsher*
+ * on our darker page (12.8:1 against their 11.4:1) rather than softer.
+ *
+ * Sizes are `em` (relative to `--reading-font-size`), not `rem`. The size is a
+ * user setting now, and a heading left in rem would stay put while the body grew
+ * past it — at 20px the `1.25rem` h1 below would be *smaller* than the paragraph
+ * under it. The ratios are the old rem values divided by the 14px default, so
+ * the default look is unchanged to within a tenth of a pixel.
+ */
+.markdown-body {
+  color: var(--reading-foreground);
+  font-size: var(--reading-font-size);
+}
 .markdown-body h1 {
-  font-size: 1.25rem;
+  font-size: 1.43em;
   font-weight: 700;
   margin-top: 0.5rem;
   margin-bottom: 0.25rem;
   line-height: 1.3;
 }
 .markdown-body h2 {
-  font-size: 1.1rem;
+  font-size: 1.26em;
   font-weight: 600;
   margin-top: 0.5rem;
   margin-bottom: 0.25rem;
@@ -202,7 +255,7 @@ html {
 .markdown-body h4,
 .markdown-body h5,
 .markdown-body h6 {
-  font-size: 1rem;
+  font-size: 1.14em;
   font-weight: 600;
   margin-top: 0.4rem;
   margin-bottom: 0.2rem;
@@ -226,7 +279,7 @@ html {
   list-style-type: decimal;
 }
 .markdown-body code {
-  font-size: 0.8rem;
+  font-size: 0.8em;
   background-color: var(--muted);
   padding: 0.1rem 0.3rem;
   border-radius: 0.25rem;
@@ -238,7 +291,13 @@ html {
   border-radius: 0.375rem;
   overflow-x: auto;
   margin-bottom: 0.25rem;
-  font-size: 0.8rem;
+  font-size: 0.8em;
+}
+/* `em` compounds, and a `code` inside a `pre` is a second `0.8em` unless stopped:
+   the paragraph-level 0.8em must not be applied twice ("1em of the pre" is the
+   same 11px the two sizes used to agree on). */
+.markdown-body pre code {
+  font-size: 1em;
 }
 .markdown-body pre code {
   background: none;
@@ -248,11 +307,18 @@ html {
 .markdown-body blockquote {
   border-left: 3px solid var(--border);
   padding-left: 0.75rem;
-  color: var(--muted-foreground);
   margin-bottom: 0.25rem;
 }
+/*
+ * Dark only, and the one place we follow Obsidian's `--blockquote-color:
+ * inherit` by overriding rather than by deleting: on paper-white the muted grey
+ * was doing useful work, and the light theme is deliberately untouched.
+ */
+.dark .markdown-body blockquote {
+  color: var(--reading-foreground);
+}
 .markdown-body a {
-  color: var(--primary);
+  color: var(--reading-link);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -260,7 +326,7 @@ html {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 0.25rem;
-  font-size: 0.8rem;
+  font-size: 0.8em;
 }
 .markdown-body th,
 .markdown-body td {

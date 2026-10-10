@@ -474,7 +474,9 @@ export function OcrSidebar({
               if (effectiveMode === "markdown" && pageMd) {
                 return (
                   <div key={pn} data-page-num={pn} className="space-y-2">
-                    <div className="text-sm leading-relaxed markdown-body mb-2">
+                    {/* The size comes from `.markdown-body` (index.css), driven by
+                        the reading font size in settings — not `text-sm`. */}
+                    <div className="leading-relaxed markdown-body mb-2">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm, remarkMath]}
                         rehypePlugins={[rehypeKatex, rehypeRaw]}
@@ -517,7 +519,7 @@ export function OcrSidebar({
         {!flowMode && (
           <>
             {effectiveMode === "markdown" && markdownText ? (
-              <div className="text-sm leading-relaxed markdown-body">
+              <div className="leading-relaxed markdown-body">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm, remarkMath]}
                   rehypePlugins={[rehypeKatex, rehypeRaw]}

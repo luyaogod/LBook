@@ -1,6 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import {
+  clampReadingFontSize,
   readConfig,
   writeConfig,
   type AppConfig,
@@ -22,7 +23,11 @@ export interface AppContext {
   paths(): AppPaths
   libraryDir(): string
   isLibraryDirDefault(): boolean
-  updateSettings(patch: { theme?: Theme; autoCheckUpdates?: boolean }): AppConfig
+  updateSettings(patch: {
+    theme?: Theme
+    autoCheckUpdates?: boolean
+    readingFontSize?: number
+  }): AppConfig
   /** Persists a new `translate` section; the translate service owns its shape. */
   updateTranslateConfig(translate: TranslateConfig): AppConfig
   /** Moves every package to `newDir`, repoints the index, then persists config. */
@@ -76,7 +81,15 @@ export function createAppContext(input: AppContextInput): AppContext {
     isLibraryDirDefault: () => config.libraryDir === null,
 
     updateSettings(patch) {
-      return persist({ ...config, ...patch })
+      return persist({
+        ...config,
+        ...patch,
+        // Clamped here rather than at the IPC edge: this is the only writer of the
+        // stored shape, so no caller can put an off-scale size into the file.
+        ...(patch.readingFontSize === undefined
+          ? {}
+          : { readingFontSize: clampReadingFontSize(patch.readingFontSize) }),
+      })
     },
 
     updateTranslateConfig(next) {

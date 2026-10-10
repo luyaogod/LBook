@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { UpdateBanner } from "@/components/layout/UpdateBanner";
+import { PaneSash } from "@/components/layout/PaneSash";
 import { HomePage } from "@/components/home/HomePage";
 import { UploadDialog } from "@/components/home/UploadDialog";
 import { EditDialog } from "@/components/home/EditDialog";
@@ -18,6 +19,7 @@ import { usePdfPage } from "@/hooks/usePdfPage";
 import { useBookToc } from "@/hooks/useBookToc";
 import { fetchReadingProgress, saveReadingProgress } from "@/api/users";
 import { savePdf } from "@/api/pdfs";
+import { applyReadingFontSize } from "@/lib/readingFont";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -155,6 +157,28 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
       .then(setAppSettings)
       .catch(() => undefined);
   }, [setAppSettings]);
+
+  // The reading font size is a setting, and it reaches CSS as a variable on the
+  // root (see lib/readingFont.ts). An effect rather than a render-time write, and
+  // it lives here because this is where the settings payload lives — the panels
+  // that use the size are three levels down and never see `appSettings`.
+  const readingFontSize = appSettings?.readingFontSize;
+  useEffect(() => {
+    if (readingFontSize !== undefined) applyReadingFontSize(readingFontSize);
+  }, [readingFontSize]);
+
+  // One dialog element, reused by every branch below: the settings button is in the
+  // header of all of them, so the panel has to exist in all of them too — an early
+  // return that forgot it would leave the button looking broken. (The loading one
+  // is not a blink: a 70 MB book sits there for a while.)
+  const settingsDialog = (
+    <SettingsDialog
+      open={showSettings}
+      settings={appSettings}
+      onClose={() => setShowSettings(false)}
+      onSettings={setAppSettings}
+    />
+  );
 
   const totalPages = pdf?.page_count ?? 1;
   // Width the open contents panel takes away from the page, handle included.
@@ -404,12 +428,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
           onClose={() => setEditPdf(null)}
           onSuccess={handleUploadSuccess}
         />
-        <SettingsDialog
-          open={showSettings}
-          settings={appSettings}
-          onClose={() => setShowSettings(false)}
-          onSettings={setAppSettings}
-        />
+        {settingsDialog}
       </div>
     );
   }
@@ -418,13 +437,14 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
   if (pdfLoading || !pdf) {
     return (
       <div className="flex h-svh flex-col bg-background">
-        <AppHeader mode="viewer" onBack={handleBack} />
+        <AppHeader mode="viewer" onBack={handleBack} onSettingsClick={openSettings} />
         <div className="flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
             <Loader2 className="h-8 w-8 animate-spin" />
             <span className="text-sm">Loading document...</span>
           </div>
         </div>
+        {settingsDialog}
       </div>
     );
   }
@@ -433,7 +453,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
   if (pdfError) {
     return (
       <div className="flex h-svh flex-col bg-background">
-        <AppHeader mode="viewer" onBack={handleBack} />
+        <AppHeader mode="viewer" onBack={handleBack} onSettingsClick={openSettings} />
         <div className="flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center gap-4 text-center max-w-md">
             <AlertTriangle className="h-10 w-10 text-destructive" />
@@ -446,6 +466,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
             </Button>
           </div>
         </div>
+        {settingsDialog}
       </div>
     );
   }
@@ -457,6 +478,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
         mode="viewer"
         fileName={pdf?.title}
         onBack={handleBack}
+        onSettingsClick={openSettings}
         dirty={docDirty}
       />
       <UpdateBanner />
@@ -473,20 +495,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
               width={tocWidth}
               onJump={handlePageChange}
             />
-            <div
-              className={`relative shrink-0 w-1.5 cursor-col-resize group bg-[#f8fafc] dark:bg-background ${dragTarget === "toc" ? "!bg-[#0090f1]" : "hover:bg-[#0090f1]/30"}`}
-              onMouseDown={handleResizeStart("toc")}
-            >
-              {/* The PDF toolbar's bottom border stops at this 6px handle, which
-                  would leave the divider looking broken at both ends. Carry it
-                  across: the same 48px box plus its own border-b lands the two lines
-                  on the same pixel (`h-12` is border-box, so the border is the last
-                  of those 48). */}
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-12 border-b border-border" />
-              {dragTarget === "toc" && (
-                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-[#0090f1]" />
-              )}
-            </div>
+            <PaneSash onMouseDown={handleResizeStart("toc")} dragging={dragTarget === "toc"} />
           </>
         )}
         {/* Middle: toolbar + viewer. Hidden while the OCR panel is expanded,
@@ -547,17 +556,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
             </div>
             {/* A drag handle only makes sense while there are two columns. */}
             {sidebarOpen && (
-              <div
-                className={`relative shrink-0 w-1.5 cursor-col-resize group bg-[#f8fafc] dark:bg-background ${dragTarget === "sidebar" ? "!bg-[#0090f1]" : "hover:bg-[#0090f1]/30"}`}
-                onMouseDown={handleResizeStart("sidebar")}
-              >
-                {/* See the left handle: the PDF toolbar's border has to reach the
-                    panels on both sides, or it reads as broken at the ends. */}
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-12 border-b border-border" />
-                {dragTarget === "sidebar" && (
-                  <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-[#0090f1]" />
-                )}
-              </div>
+              <PaneSash onMouseDown={handleResizeStart("sidebar")} dragging={dragTarget === "sidebar"} />
             )}
           </>
         )}
@@ -597,12 +596,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
         )}
       </div>
 
-      <SettingsDialog
-        open={showSettings}
-        settings={appSettings}
-        onClose={() => setShowSettings(false)}
-        onSettings={setAppSettings}
-      />
+      {settingsDialog}
     </div>
   );
 }

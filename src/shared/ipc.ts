@@ -92,14 +92,40 @@ export interface TranslationSettingsPatch {
   values?: Record<string, Record<string, string | null>>
 }
 
+/**
+ * Reading font size, in px.
+ *
+ * Lives here rather than in `main/config` because three places need the same
+ * numbers: main clamps what it writes, the settings slider uses the bounds, and
+ * the reset button needs the default. The value ends up in CSS as
+ * `--reading-font-size` (see `.markdown-body` in index.css).
+ */
+export const READING_FONT_SIZE = { min: 12, max: 24, default: 14 } as const
+
 export interface Settings {
   libraryDir: string
   /** False when libraryDir came from the default rather than the config file. */
   libraryDirIsDefault: boolean
   theme: "system" | "light" | "dark"
   autoCheckUpdates: boolean
+  /** Size of the text in the reading panel; see `READING_FONT_SIZE`. */
+  readingFontSize: number
   version: string
   translate: TranslateSettingsView
+}
+
+/**
+ * A partial update: an absent field means "leave it alone".
+ *
+ * One named type rather than the same inline shape written out three times — in
+ * the channel map, on the preload surface and in the main-process handler —
+ * where adding a field used to mean three edits and two chances to forget one.
+ */
+export interface SettingsPatch {
+  theme?: Settings["theme"]
+  autoCheckUpdates?: boolean
+  readingFontSize?: number
+  translate?: TranslationSettingsPatch
 }
 
 export interface ScanResult {
@@ -147,11 +173,7 @@ export interface IpcMap {
 
   [IPC.settingsGet]: { req: void; res: Settings }
   [IPC.settingsSet]: {
-    req: {
-      theme?: Settings["theme"]
-      autoCheckUpdates?: boolean
-      translate?: TranslationSettingsPatch
-    }
+    req: SettingsPatch
     res: Settings
   }
   [IPC.settingsChooseLibraryDir]: { req: void; res: Settings | null }
@@ -233,11 +255,7 @@ export interface LbookApi {
   }
   settings: {
     get(): Promise<Settings>
-    set(patch: {
-      theme?: Settings["theme"]
-      autoCheckUpdates?: boolean
-      translate?: TranslationSettingsPatch
-    }): Promise<Settings>
+    set(patch: SettingsPatch): Promise<Settings>
     chooseLibraryDir(): Promise<Settings | null>
     revealLibraryDir(): Promise<void>
   }

@@ -9,6 +9,7 @@ import {
   readConfig,
   writeConfig,
 } from "../../../src/main/config/config"
+import { READING_FONT_SIZE } from "../../../src/shared/ipc"
 
 let dir: string | undefined
 
@@ -34,6 +35,7 @@ describe("config", () => {
       libraryDir: "D:\\Books",
       theme: "dark",
       autoCheckUpdates: false,
+      readingFontSize: 18,
       translate: {
         provider: "tencent",
         sourceLang: "en",
@@ -47,6 +49,7 @@ describe("config", () => {
       libraryDir: "D:\\Books",
       theme: "dark",
       autoCheckUpdates: false,
+      readingFontSize: 18,
       translate: {
         provider: "tencent",
         sourceLang: "en",
@@ -101,6 +104,31 @@ describe("config", () => {
     )
 
     expect(readConfig(file)).toEqual(defaultConfig())
+  })
+
+  it("defaults the reading font size for a config written before it existed", () => {
+    const file = tempConfigFile()
+    fs.writeFileSync(file, JSON.stringify({ version: 1, theme: "dark" }), "utf8")
+
+    expect(readConfig(file).readingFontSize).toBe(READING_FONT_SIZE.default)
+  })
+
+  it("clamps and rounds the reading font size", () => {
+    const cases: Array<[unknown, number]> = [
+      [READING_FONT_SIZE.min - 1, READING_FONT_SIZE.min],
+      [READING_FONT_SIZE.max + 1, READING_FONT_SIZE.max],
+      [15.6, 16],
+      ["18", READING_FONT_SIZE.default],
+      [null, READING_FONT_SIZE.default],
+      // Not a number at all — a hand edit, or a NaN that reached the file.
+      [Number.NaN, READING_FONT_SIZE.default],
+    ]
+
+    for (const [stored, expected] of cases) {
+      const file = tempConfigFile()
+      fs.writeFileSync(file, JSON.stringify({ readingFontSize: stored }), "utf8")
+      expect(readConfig(file).readingFontSize, `stored ${String(stored)}`).toBe(expected)
+    }
   })
 
   it("keeps a valid libraryDir while repairing sibling fields", () => {

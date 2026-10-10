@@ -8,7 +8,7 @@ interface AppHeaderProps {
   /** Returns to the library. The breadcrumb is the only affordance left for it. */
   onBack?: () => void;
   onUploadClick?: () => void;
-  /** Entry point for the settings page, which does not exist yet. */
+  /** Opens the settings panel. Present in both modes: see the button below. */
   onSettingsClick?: () => void;
   /** True when edits have not been written back into the .lbook yet. */
   dirty?: boolean;
@@ -64,23 +64,24 @@ export function AppHeader({
       {/* Spacer + actions */}
       <div className="flex-1" />
       {mode === "home" && (
-        <>
-          <Button size="sm" className="no-drag gap-1.5" onClick={onUploadClick}>
-            <Plus className="h-4 w-4" />
-            Upload PDF
-          </Button>
-          {/* Opens the settings panel (General / Translate). */}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="no-drag"
-            onClick={onSettingsClick}
-            title="Settings"
-          >
-            <Bolt className="h-4 w-4" />
-          </Button>
-        </>
+        <Button size="sm" className="no-drag gap-1.5" onClick={onUploadClick}>
+          <Plus className="h-4 w-4" />
+          Upload PDF
+        </Button>
       )}
+      {/* Always present, in both modes. It started out as home-only, which was
+          backwards: the setting it now carries (reading font size) is one you
+          reach for *while reading*, and the reader is exactly where the button
+          was missing. */}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="no-drag"
+        onClick={onSettingsClick}
+        title="Settings"
+      >
+        <Bolt className="h-4 w-4" />
+      </Button>
 
       <WindowControls />
     </header>
