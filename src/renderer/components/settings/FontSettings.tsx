@@ -28,8 +28,9 @@ function single(value: number | readonly number[]): number {
  * 并直接改 CSS 变量（面板跟着鼠标动），松手才落盘一次（Base UI 的
  * `onValueCommitted`）。两者写的是同一个数，所以松手不会跳。
  *
- * 不做"两种字号"（比如 Markdown 一套、Blocks 一套）：它们是同一段文字的两种视图，
- * 尺寸不同只会让人切视图时疑心自己看错了书。
+ * 不做"两种字号"（比如 Markdown 一套、Blocks 一套）：这两个视图读的是**同一页的两种 OCR 产出**
+ * （`markdown_text` 字符串 vs 带 bbox 的块，见 `DESIGN.md` 5.5），但它们是同一块面板、同一个阅读动作；
+ * 字号不同只会让人切视图时疑心自己看错了书。
  */
 export function FontSettings({ settings, onSettings }: FontSettingsProps) {
   const [draft, setDraft] = useState(settings.readingFontSize);
@@ -62,7 +63,7 @@ export function FontSettings({ settings, onSettings }: FontSettingsProps) {
       <div>
         <p className="text-sm font-medium text-foreground">Font size</p>
         <p className="text-xs text-muted-foreground">
-          阅读区文字的大小，单位为像素。Markdown 与 Blocks 是同一段文字的两种视图，跟着一起变。
+          阅读区文字的大小，单位为像素。Markdown 与 Blocks 两个视图共用这一档字号。
         </p>
       </div>
 

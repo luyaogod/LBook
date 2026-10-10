@@ -179,6 +179,19 @@ function validateRangeRequestCapabilities({ getResponseHeader, isHttp, rangeChun
 
 `PRAGMA user_version` 驱动，append-only 迁移数组，在开窗之前跑完（better-sqlite3 是同步的，这点数据量毫不犹豫）。已发布的迁移条目**永不修改**，只追加。
 
+### 5.5 一页有两份 OCR 文本：markdown 与块
+
+`pages` 里既有 `markdown_text` / `markdown_images`，又有 `pruned_result`，而 `blocks` 表是从 `pruned_result.parsing_res_list` 拆出来的。这不是冗余，是 **PaddleOCR 一次识别给的两个产出**，两个都得留：
+
+| 存的 | OCR JSON 里的来源 | 谁在用 |
+|---|---|---|
+| `markdown_text` / `markdown_images` | `layoutParsingResults[].markdown.text` / `.images` | 侧栏 **Markdown 视图**、复制 Markdown |
+| `pruned_result` + `blocks` 表 | `layoutParsingResults[].prunedResult.parsing_res_list` | 侧栏 **Blocks 视图**、PDF 上需要 bbox 的叠加框、逐块编辑 |
+
+**只有块是可编辑的。** 保存时 `reconstruct.ts` 把块编辑 merge 回 `prunedResult.parsing_res_list`，而 `markdown.text` 是从库里**原样写回**——本仓库没有任何代码会重新生成它。于是改过块之后，同一页的两个视图会不一致：Markdown 视图仍是 OCR 当时的文本。拿块重建 markdown 需要复刻 PaddleOCR 自己的拼接规则（标题层级、表格转 HTML），那等于再维护一套排版器，所以现在以块为准。
+
+`markdown_images` 渲染层不读，留着只为保存时不丢 OCR 的图片表。
+
 ---
 
 ## 6. `.lbook` 格式规范
@@ -411,6 +424,7 @@ connect-src 'self' lbook:; worker-src 'self'
 | **OCR 图片不显示** | OCR 里的图片是百度云签名 URL（4227 个），本地没有图片文件。本轮不处理，`assets/` 目录格式已预留，`resolveAssetUrls` 已实现并测试。 |
 | **`manifest.pageCount` 可能与 PDF 真实页数不符** | 页数在创建时取自 OCR JSON 的条目数。数据库中的 `page_count` 也来自 OCR。若 OCR 漏页，两者会与 PDF 真实页数不一致。 |
 | **保存是全量重写** | 保存时重写 `.lbook` 的尾部条目。因为 PDF 是 STORE 且排在首位，PDF 段是逐字节复制而非重新压缩；但整包仍会被完整写出一次（190MB 约 1–3 秒）。 |
+| **改块不会反映到 Markdown 视图** | 一页有两份 OCR 文本（`markdown_text` 与 `blocks`），只有块可编辑；`markdown.text` 保存时原样写回，我们从不重建它。见第 5.5 节。 |
 | **无并发写保护** | 单用户桌面应用，未做多实例互斥。同时开两个 LBook 实例写同一个库，结果未定义。 |
 | **未签名** | NSIS 包未做代码签名，首次安装会触发 SmartScreen 警告。 |
 | **云厂商密钥明文存于 `config.json`** | 单用户桌面应用没有服务端可托管密钥，且用户看不见的密钥等于修不了的密钥。缓解：只经 `settings:get` 回传、不进日志、建议用子账号密钥。见第 8.2 节。 |
