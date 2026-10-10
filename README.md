@@ -86,6 +86,8 @@ npm run pack      # 产出 release/LBook-Setup-<version>.exe
 - [src/main/README.md](./src/main/README.md) —— 主进程
 - [src/renderer/README.md](./src/renderer/README.md) —— 渲染层
 
+施工中的计划、决策台账与实测记录在 [.agents/plan/README.md](./.agents/plan/README.md)（代理工作区，不是产品文档）。
+
 ---
 
 ## 两个值得知道的设计决定

@@ -214,4 +214,5 @@ Phase 4 是唯一重新引入"写"的阶段，而且写的是**用户自己的 J
 
 - 父级：[README.md](./README.md)
 - 同级：[DESIGN.md](./DESIGN.md)、[BUILD.md](./BUILD.md)、[TEST.md](./TEST.md)、[AGENTS.md](./AGENTS.md)
+- 施工计划（逐阶段任务清单与决策台账）：[.agents/plan/README.md](./.agents/plan/README.md)
 - 相关：[src/main/lbook/README.md](./src/main/lbook/README.md)、[src/main/library/README.md](./src/main/library/README.md)、[src/main/db/README.md](./src/main/db/README.md)
