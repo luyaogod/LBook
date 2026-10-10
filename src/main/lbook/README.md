@@ -10,6 +10,7 @@
 
 | 文件 | 说明 |
 |---|---|
+| `offsetIndex.ts` | **大 OCR JSON 的按页随机访问**：流式扫出 `layoutParsingResults[]` 每个元素的字节区间，再按偏移取单页。内存与文件大小无关（实测与取舍见 `PLAN.md` 4.2） |
 | `zipIndex.ts` | `ZipArchive`：中央目录索引、由**局部文件头**解析数据偏移、STORE 条目的字节区间读取、DEFLATE 条目的整条解压 |
 | `archiveCache.ts` | 打开句柄的 LRU 缓存。**缓存的是 pending Promise 而非已解析实例**——否则并发调用会各开一次并泄漏一个句柄 |
 | `manifest.ts` | manifest 解析/构造、条目名常量、`slugify()`、`packageFileName()` |
@@ -21,7 +22,7 @@
 
 ## 对外接口
 
-`ZipArchive`、`ZipEntryInfo`、`isSafeEntryName()`、`withArchive()`；缓存：`getArchive()`、`closeArchive()`、`closeAllArchives()`、`openArchiveCount()`；读取门面（见上表）；打包：`packLbook()`、`repackLbook()`；解析：`parseOcrPayload()`、`validateOcrJson()`、`detectHtml()`；重建：`buildOcrJsonFromDb()`、`mergeBlocks()`。
+`PageSpan`、`scanPageSpans()`、`readSpanAt()`、`readSpan()`；`ZipArchive`、`ZipEntryInfo`、`isSafeEntryName()`、`withArchive()`；缓存：`getArchive()`、`closeArchive()`、`closeAllArchives()`、`openArchiveCount()`；读取门面（见上表）；打包：`packLbook()`、`repackLbook()`；解析：`parseOcrPayload()`、`validateOcrJson()`、`detectHtml()`；重建：`buildOcrJsonFromDb()`、`mergeBlocks()`。
 
 ## 依赖方向
 

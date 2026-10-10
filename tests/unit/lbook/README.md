@@ -8,6 +8,7 @@
 
 | 文件 | 说明 |
 |---|---|
+| `offsetIndex.test.ts` | 大 OCR JSON 的字节偏移索引：**跨块**（7/13/64 字节分块，故意把结构字符劈开）、字符串里的括号与转义、多字节 UTF-8 被劈开、`limit` 早退（首屏只读“前缀 + 一块”）、找不到数组/空数组/截断文件都不抛异常；真实 fixture **逐页与整文件 parse 深度相等** |
 | `zipIndex.test.ts` | 中央目录索引、数据偏移解析、区间读取与越界钳制、压缩条目拒绝、条目名安全 |
 | `reader.test.ts` | **`readPdfRange(uid,0,8)` 以 `%PDF-` 开头**；随机区间与原始字节一致；manifest/ocr/cover 读取；并发调用共享句柄 |
 | `validate.test.ts` | DEFLATE 的 PDF、缺 manifest、格式串错、版本过高、恶意 `../` 条目、缺 book.pdf、截断包 |

@@ -36,6 +36,7 @@ npx vitest --coverage                     # 带覆盖率（覆盖 src/main 与 s
 | `tests/unit/db/repositories.test.ts` | 行→渲染层类型映射（含 `cover_url`）；排序；**级联删除带走页与块**；块 bbox 解析与容错；`is_html_content` 重算；阅读进度 upsert 与越界拒绝 |
 | `tests/unit/config/config.test.ts` | 默认值；往返写读；**损坏文件自愈而非崩溃**；字段级回退；**阅读字号缺失时取默认、越界/非法值时夹取与取整**；原子写入不留临时文件 |
 | `tests/unit/lbook/zipIndex.test.ts` | 中央目录索引；`dataStart` 由局部文件头算出；区间读取与越界钳制；**拒绝对压缩条目做区间读**；条目名安全 |
+| `tests/unit/lbook/offsetIndex.test.ts` | 大 OCR JSON 的字节偏移索引：**跨块**（7/13/64 字节分块把结构字符劈开）、字符串里的括号与转义、多字节 UTF-8 被劈开、`limit` 早退（首屏只读“前缀 + 一块”）、找不到数组/空数组/截断文件都不抛；真实 fixture **逐页与整文件 parse 深度相等** |
 | `tests/unit/lbook/reader.test.ts` | **`readPdfRange(uid,0,8)` 以 `%PDF-` 开头**；随机区间与原始字节一致；尾块钳制；manifest / ocr / cover / toc 读取；**损坏的 `toc.json` 报错而不是当作没有目录**；**并发调用共享同一句柄**（句柄泄漏回归） |
 | `tests/unit/lbook/manifest.test.ts` | manifest 解析与容错；`slugify` 边界（纯符号标题、非 ASCII、超长） |
 | `tests/unit/lbook/validate.test.ts` | DEFLATE 的 PDF → 硬错误 + `needsRepack`；缺 manifest；格式串错；版本过高；**恶意 `../` 条目**；缺 book.pdf；截断包 |
@@ -157,7 +158,6 @@ npm test
 54. **PDF 工具栏下方那条分割线要从左侧目录面板一直连到右侧 OCR 面板**，两端不能各缺一小截；线宽 1px，三段的 y 必须对齐（差 1px 就能看出错位）
 
 ### 字体（阅读区字号）
-
 55. 设置 → **Font**：只有一个字号滑块（12–24px，默认 14），右侧跟着显示当前数值
 56. **拖动滑块时阅读区的文字实时变化**（不用等松开鼠标），松手后 `%APPDATA%\LBook\config.json` 的 `readingFontSize` 才变成该值
 57. 调到 **24px**：正文与 Markdown 的 h1/h2 标题、代码块、表格**一起变大**，且标题**不会**反而比正文小（尺寸都是相对的）

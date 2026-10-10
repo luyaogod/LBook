@@ -29,6 +29,7 @@ import { spawnSync } from "node:child_process"
 import Database from "better-sqlite3"
 
 import { listEntries, readEntry, readManifest, readPdfRange, pdfSize, closeBook } from "../src/main/lbook/reader"
+import { readSpanAt, scanPageSpans } from "../src/main/lbook/offsetIndex"
 import { createPageRepo } from "../src/main/db/repositories/pages"
 import { createBlockRepo } from "../src/main/db/repositories/blocks"
 
@@ -77,132 +78,29 @@ function readLibraryDir(): string {
 
 // ---- 偏移索引 -------------------------------------------------------------
 
-const KEY = Buffer.from('"layoutParsingResults"')
-const CHUNK = 1024 * 1024
-/** 找 key 的前缀上限：PaddleOCR 的输出里它就在头几行，但真被放在很后面也能顶到这。 */
-const MAX_PREFIX = 8 * 1024 * 1024
-
-interface ScanState {
-  /** 数组本身的层级：从 1 开始（左括号不计入扫描，直接初始化为 1） */
-  depth: number
-  inString: boolean
-  escaped: boolean
-  start: number
-}
-
 /**
- * 扫一遍 JSON 字节流，记下 `layoutParsingResults[]` 每个元素的 `[start, end)`。
+ * 扫一遍 JSON 字节流，给出每一页的字节区间（含实际读入量，用来量"首屏"）。
  *
- * 只跟踪"花括号层级 + 字符串状态"，不解析内容、不假设缩进——用户用编辑器重排过、
- * 换行符被改成 LF/CRLF 都不影响。**流式分块读**，内存里从不需要出现整个文件：状态机
- * 是纯字节的（`{` `}` `[` `]` `"` `\` 都是单字节 ASCII，多字节 UTF-8 只可能出现在字符串
- * 内部，而字符串内部我们只找这两个 ASCII 字节），所以跨块不需要任何残留缓冲。
- *
- * Phase 1 会把它搬进 `src/main/lbook/`，并补上"结构被改坏"的用例。
+ * 实现已经在 `src/main/lbook/offsetIndex.ts`——Phase 1 把它从本探针搬了过去并补齐了
+ * 单测。**探针必须量那份真正要上线的代码**，所以这里只包一层计时，不再自己留一份。
  */
-function scanOffsets(file: string, limit?: number): { spans: Array<[number, number]>; bytes: number; ms: number } {
-  const t0 = process.hrtime.bigint()
-  const fd = fs.openSync(file, "r")
-  const spans: Array<[number, number]> = []
-  const state: ScanState = { depth: 1, inString: false, escaped: false, start: -1 }
-  const scratch = Buffer.allocUnsafe(CHUNK)
-  let bytes = 0
-
-  try {
-    const size = fs.fstatSync(fd).size
-    bytes = size
-    const arrayAt = findArrayStart(fd, size)
-    if (arrayAt === null) return { spans: [], bytes, ms: ms(t0, process.hrtime.bigint()) }
-
-    let pos = arrayAt + 1
-    while (pos < size) {
-      const read = fs.readSync(fd, scratch, 0, CHUNK, pos)
-      if (read <= 0) break
-      const buf = read === CHUNK ? scratch : scratch.subarray(0, read)
-      if (scanBytes(buf, state, spans, pos, limit)) break
-      pos += read
-    }
-  } finally {
-    fs.closeSync(fd)
-  }
-
-  return { spans, bytes, ms: ms(t0, process.hrtime.bigint()) }
-}
-
-/**
- * 找 `layoutParsingResults` 后面那个左括号的绝对偏移。
- *
- * 用"前缀不够就翻倍"的笨办法而不再做跨块 carry：key 实际就在文件头几行，
- * 而带跨块残留的搜索状态机是这一块最容易出错的地方，不值得为它写几百行。
- */
-function findArrayStart(fd: number, size: number): number | null {
-  let prefix = Math.min(65536, size)
-  for (;;) {
-    const head = Buffer.allocUnsafe(prefix)
-    const read = fs.readSync(fd, head, 0, prefix, 0)
-    const view = head.subarray(0, read)
-    const keyAt = view.indexOf(KEY)
-    if (keyAt >= 0) {
-      const at = view.indexOf(0x5b /* [ */, keyAt)
-      if (at >= 0) return at
-    }
-    if (read >= size || prefix >= MAX_PREFIX) return null
-    prefix = Math.min(prefix * 8, size, MAX_PREFIX)
-  }
-}
-
-/**
- * 状态机本体；`base` 是这一块在文件里的绝对偏移。返回 true 表示可以收工了
- * （数组结束，或已经拿到 `limit` 个元素）。
- */
-function scanBytes(
-  buf: Buffer,
-  state: ScanState,
-  spans: Array<[number, number]>,
-  base: number,
+async function scanOffsets(
+  file: string,
   limit?: number,
-): boolean {
-  for (let p = 0; p < buf.length; p++) {
-    const c = buf[p]
-    if (state.inString) {
-      if (state.escaped) state.escaped = false
-      else if (c === 0x5c /* \ */) state.escaped = true
-      else if (c === 0x22 /* " */) state.inString = false
-      continue
-    }
-    if (c === 0x22) {
-      state.inString = true
-      continue
-    }
-    if (c === 0x7b || c === 0x5b) {
-      state.depth++
-      if (state.depth === 2 && state.start < 0) state.start = base + p
-      continue
-    }
-    if (c === 0x7d || c === 0x5d) {
-      state.depth--
-      if (state.depth === 1 && state.start >= 0) {
-        spans.push([state.start, base + p + 1])
-        state.start = -1
-        if (limit !== undefined && spans.length >= limit) return true
-      }
-      if (state.depth === 0) return true
-    }
+): Promise<{ spans: Array<[number, number]>; bytes: number; ms: number; scanned: number }> {
+  const t0 = process.hrtime.bigint()
+  const { spans, fileBytes, scannedBytes } = await scanPageSpans(file, { limit })
+  return {
+    spans: spans.map((s): [number, number] => [s.start, s.end]),
+    bytes: fileBytes,
+    scanned: scannedBytes,
+    ms: ms(t0, process.hrtime.bigint()),
   }
-  return false
 }
 
-/** 按偏移读一段并解析——这是新架构里"取第 N 页"的全部实现。 */
+/** 按偏移读一页——同样直接用上线实现。 */
 function readSlice(fd: number, start: number, end: number): unknown {
-  const length = end - start
-  const buf = Buffer.allocUnsafe(length)
-  let read = 0
-  while (read < length) {
-    const n = fs.readSync(fd, buf, read, length - read, start + read)
-    if (n <= 0) throw new Error(`短读：期望 ${length} 字节，只读到 ${read}`)
-    read += n
-  }
-  return JSON.parse(buf.toString("utf8"))
+  return readSpanAt(fd, { start, end })
 }
 
 // ---- 摊成"文件夹式"的书 ----------------------------------------------------
@@ -311,7 +209,7 @@ function runChild(args: string[]): ChildResult {
 /** 子进程模式的入口；父进程用 `--idle` / `--lazy` / `--baseline` / `--verify` 调自己。 */
 const CHILD_MODES = new Set(["--idle", "--lazy", "--baseline", "--verify"])
 
-function childMode(): void {
+async function childMode(): Promise<void> {
   const mode = process.argv[2]
   if (mode === "--idle") {
     process.stdout.write(JSON.stringify({ rss: process.memoryUsage().rss }))
@@ -329,7 +227,7 @@ function childMode(): void {
   if (mode === "--lazy") {
     const count = Number(process.argv[4] ?? 130)
     // 全程不把文件读进内存：流式扫索引，再按偏移读 n 页。
-    const { spans, ms: scanMs } = scanOffsets(file)
+    const { spans, ms: scanMs } = await scanOffsets(file)
     const fd = fs.openSync(file, "r")
     const t0 = process.hrtime.bigint()
     try {
@@ -353,7 +251,7 @@ function childMode(): void {
     // 整文件 parse 的内存污染上面那组内存数字。
     const text = fs.readFileSync(file, "utf8")
     const all = JSON.parse(text) as { layoutParsingResults: unknown[] }
-    const scanned = scanOffsets(file).spans
+    const scanned = (await scanOffsets(file)).spans
     const fd = fs.openSync(file, "r")
     let ok = 0
     let bad = 0
@@ -467,7 +365,7 @@ async function main(): Promise<void> {
   const scannedBooks = fs.readdirSync(TEMP_ROOT, { withFileTypes: true }).filter((e) => e.isDirectory()).length
 
   // ---- B 冷开书 ----
-  const { spans, ms: scanMs } = scanOffsets(book.ocrFile)
+  const { spans, ms: scanMs } = await scanOffsets(book.ocrFile)
   if (spans.length === 0) throw new Error("ocr.json 里找不到 layoutParsingResults")
   const t1 = process.hrtime.bigint()
   const meta = JSON.parse(fs.readFileSync(path.join(book.dir, "meta.json"), "utf8")) as { ocrFile: string }
@@ -476,7 +374,7 @@ async function main(): Promise<void> {
   const t2 = process.hrtime.bigint()
   const firstPage = readSlice(fd, spans[0][0], spans[0][1]) as { prunedResult?: { parsing_res_list?: unknown[] } }
   const firstPageMs = ms(t2, process.hrtime.bigint())
-  const early = scanOffsets(book.ocrFile, 30)
+  const early = await scanOffsets(book.ocrFile, 30)
 
   // 先证索引是对的，再谈它有多快。
   const verify = runChild(["--verify", book.ocrFile])
@@ -649,9 +547,14 @@ async function main(): Promise<void> {
   }
 }
 
-if (CHILD_MODES.has(process.argv[2] ?? "")) childMode()
-else
-  main().catch((error: unknown) => {
+if (CHILD_MODES.has(process.argv[2] ?? "")) {
+  void childMode().catch((error: unknown) => {
     console.error(error)
     process.exitCode = 1
   })
+} else {
+  void main().catch((error: unknown) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+}

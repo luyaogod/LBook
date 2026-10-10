@@ -35,17 +35,20 @@
 
 ## 任务清单
 
-### T1 偏移扫描器进仓 + 单测
+### T1 偏移扫描器进仓 + 单测 ✅ 已完成（2026-10-11）
 
-- [ ] 把 `scripts/perf-probe.ts` 里的 `scanOffsets` / `scanBytes` / `findArrayStart` 搬到 `src/main/lbook/offsetIndex.ts`，连同 `readPageSlice(fd, start, end)`。
-- [ ] 单测 `tests/unit/lbook/offsetIndex.test.ts`：
-  - [ ] **跨块**：构造 > `CHUNK`（1MB）的 JSON，元素边界落在块内/块首/块尾/跨两块——最易错的地方。
-  - [ ] 字符串里出现 `{ } [ ] " \` 与转义引号：不能被当结构。
-  - [ ] 多字节 UTF-8（中文、emoji）在字符串里：纯字节状态机不受影响。
-  - [ ] `limit` 早退：取 30 页时不会扫完整个文件。
-  - [ ] 缺 `layoutParsingResults`、空数组、文件被截断 → 返回已有结果而不抛异常。
-  - [ ] 真实 fixture（`dev-data/Oxford Picture Dictionary 3 ed.ocr.json`）：全部页与 `JSON.parse` 逐页深度相等（探针验过，固化成单测）。
-- [ ] 注释写清"为什么流式、为什么不需要跨块残留"（`PLAN.md` 4.2）。
+- [x] 扫描器已搬到 `src/main/lbook/offsetIndex.ts`：`scanPageSpans()`（流式，前缀就地扫、不重读）、`readSpanAt()`、`readSpan()`。
+- [x] 单测 `tests/unit/lbook/offsetIndex.test.ts`（9 个用例）：
+  - [x] **跨块**：`chunkBytes` 取 7 / 13 / 64 / 4096 四种尺寸，故意把引号、逗号、转义序列劈开。
+  - [x] 字符串里的 `{ } [ ] " \` 与转义引号、以反斜杠结尾的字符串。
+  - [x] 多字节 UTF-8（中文 + emoji）被 5 字节分块劈开。
+  - [x] `limit` 早退（文件 2MB+，只读“前缀 + 一块”）。
+  - [x] 缺 `layoutParsingResults` / 空数组 / 被截断的第三页：都不抛，且已拿到的页仍可单独解析。
+  - [x] 真实 fixture：**294 页逐页与整文件 `JSON.parse` 深度相等**（`describe.skipIf(文件不在)`）。
+- [x] `scripts/perf-probe.ts` 里那份重复实现已删，改成引用本模块（**探针必须量真要上线的代码**）；换过之后自检仍 665/665、首屏 3.3ms。
+- [x] 文档同步：`src/main/lbook/README.md`、`tests/unit/lbook/README.md`、`TEST.md` 职责表。
+
+> 施工中发现的真 bug：第一版把“找数组左括号”的前缀读了一遍、循环里又从磁盘重读——`scannedBytes` 因此账不实（比文件还大）。改成前缀就地扫掉，顺带少一次 IO。
 
 ### T2 `meta.json` 契约（`src/shared/bookFile.ts`）
 
