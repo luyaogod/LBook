@@ -37,10 +37,10 @@ export function BlockOverlay({ block, scale, isHighlighted, onHover, scaleX, sca
             : colors.bg,
         pointerEvents: "auto",
       }}
-      data-block-id={block.id}
-      onMouseEnter={() => onHover(block.id)}
+      data-block-id={block.block_index}
+      onMouseEnter={() => onHover(block.block_index)}
       onMouseLeave={() => onHover(null)}
-      onClick={(e) => { e.stopPropagation(); onClick(block.id); }}
+      onClick={(e) => { e.stopPropagation(); onClick(block.block_index); }}
       title={`${block.block_label}: ${block.block_content?.slice(0, 100) ?? ""}`}
     />
   );

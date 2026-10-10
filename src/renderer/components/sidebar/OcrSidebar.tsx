@@ -49,12 +49,11 @@ interface OcrSidebarProps {
   flowMode: boolean;
   onFlowModeChange: (v: boolean) => void;
   flowPagesData?: FlowPageData[];
-  /** Fired after an inline edit, so the viewer can flag unsaved changes. */
-  onBlockEdited?: () => void;
-  /** Book uid, used to resolve relative image references. */
+  /**
+   * Book uid: identity, asset-URL prefix and the key for the panel's own page
+   * loading when it fills the row.
+   */
   bookUid?: string;
-  /** Book id, needed only when this panel loads pages itself. */
-  pdfId?: number;
   /** True when the page area is hidden and this panel fills the row. */
   expanded: boolean;
   onExpandedChange: (v: boolean) => void;
@@ -110,9 +109,7 @@ export function OcrSidebar({
   flowMode,
   onFlowModeChange,
   flowPagesData,
-  onBlockEdited,
   bookUid,
-  pdfId,
   expanded,
   onExpandedChange,
   onCollapse,
@@ -136,8 +133,8 @@ export function OcrSidebar({
    * would sit on "Scroll to load pages..." forever, so it loads its own pages
    * and drives its own scroll position instead.
    */
-  const selfFlow = expanded && flowMode && typeof pdfId === "number";
-  const { getPage, prefetch, version } = useFlowPages(pdfId ?? 0);
+  const selfFlow = expanded && flowMode && Boolean(bookUid);
+  const { getPage, prefetch, version } = useFlowPages(bookUid ?? "");
   const [flowWindow, setFlowWindow] = useState({ from: 1, to: 3 });
   const reportedPageRef = useRef(0);
 
@@ -171,7 +168,7 @@ export function OcrSidebar({
     // this panel's own scrolling, and re-centring on every report would fight
     // the reader. Jumps arrive through `scrollToPage` below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selfFlow, pdfId, totalPages]);
+  }, [selfFlow, bookUid, totalPages]);
 
   // A jump from the toolbar or the table of contents re-centres the window.
   useEffect(() => {
@@ -499,12 +496,11 @@ export function OcrSidebar({
                   )}
                   {pageBlocks.map((block) => (
                     <BlockCard
-                      key={block.id}
+                      key={block.block_index}
                       block={block}
-                      isHighlighted={block.id === highlightedBlockId}
+                      isHighlighted={block.block_index === highlightedBlockId}
                       onHover={onBlockHover}
                       onClick={onBlockClick}
-                      onUpdated={onBlockEdited}
                       bookUid={bookUid}
                     />
                   ))}
@@ -537,12 +533,11 @@ export function OcrSidebar({
                 )}
                 {blocks.map((block) => (
                   <BlockCard
-                    key={block.id}
+                    key={block.block_index}
                     block={block}
-                    isHighlighted={block.id === highlightedBlockId}
+                    isHighlighted={block.block_index === highlightedBlockId}
                     onHover={onBlockHover}
                     onClick={onBlockClick}
-                    onUpdated={onBlockEdited}
                       bookUid={bookUid}
                   />
                 ))}

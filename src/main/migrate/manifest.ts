@@ -1,4 +1,29 @@
-import type { BookCoverRef, BookManifest } from "../../shared/types"
+/**
+ * The old .lbook manifest, as it was written.
+ *
+ * Kept only so the one-time converter can read the packages it has to translate;
+ * nothing in the running app reads a .lbook any more. See the README next to this
+ * file.
+ */
+export interface BookCoverRef {
+  name: string
+  mime: string
+}
+
+export interface BookManifest {
+  format: "lbook"
+  formatVersion: number
+  uid: string
+  title: string
+  author: string | null
+  createdAt: string
+  pageCount: number
+  pdfSize: number
+  pdfSha256: string
+  hasOcr: boolean
+  cover: BookCoverRef | null
+  generator: string
+}
 
 export const LBOOK_FORMAT = "lbook"
 export const LBOOK_FORMAT_VERSION = 1

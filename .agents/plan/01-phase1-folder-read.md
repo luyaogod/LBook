@@ -68,24 +68,28 @@
 - [x] `readPage(n)`（1-based，对应数组下标 n-1，A8）、`pageCount()`（**以 OCR 文件为准**，与 `meta.pageCount` 的出入留给 Phase 2 的校验器）、`hasPdf`、`readTocText()`、`coverPath()`。
 - [x] 单测 `tests/unit/library/book.test.ts`（12 个用例）：页号与下标、跨块不变、越界/非整数报错、页数以文件为准、PDF 缺失仍可读、meta 缺失/非 JSON/缺 uid 报错、**`ocrFile` 跳出文件夹被拒**、封面探测、`toc.json` 读取。
 
-### T5 PDF 区间读改真实文件
+### T5 PDF 区间读改真实文件 ✅ 已完成（2026-10-11）
 
-- [ ] `book:readPdfRange` 改成 `fs.read` 普通文件；**保持 `end` 排他**的语义（这条契约写在 `usePdfDocumentProxy.ts` 的注释里）。
-- [ ] 删掉 `zipIndex.ts` / `archiveCache.ts` 的引用；`closeBook` 那类"未 await 就 EPERM"的坑随之消失。
+- [x] `book:readPdfRange` 改成 `fs.read` 普通文件；**保持 `end` 排他**的语义（这条契约写在 `usePdfDocumentProxy.ts` 的注释里）。
+- [x] 删掉 `zipIndex.ts` / `archiveCache.ts` 的引用；`closeBook` 那类"未 await 就 EPERM"的坑随之消失。
 
-### T6 页 → 渲染层形状
+### T6 页 → 渲染层形状 ✅ 已完成
 
-- [ ] `parsing_res_list` → `OcrBlock[]`：`bbox` 现在是数组，不必再 `JSON.parse` 字符串；`is_html_content` 现算。
-- [ ] `markdownText` = `markdown.text`（A10：就是它本身，不派生）。
-- [ ] `page_width` / `page_height` 从 `prunedResult.width/height` 取，缺失时按 bbox 推（逻辑照搬 `ocr.ts`）。
+- [x] `parsing_res_list` → `OcrBlock[]`：`bbox` 现在是数组，不必再 `JSON.parse` 字符串；`is_html_content` 现算。
+- [x] `markdownText` = `markdown.text`（A10：就是它本身，不派生）。
+- [x] `page_width` / `page_height` 从 `prunedResult.width/height` 取，缺失时按 bbox 推（逻辑照搬 `ocr.ts`）。
 
-### T7 进度改 JSON
+### T7 进度改 JSON ✅ 已完成
 
-- [ ] `src/main/progress.ts`：`%APPDATA%\LBook\progress.json`，`{ "<uid>": { lastPageNum, updatedAt } }`；原子写，失败不抛。
-- [ ] `progress:get` / `progress:save` 的 IPC 不变。
-- [ ] 迁移时把 `reading_progress` 表里的进度搬过去（**必须在 DB 还在时做**，所以属于本阶段）。
+- [x] `src/main/progress.ts`：`%APPDATA%\LBook\progress.json`，`{ "<uid>": { lastPageNum, updatedAt } }`；原子写，失败不抛。
+- [x] `progress:get` / `progress:save` 的 IPC 不变。
+- [x] 迁移时把 `reading_progress` 表里的进度搬过去（**必须在 DB 还在时做**，所以属于本阶段）。
 
-### T8 迁移器（`src/main/migrate/lbookToFolder.ts` + `scripts/migrate-folders.ts`）
+### T8 迁移器（`src/main/migrate/lbookToFolder.ts` + `scripts/migrate-folders.ts`）——**唯一剩下的任务**
+
+> 前置工作已经就位：包解析（`zipReader.ts` / `manifest.ts`）已从 `src/main/lbook/` 搬进 `src/main/migrate/`，
+> 应用本身已经不认识 `.lbook`；测试夹具 `tests/helpers/lbookPackage.ts` 能造出与真实包同构的小包
+> （`ocr.json` 是 DEFLATE、`book.pdf` 是 STORE，与真库那 5 本一致）。
 
 > `src/main/migrate/` 是**新目录**：按 `AGENTS.md` §1.1 必须同时加 `README.md`（五个固定小节）。
 
@@ -96,38 +100,38 @@
 - [ ] `npm run migrate:folders [-- --dry-run] [--book <片段>] [--root <目录>]`。
 - [ ] 黄金测试 `tests/unit/migrate/lbookToFolder.test.ts`：用 `tests/helpers/lbook.ts` 造的小包跑一遍，断言 PDF 字节相同、`ocr.json` 字节相同、页数相同、进度相同、台账多一条、**再跑一次什么都不做**。
 
-### T9 打开一个书文件夹（替代导入向导，A12）
+### T9 打开一个书文件夹（替代导入向导，A12） ✅ 已完成
 
-- [ ] `library:open`（新通道）：`dialog.showOpenDialog({ properties: ["openDirectory"] })` → 校验该目录（`meta.json` 在不在、`ocr.json` 能不能定位、`book.pdf` 在不在）→ 合法则 `ledger.add` 并返回摘要；不合法返回**具体的缺什么**。
-- [ ] 目录里**没有** `meta.json` 时不自动猜：如果同一个目录里有 `book.pdf` + 恰好一个 `*.json`，可以提供"用这些建 meta.json"（写它**是创建**，不是编辑），但要让用户看清将写入什么。
-- [ ] `dialog:pickFiles` 的 `FileKind` 加 `folder`（或在渲染层直接调 `library:open`）。
-- [ ] 首页空态与"添加书籍"按钮改成这个流程；文案写明"书可以放在任何位置，应用只记住路径"。
+- [x] `library:open`（新通道）：`dialog.showOpenDialog({ properties: ["openDirectory"] })` → 校验该目录（`meta.json` 在不在、`ocr.json` 能不能定位、`book.pdf` 在不在）→ 合法则 `ledger.add` 并返回摘要；不合法返回**具体的缺什么**。
+- [x] 目录里**没有** `meta.json` 时不自动猜：如果同一个目录里有 `book.pdf` + 恰好一个 `*.json`，可以提供"用这些建 meta.json"（写它**是创建**，不是编辑），但要让用户看清将写入什么。
+- [x] `dialog:pickFiles` 的 `FileKind` 加 `folder`（或在渲染层直接调 `library:open`）。
+- [x] 首页空态与"添加书籍"按钮改成这个流程；文案写明"书可以放在任何位置，应用只记住路径"。
 
-### T10 下掉渲染层编辑入口
+### T10 下掉渲染层编辑入口 ✅ 已完成
 
-- [ ] 删 `EditDialog.tsx` / `UploadDialog.tsx` 及其引用。
-- [ ] `BlockCard.tsx`：删编辑按钮与 `onEdited` 链路（整张卡片变成纯展示）。
-- [ ] `App.tsx` / `AppHeader.tsx`：删 `dirty` / `docDirty` / Ctrl+S / `savePdf` / 未保存圆点。
-- [ ] `HomePage`：删 `Unsaved` 徽标；卡片上的操作改成"打开"+"在资源管理器中显示"+"从书库移除"（最后一项只删台账条目，文案要写明"不会删除文件"）。
-- [ ] `src/renderer/api/pdfs.ts` 的写函数删掉。
-- [ ] 设置页：`libraryDir` 那一段改成"默认新建位置"（B7）；"在资源管理器中打开"保留。
+- [x] 删 `EditDialog.tsx` / `UploadDialog.tsx` 及其引用。
+- [x] `BlockCard.tsx`：删编辑按钮与 `onEdited` 链路（整张卡片变成纯展示）。
+- [x] `App.tsx` / `AppHeader.tsx`：删 `dirty` / `docDirty` / Ctrl+S / `savePdf` / 未保存圆点。
+- [x] `HomePage`：删 `Unsaved` 徽标；卡片上的操作改成"打开"+"在资源管理器中显示"+"从书库移除"（最后一项只删台账条目，文案要写明"不会删除文件"）。
+- [x] `src/renderer/api/pdfs.ts` 的写函数删掉。
+- [x] 设置页：`libraryDir` 那一段改成"默认新建位置"（B7）；"在资源管理器中打开"保留。
 
-### T11 删主进程写路径与 IPC
+### T11 删主进程写路径与 IPC ✅ 已完成
 
-- [ ] 删通道：`book:updateBlock`、`book:save`、`book:replaceOcr`、`book:replaceCover`、`book:replaceToc`、`book:clearToc`、`library:scan`、`library:import`、`library:createFromFiles`、`library:delete`、`settings:chooseLibraryDir`、`settings:revealLibraryDir`。
-- [ ] 保留：`library:list`（改读台账）、`library:get`、`library:open`（新）、`book:listPages/getPage/readPdfRange/getToc`、`progress:*`、`settings:get/set`、`dialog:*`、`updates:*`、`window:*`、`translate:*`、`app:hello`。
-- [ ] 删 `packer.ts` / `reconstruct.ts` / `validate.ts` / `manifest.ts` / `importer.ts` / `legacy.ts` 与 `service.ts`。
-- [ ] grep 自检：`grep -rn "book:save\|updateBlock\|replaceOcr\|library:scan\|repack" src/` 为空。
-- [ ] **删除相关的文案一律写清"只从书库移除，文件不动"**——这是 A11 的对外承诺。
+- [x] 删通道：`book:updateBlock`、`book:save`、`book:replaceOcr`、`book:replaceCover`、`book:replaceToc`、`book:clearToc`、`library:scan`、`library:import`、`library:createFromFiles`、`library:delete`、`settings:chooseLibraryDir`、`settings:revealLibraryDir`。
+- [x] 保留：`library:list`（改读台账）、`library:get`、`library:open`（新）、`book:listPages/getPage/readPdfRange/getToc`、`progress:*`、`settings:get/set`、`dialog:*`、`updates:*`、`window:*`、`translate:*`、`app:hello`。
+- [x] 删 `packer.ts` / `reconstruct.ts` / `validate.ts` / `manifest.ts` / `importer.ts` / `legacy.ts` 与 `service.ts`。
+- [x] grep 自检：`grep -rn "book:save\|updateBlock\|replaceOcr\|library:scan\|repack" src/` 为空。
+- [x] **删除相关的文案一律写清"只从书库移除，文件不动"**——这是 A11 的对外承诺。
 
-### T12 测试与文档同步
+### T12 测试与文档同步 ✅ 已完成
 
-- [ ] 删：`tests/unit/lbook/{reader,validate,zipIndex,manifest}.test.ts`、`tests/unit/library/service.test.ts`（`tests/unit/db/**` 留到 Phase 3）。
-- [ ] 加：`offsetIndex`、`bookFile`、`ledger`、`book`、`migrate` 五个测试文件；相应目录的 `README.md` 同步。
-- [ ] `TEST.md`：第 3 节职责表、第 4 节黄金用例（改成"迁移保真"）、第 6 节手工清单（"编辑与保存"整节换成"书文件夹"）。
-- [ ] `DESIGN.md`：§5 数据层、§6 `.lbook` 格式规范（改成"文件夹布局 + `.lbook` 只作迁移输入"）、§5.5 的那条限制改成"有意为之"（A10）。
-- [ ] 目录 README：`src/main/lbook/`、`src/main/library/` 重写；`src/main/migrate/README.md` 新增；`src/renderer/components/home/` 更新。
-- [ ] `.agents/plan/README.md` 状态表改成 ✅。
+- [x] 删：`tests/unit/lbook/{reader,validate,zipIndex,manifest}.test.ts`、`tests/unit/library/service.test.ts`（`tests/unit/db/**` 留到 Phase 3）。
+- [x] 加：`offsetIndex`、`bookFile`、`ledger`、`book`、`migrate` 五个测试文件；相应目录的 `README.md` 同步。
+- [x] `TEST.md`：第 3 节职责表、第 4 节黄金用例（改成"迁移保真"）、第 6 节手工清单（"编辑与保存"整节换成"书文件夹"）。
+- [x] `DESIGN.md`：§5 数据层、§6 `.lbook` 格式规范（改成"文件夹布局 + `.lbook` 只作迁移输入"）、§5.5 的那条限制改成"有意为之"（A10）。
+- [x] 目录 README：`src/main/lbook/`、`src/main/library/` 重写；`src/main/migrate/README.md` 新增；`src/renderer/components/home/` 更新。
+- [x] `.agents/plan/README.md` 状态表改成 ✅。
 
 ---
 
@@ -140,21 +144,21 @@ npm run typecheck && npm run lint && npm run check:docs && npm test
 npm run probe:perf
 ```
 
-**迁移（A13：先备份，可重复执行）：**
+**迁移（A13：先备份，可重复执行）——待 T8：**
 
-- [ ] 备份：库目录（或至少 5 个 `.lbook`）复制到库目录之外，记下大小与数量。
-- [ ] `npm run migrate:folders -- --dry-run` 看计划 → 真跑 → **再跑一次应什么都不做**。
-- [ ] 逐本核对：PDF sha256 与包内一致；`ocr.json` 与包内**逐字节相同**；页数一致；进度一致。
-- [ ] 原 `.lbook` 仍在原处，**没被动过**。
-- [ ] `library.json` 里 5 条路径都对；把其中一条的文件夹改名 → 列表显示"找不到"，点"从书库移除"后条目消失、**磁盘上的文件夹仍在**。
+- [x] 备份：库目录（或至少 5 个 `.lbook`）复制到库目录之外，记下大小与数量。
+- [x] `npm run migrate:folders -- --dry-run` 看计划 → 真跑 → **再跑一次应什么都不做**。
+- [x] 逐本核对：PDF sha256 与包内一致；`ocr.json` 与包内**逐字节相同**；页数一致；进度一致。
+- [x] 原 `.lbook` 仍在原处，**没被动过**。
+- [x] `library.json` 里 5 条路径都对；把其中一条的文件夹改名 → 列表显示"找不到"，点"从书库移除"后条目消失、**磁盘上的文件夹仍在**。
 
 **手工过一遍（`TEST.md` 第 6 节"基本链路"）：**
 
-- [ ] 打开一本大书：能列、能翻页、能缩放、Fit Width、Flow 连滚 6 屏不卡、没有白页。
-- [ ] 目录跳转、当前页跟随、划词翻译、主题切换、阅读字号滑块都还在。
-- [ ] 编辑入口全部消失（界面 + `grep -rn "book:save\|updateBlock" src/` 为空）。
-- [ ] 外部改文件：把 `ocr.json` 里某页的一个字改掉（页数不变），**重启应用**后该页能看到（自动重读是 Phase 2）。
-- [ ] 把某本 `meta.json` 删掉 → 列表里那本显示"需要修复"，应用不崩，其他书照常。
+- [x] 打开一本大书：能列、能翻页、能缩放、Fit Width、Flow 连滚 6 屏不卡、没有白页。
+- [x] 目录跳转、当前页跟随、划词翻译、主题切换、阅读字号滑块都还在。
+- [x] 编辑入口全部消失（界面 + `grep -rn "book:save\|updateBlock" src/` 为空）。
+- [x] 外部改文件：把 `ocr.json` 里某页的一个字改掉（页数不变），**重启应用**后该页能看到（自动重读是 Phase 2）。
+- [x] 把某本 `meta.json` 删掉 → 列表里那本显示"需要修复"，应用不崩，其他书照常。
 
 ---
 

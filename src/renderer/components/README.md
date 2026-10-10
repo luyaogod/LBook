@@ -8,24 +8,24 @@
 
 | 文件 | 说明 |
 |---|---|
-| `layout/AppHeader.tsx` | 顶栏：面包屑、保存按钮、上传入口 |
+| `layout/AppHeader.tsx` | 顶栏：面包屑、Add book 入口 |
 | `layout/UpdateBanner.tsx` | 新版本就绪时的非模态提示条 |
-| `home/HomePage.tsx` | 首页列表、搜索、分页 |
-| `home/PdfFileRow.tsx` / `PdfThumbnail.tsx` | 书目行与封面缩略图 |
-| `home/UploadDialog.tsx` / `EditDialog.tsx` | 从 PDF+JSON 建书 / 替换 OCR 与封面 |
+| `home/HomePage.tsx` | 首页列表、搜索、分页、空态引导 |
+| `home/PdfFileRow.tsx` / `PdfThumbnail.tsx` | 书目行（打开 / 在文件管理器中显示 / 从书库移除）与封面缩略图 |
 | `viewer/PdfViewer.tsx` | 单页模式 |
 | `viewer/FlowViewer.tsx` | 连续滚动模式，IntersectionObserver 虚拟化 + 预取 |
 | `viewer/PdfPageUnit.tsx` | 单页 canvas 渲染（感知 DPR） |
 | `viewer/BlockOverlay*.tsx` | OCR 块叠加层与坐标换算 |
 | `viewer/PdfToolbar.tsx` | 缩放、适应宽度，以及两端的面板开关 |
 | `viewer/PageNav.tsx` | 翻页控件（工具栏与占满时的 OCR 栏 header 共用） |
-| `toc/TocPanel.tsx` | 左侧目录树：展开/折叠、当前条目高亮、导入/移除 toc.json |
+| `toc/TocPanel.tsx` | 左侧目录树：展开/折叠、当前条目高亮（只读，编辑在 `toc.json` 里） |
 | `sidebar/OcrSidebar.tsx` | 右侧栏：Blocks / Markdown 双视图；Markdown 视图挂了划词翻译 |
-| `settings/SettingsDialog.tsx` | 设置浮层：General / Translate 两个分区 |
-| `settings/GeneralSettings.tsx` | General 分区：Appearance 三选一（Light / Dark / System） |
+| `settings/SettingsDialog.tsx` | 设置浮层：General / Font / Translate 三个分区 |
+| `settings/GeneralSettings.tsx` | General 分区：Appearance 三选一（Light / Dark / System） + Language 三张卡片 |
+| `settings/FontSettings.tsx` | Font 分区：阅读区字号滑块（拖动只改本地变量，松手才写 IPC） |
 | `theme/ThemeProvider.tsx` | 在 `<html>` 上挂/摘 `dark`，并把选择写回设置 |
 | `translate/SelectionPopup.tsx` | 划词翻译卡片（Google 插件风格） |
-| `sidebar/BlockCard.tsx` | 单块卡片，支持行内编辑 |
+| `sidebar/BlockCard.tsx` | 单块卡片，纯展示（行内编辑随 A5 一起下线） |
 | `ui/button.tsx` | shadcn 风格按钮 |
 
 ## 对外接口

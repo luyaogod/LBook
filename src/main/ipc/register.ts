@@ -1,23 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron"
-import {
-  IPC,
-  UPDATE_STATUS_EVENT,
-  type FileKind,
-  type ScanResult,
-  type Settings,
-  type SettingsPatch,
-} from "../../shared/ipc"
+import { IPC, UPDATE_STATUS_EVENT, type Settings, type SettingsPatch } from "../../shared/ipc"
 import type { AppContext } from "../context"
 import type { Theme } from "../config/config"
-import { ImportSkipped } from "../library/importer"
 import type { Updater } from "../updater"
-
-const FILE_FILTERS: Record<FileKind, Electron.FileFilter[]> = {
-  pdf: [{ name: "PDF documents", extensions: ["pdf"] }],
-  json: [{ name: "PaddleOCR output", extensions: ["json"] }],
-  cover: [{ name: "Images", extensions: ["jpg", "jpeg", "png", "webp", "gif"] }],
-  lbook: [{ name: "LBook packages", extensions: ["lbook"] }],
-}
 
 function settingsPayload(context: AppContext): Settings {
   return {
@@ -34,7 +19,6 @@ function settingsPayload(context: AppContext): Settings {
 
 /** Turns an unknown thrown value into a clean message for the renderer. */
 function messageOf(error: unknown): string {
-  if (error instanceof ImportSkipped) return error.reason
   return error instanceof Error ? error.message : String(error)
 }
 
@@ -72,199 +56,105 @@ export function registerIpcHandlers(
   // ---- library -------------------------------------------------------------
   ipcMain.handle(IPC.libraryList, () => library.list())
 
-  ipcMain.handle(IPC.libraryGet, (_event, { pdfId }: { pdfId: number }) => library.get(pdfId))
+  ipcMain.handle(IPC.libraryGet, (_event, { uid }: { uid: string }) => library.get(uid))
 
-  ipcMain.handle(IPC.libraryScan, async (): Promise<ScanResult> => {
-    const result = await library.scan()
-    broadcastLibraryChanged()
-    return result
-  })
-
-  ipcMain.handle(IPC.libraryImport, async (_event, { filePath }: { filePath: string }) => {
-    try {
-      const doc = await library.importFile(filePath)
-      broadcastLibraryChanged()
-      return doc
-    } catch (error) {
-      throw new Error(messageOf(error))
+  /**
+   * Adds a book folder.
+   *
+   * With no `dir` the main process asks for one — the picker has to run here, and
+   * keeping it in this handler means the renderer never handles a path it did not
+   * get from a dialog. A cancelled dialog is `null`, which is not a failure.
+   */
+  ipcMain.handle(IPC.libraryOpen, async (_event, { dir }: { dir?: string }) => {
+    let target = dir
+    if (!target) {
+      const result = await dialog.showOpenDialog({
+        title: "Open a book folder",
+        defaultPath: context.libraryDir(),
+        properties: ["openDirectory"],
+        buttonLabel: "Add book",
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
+      target = result.filePaths[0]
     }
+
+    const outcome = await library.open(target)
+    if (outcome.ok) broadcastLibraryChanged()
+    return outcome
   })
 
-  ipcMain.handle(
-    IPC.libraryCreateFromFiles,
-    async (
-      _event,
-      input: {
-        pdfPath: string
-        ocrPath: string
-        coverPath: string | null
-        tocPath: string | null
-        title?: string
-      },
-    ) => {
-      try {
-        const doc = await library.createFromFiles(input)
-        broadcastLibraryChanged()
-        return doc
-      } catch (error) {
-        throw new Error(messageOf(error))
-      }
-    },
-  )
+  ipcMain.handle(IPC.libraryRemove, (_event, { uid }: { uid: string }) => {
+    const removed = library.remove(uid)
+    if (removed) broadcastLibraryChanged()
+    return removed
+  })
 
-  ipcMain.handle(
-    IPC.libraryDelete,
-    (_event, { pdfId, deleteFile }: { pdfId: number; deleteFile: boolean }) => {
-      library.remove(pdfId, deleteFile)
-      broadcastLibraryChanged()
-    },
-  )
+  ipcMain.handle(IPC.libraryReveal, async (_event, { uid }: { uid: string }) => {
+    const doc = await library.get(uid)
+    if (!doc) throw new Error("this book is no longer in the library")
+    const error = await shell.openPath(doc.dir)
+    if (error) throw new Error(error)
+  })
 
   // ---- book ----------------------------------------------------------------
-  ipcMain.handle(IPC.bookListPages, (_event, { pdfId }: { pdfId: number }) =>
-    library.listPages(pdfId),
-  )
-
   ipcMain.handle(
     IPC.bookGetPage,
-    (_event, { pdfId, pageNum }: { pdfId: number; pageNum: number }) =>
-      library.getPage(pdfId, pageNum),
+    (_event, { uid, pageNum }: { uid: string; pageNum: number }) =>
+      library.getPage(uid, pageNum),
   )
 
   ipcMain.handle(
     IPC.bookReadPdfRange,
-    async (_event, { pdfId, begin, end }: { pdfId: number; begin: number; end: number }) => {
-      const buffer = await library.readPdfRange(pdfId, begin, end)
+    async (_event, { uid, begin, end }: { uid: string; begin: number; end: number }) => {
+      const buffer = await library.readPdfRange(uid, begin, end)
       // Structured clone turns this into a Uint8Array on the renderer side,
       // which is exactly what PDFDataRangeTransport.onDataRange wants.
       return buffer
     },
   )
 
-  ipcMain.handle(
-    IPC.bookUpdateBlock,
-    (_event, { blockId, blockContent }: { blockId: number; blockContent: string }) =>
-      library.updateBlock(blockId, blockContent),
-  )
-
-  ipcMain.handle(IPC.bookSave, async (_event, { pdfId }: { pdfId: number }) => {
+  ipcMain.handle(IPC.bookGetToc, async (_event, { uid }: { uid: string }) => {
     try {
-      const doc = await library.save(pdfId)
-      broadcastLibraryChanged()
-      return doc
+      return await library.getToc(uid)
     } catch (error) {
       throw new Error(messageOf(error))
     }
   })
 
-  ipcMain.handle(
-    IPC.bookReplaceOcr,
-    async (_event, { pdfId, ocrPath }: { pdfId: number; ocrPath: string }) => {
-      try {
-        const doc = await library.replaceOcr(pdfId, ocrPath)
-        broadcastLibraryChanged()
-        return doc
-      } catch (error) {
-        throw new Error(messageOf(error))
-      }
-    },
-  )
-
-  ipcMain.handle(
-    IPC.bookReplaceCover,
-    async (_event, { pdfId, coverPath }: { pdfId: number; coverPath: string }) => {
-      try {
-        const doc = await library.replaceCover(pdfId, coverPath)
-        broadcastLibraryChanged()
-        return doc
-      } catch (error) {
-        throw new Error(messageOf(error))
-      }
-    },
-  )
-
-  // ---- table of contents ---------------------------------------------------
-  ipcMain.handle(IPC.bookGetToc, async (_event, { pdfId }: { pdfId: number }) => {
-    try {
-      return await library.getToc(pdfId)
-    } catch (error) {
-      throw new Error(messageOf(error))
-    }
-  })
-
-  ipcMain.handle(IPC.bookReplaceToc, async (_event, { pdfId, tocPath }: { pdfId: number; tocPath: string }) => {
-    try {
-      const toc = await library.replaceToc(pdfId, tocPath)
-      broadcastLibraryChanged()
-      return toc
-    } catch (error) {
-      throw new Error(messageOf(error))
-    }
-  })
-
-  ipcMain.handle(IPC.bookClearToc, async (_event, { pdfId }: { pdfId: number }) => {
-    try {
-      await library.clearToc(pdfId)
-      broadcastLibraryChanged()
-    } catch (error) {
-      throw new Error(messageOf(error))
-    }
-  })
-
-  // ---- user and progress ---------------------------------------------------
-  ipcMain.handle(IPC.userGetCurrent, () => library.currentUser())
-
-  ipcMain.handle(IPC.progressGet, (_event, { pdfId }: { pdfId: number }) =>
-    library.getProgress(pdfId),
-  )
+  // ---- progress ------------------------------------------------------------
+  ipcMain.handle(IPC.progressGet, (_event, { uid }: { uid: string }) => library.progress.get(uid))
 
   ipcMain.handle(
     IPC.progressSave,
-    (_event, { pdfId, lastPageNum }: { pdfId: number; lastPageNum: number }) =>
-      library.saveProgress(pdfId, lastPageNum),
+    async (_event, { uid, lastPageNum }: { uid: string; lastPageNum: number }) => {
+      try {
+        return await library.progress.save(uid, lastPageNum)
+      } catch (error) {
+        throw new Error(messageOf(error))
+      }
+    },
   )
 
   // ---- settings ------------------------------------------------------------
   ipcMain.handle(IPC.settingsGet, () => settingsPayload(context))
 
-  ipcMain.handle(
-    IPC.settingsSet,
-    (_event, patch: SettingsPatch) => {
-      if (
-        patch.theme !== undefined ||
-        patch.autoCheckUpdates !== undefined ||
-        patch.readingFontSize !== undefined ||
-        patch.locale !== undefined
-      ) {
-        context.updateSettings({
-          theme: patch.theme,
-          autoCheckUpdates: patch.autoCheckUpdates,
-          readingFontSize: patch.readingFontSize,
-          locale: patch.locale,
-        })
-        if (patch.theme !== undefined) hooks.onThemeChanged?.(patch.theme)
-      }
-      if (patch.translate) context.translate.updateSettings(patch.translate)
-      return settingsPayload(context)
-    },
-  )
-
-  ipcMain.handle(IPC.settingsChooseLibraryDir, async (): Promise<Settings | null> => {
-    const result = await dialog.showOpenDialog({
-      title: "Choose a library folder",
-      defaultPath: context.libraryDir(),
-      properties: ["openDirectory", "createDirectory"],
-    })
-    if (result.canceled || result.filePaths.length === 0) return null
-
-    await context.changeLibraryDir(result.filePaths[0])
-    broadcastLibraryChanged()
+  ipcMain.handle(IPC.settingsSet, (_event, patch: SettingsPatch) => {
+    if (
+      patch.theme !== undefined ||
+      patch.autoCheckUpdates !== undefined ||
+      patch.readingFontSize !== undefined ||
+      patch.locale !== undefined
+    ) {
+      context.updateSettings({
+        theme: patch.theme,
+        autoCheckUpdates: patch.autoCheckUpdates,
+        readingFontSize: patch.readingFontSize,
+        locale: patch.locale,
+      })
+      if (patch.theme !== undefined) hooks.onThemeChanged?.(patch.theme)
+    }
+    if (patch.translate) context.translate.updateSettings(patch.translate)
     return settingsPayload(context)
-  })
-
-  ipcMain.handle(IPC.settingsRevealLibraryDir, async () => {
-    const error = await shell.openPath(context.libraryDir())
-    if (error) throw new Error(error)
   })
 
   // ---- window controls -----------------------------------------------------
@@ -288,16 +178,6 @@ export function registerIpcHandlers(
 
   ipcMain.handle(IPC.windowClose, (event) => {
     senderWindow(event)?.close()
-  })
-
-  // ---- dialogs -------------------------------------------------------------
-  ipcMain.handle(IPC.dialogPickFiles, async (_event, { kind }: { kind: FileKind }) => {
-    const result = await dialog.showOpenDialog({
-      title: "Select a file",
-      properties: ["openFile"],
-      filters: FILE_FILTERS[kind],
-    })
-    return result.canceled ? [] : result.filePaths
   })
 
   // ---- translation ---------------------------------------------------------

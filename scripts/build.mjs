@@ -14,8 +14,12 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 
 const root = fileURLToPath(new URL("..", import.meta.url))
 
-/** Native or Electron-provided modules must never be bundled. */
-const EXTERNAL = ["electron", "better-sqlite3", "yauzl", "yazl", "electron-updater"]
+/**
+ * Modules that must never be bundled: Electron itself, and the updater (which is
+ * loaded by Electron at runtime). Nothing else needs it any more — the app has no
+ * native dependencies (the old index was better-sqlite3).
+ */
+const EXTERNAL = ["electron", "electron-updater"]
 
 const TARGETS = [
   { name: "main", entry: "src/main/index.ts", outfile: "out/main/index.cjs" },

@@ -3,32 +3,53 @@
  * Kept free of `electron` and Node imports so tests can use them directly.
  */
 
+/**
+ * One book, as the library listing sees it.
+ *
+ * A book is a folder, and its identity is `meta.json.uid` — not a row id, not the
+ * folder name. Renaming or moving the folder therefore changes nothing the reader
+ * can see (A1 in `.agents/plan/00-decisions.md`).
+ */
 export interface PdfDocument {
-  id: number
-  /** Stable identity from manifest.json; all lbook:// URLs use it. */
+  /** `meta.json.uid`. Every IPC call names a book by this. */
   uid: string
   title: string
   author: string | null
+  /** Pages as `meta.json` claims; `status`/`problem` say whether the file agrees. */
   page_count: number
-  /** Uncompressed size of book.pdf, in bytes. */
+  /** Bytes of `book.pdf`, which the PDF transport needs exactly. */
   file_size: number
-  status: string
-  /** `lbook://cover/<uid>` when the package has a cover, else null. */
+  /** `lbook://cover/<uid>` when the folder has a cover file, else null. */
   cover_url: string | null
   created_at: string
-  /** True when edits have not been written back into the .lbook yet. */
-  dirty: boolean
+  /** Absolute path of the book folder, for "reveal in Explorer". */
+  dir: string
+  /**
+   * Why this book cannot be read right now, or null when it is fine.
+   *
+   * A book whose folder was moved away is listed like any other — with a reason
+   * rather than a hole (B8) — so the reader can see what is wrong and either fix
+   * the path themselves or drop the entry.
+   */
+  problem: string | null
 }
 
 export interface OcrPageBrief {
-  id: number
+  /** 1-based, matching `layoutParsingResults`' array index (A8). */
   page_num: number
   page_width: number | null
   page_height: number | null
 }
 
+/**
+ * One block of a page.
+ *
+ * `block_index` is its identity: it is the position inside the page's
+ * `parsing_res_list`, which is the only stable name a block has (there is no id
+ * in the OCR file, and none is needed — hover and scroll wiring compares blocks
+ * within one page).
+ */
 export interface OcrBlock {
-  id: number
   block_index: number
   block_label: string
   block_content: string | null
@@ -38,33 +59,18 @@ export interface OcrBlock {
 }
 
 export interface OcrPage extends OcrPageBrief {
-  pdf_id: number
+  uid: string
+  /** `markdown.text` verbatim. The Markdown view reads this and nothing else (A10). */
   markdown_text: string | null
+  /** `prunedResult.parsing_res_list`. The Blocks view reads this and nothing else (A10). */
   blocks: OcrBlock[]
 }
 
-export interface PdfDocumentDetail extends PdfDocument {
-  data_info: string | null
-  pages: OcrPageBrief[]
-}
-
-export interface User {
-  id: number
-  username: string
-  created_at: string
-}
 
 export interface ReadingProgress {
-  id: number
-  user_id: number
-  pdf_id: number
+  uid: string
   last_page_num: number
   updated_at: string
-}
-
-export interface BookCoverRef {
-  name: string
-  mime: string
 }
 
 /**
@@ -86,7 +92,7 @@ export interface TocNode {
   children?: TocNode[]
 }
 
-/** The optional `toc.json` entry of a .lbook package. */
+/** The optional `toc.json` entry of a book folder. */
 export interface BookToc {
   version: number
   /** Free-form provenance note, e.g. where the outline was transcribed from. */
@@ -94,18 +100,3 @@ export interface BookToc {
   nodes: TocNode[]
 }
 
-/** The `manifest.json` entry of a .lbook package. */
-export interface BookManifest {
-  format: "lbook"
-  formatVersion: number
-  uid: string
-  title: string
-  author: string | null
-  createdAt: string
-  pageCount: number
-  pdfSize: number
-  pdfSha256: string
-  hasOcr: boolean
-  cover: BookCoverRef | null
-  generator: string
-}

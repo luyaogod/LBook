@@ -1,4 +1,4 @@
-import { Bolt, BookOpen, ChevronRight, Plus } from "lucide-react";
+import { Bolt, BookOpen, ChevronRight, FolderPlus } from "lucide-react";
 import { WindowControls } from "./WindowControls";
 import { Button } from "@/components/ui/button";
 
@@ -7,21 +7,19 @@ interface AppHeaderProps {
   fileName?: string;
   /** Returns to the library. The breadcrumb is the only affordance left for it. */
   onBack?: () => void;
-  onUploadClick?: () => void;
+  /** Opens the folder picker that adds a book. */
+  onAddBookClick?: () => void;
   /** Opens the settings panel. Present in both modes: see the button below. */
   onSettingsClick?: () => void;
-  /** True when edits have not been written back into the .lbook yet. */
-  dirty?: boolean;
 }
 
 /**
  * The app's own top row, and — because the window has no OS title bar — also the
  * window's drag handle.
  *
- * There is deliberately no Save button: saving is `Ctrl+S` (handled in
- * `App.tsx`), and all the button did was repeat a keyboard shortcut. What it did
- * carry that matters is the unsaved state, which survives here as a dot beside
- * the title.
+ * There is deliberately no Save button and no unsaved marker: the app never
+ * writes to a book (A5 in `.agents/plan/00-decisions.md`), so there is nothing to
+ * save and nothing that can be out of step with the disk.
  *
  * The right edge stays clear of the native window buttons Electron draws over
  * it (`titleBarOverlay`), hence the fixed padding.
@@ -30,9 +28,8 @@ export function AppHeader({
   mode,
   fileName,
   onBack,
-  onUploadClick,
+  onAddBookClick,
   onSettingsClick,
-  dirty = false,
 }: AppHeaderProps) {
   return (
     <header className="drag-region flex h-14 shrink-0 items-center gap-2 border-b border-border pl-4">
@@ -50,12 +47,6 @@ export function AppHeader({
           </button>
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <span className="text-foreground font-medium truncate">{fileName}</span>
-          {dirty && (
-            <span
-              className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
-              title="Edits have not been written into the .lbook yet — Ctrl+S to save"
-            />
-          )}
         </div>
       ) : (
         <span className="font-semibold text-foreground">LBook</span>
@@ -64,9 +55,9 @@ export function AppHeader({
       {/* Spacer + actions */}
       <div className="flex-1" />
       {mode === "home" && (
-        <Button size="sm" className="no-drag gap-1.5" onClick={onUploadClick}>
-          <Plus className="h-4 w-4" />
-          Upload PDF
+        <Button size="sm" className="no-drag gap-1.5" onClick={onAddBookClick}>
+          <FolderPlus className="h-4 w-4" />
+          Add book
         </Button>
       )}
       {/* Always present, in both modes. It started out as home-only, which was

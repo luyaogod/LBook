@@ -1,83 +1,43 @@
-import type {
-  BookToc,
-  OcrBlock,
-  OcrPage,
-  OcrPageBrief,
-  PdfDocument,
-  PdfDocumentDetail,
-} from "@shared/types"
+import type { BookToc, OcrPage, PdfDocument } from "@shared/types"
+import type { OpenBookOutcome } from "@shared/ipc"
 
 /**
  * Thin wrappers over the preload bridge.
  *
- * These used to be REST calls against a localhost FastAPI server; the signatures
- * are kept so the hooks and components above them did not have to change.
+ * Books are named by `uid` — the identity written in the book folder's
+ * `meta.json` — so nothing here deals in paths except `openBookFolder`, whose
+ * paths come from a dialog the main process owns.
  */
 
-export function fetchPdfs(): Promise<PdfDocument[]> {
+export function fetchBooks(): Promise<PdfDocument[]> {
   return window.api.library.list()
 }
 
-export function fetchPdfDetail(id: number): Promise<PdfDocumentDetail | null> {
-  return window.api.library.get(id)
+/** One book's metadata, or null when its folder has gone missing. */
+export function fetchBook(uid: string): Promise<PdfDocument | null> {
+  return window.api.library.get(uid)
 }
 
-export function fetchPdfPages(pdfId: number): Promise<OcrPageBrief[]> {
-  return window.api.book.listPages(pdfId)
+/** Asks for a folder. `null` means the user closed the picker. */
+export function openBookFolder(dir?: string): Promise<OpenBookOutcome | null> {
+  return window.api.library.open(dir)
 }
 
-export function fetchPdfPage(pdfId: number, pageNum: number): Promise<OcrPage | null> {
-  return window.api.book.getPage(pdfId, pageNum)
+/** Forgets a book. The folder and everything in it stay where they are. */
+export function removeBook(uid: string): Promise<boolean> {
+  return window.api.library.remove(uid)
 }
 
-export function updateBlock(id: number, blockContent: string): Promise<OcrBlock> {
-  return window.api.book.updateBlock(id, blockContent)
+/** Shows the book folder in the OS file manager. */
+export function revealBook(uid: string): Promise<void> {
+  return window.api.library.reveal(uid)
 }
 
-/** Writes pending edits back into the .lbook package. */
-export function savePdf(pdfId: number): Promise<PdfDocument> {
-  return window.api.book.save(pdfId)
+export function fetchPdfPage(uid: string, pageNum: number): Promise<OcrPage | null> {
+  return window.api.book.getPage(uid, pageNum)
 }
 
-export function replaceOcr(pdfId: number, ocrPath: string): Promise<PdfDocument> {
-  return window.api.book.replaceOcr(pdfId, ocrPath)
-}
-
-export function replaceCover(pdfId: number, coverPath: string): Promise<PdfDocument> {
-  return window.api.book.replaceCover(pdfId, coverPath)
-}
-
-/** The book's table of contents, read from the package's toc.json entry. */
-export function fetchBookToc(pdfId: number): Promise<BookToc | null> {
-  return window.api.book.getToc(pdfId)
-}
-
-/** Writes the chosen toc.json into the package, replacing any existing one. */
-export function replaceBookToc(pdfId: number, tocPath: string): Promise<BookToc> {
-  return window.api.book.replaceToc(pdfId, tocPath)
-}
-
-/** Drops the table of contents entry from the package. */
-export function clearBookToc(pdfId: number): Promise<void> {
-  return window.api.book.clearToc(pdfId)
-}
-
-/** Builds a new .lbook from a loose PDF plus its PaddleOCR output. */
-export function createFromFiles(input: {
-  pdfPath: string
-  ocrPath: string
-  coverPath: string | null
-  tocPath: string | null
-  title?: string
-}): Promise<PdfDocument> {
-  return window.api.library.createFromFiles(input)
-}
-
-/** Adds an existing .lbook package to the library. */
-export function importPackage(filePath: string): Promise<PdfDocument> {
-  return window.api.library.import(filePath)
-}
-
-export function scanLibrary() {
-  return window.api.library.scan()
+/** The book's table of contents, read from `toc.json` in the book folder. */
+export function fetchBookToc(uid: string): Promise<BookToc | null> {
+  return window.api.book.getToc(uid)
 }

@@ -5,7 +5,7 @@ import type { OcrBlock } from "@/types";
 import { Loader2 } from "lucide-react";
 
 interface PdfViewerProps {
-  pdfId: number;
+  bookId: string;
   pageNum: number;
   scale: number;
   blocks: OcrBlock[];
@@ -21,7 +21,7 @@ interface PdfViewerProps {
 }
 
 export function PdfViewer({
-  pdfId,
+  bookId,
   pageNum,
   scale,
   blocks,
@@ -39,7 +39,7 @@ export function PdfViewer({
   const onWheelZoomRef = useRef(onWheelZoom);
   onWheelZoomRef.current = onWheelZoom;
 
-  const { pdfDoc, loading, error } = usePdfDocumentProxy(pdfId);
+  const { pdfDoc, loading, error } = usePdfDocumentProxy(bookId);
 
   /**
    * Warm the neighbours so the next flip has nothing to parse.

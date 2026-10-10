@@ -4,7 +4,7 @@ import type { BookToc, TocNode } from "./types"
  * The table of contents contract, shared by main, preload and renderer.
  *
  * The tree is authored by hand (or by a script) as `toc.json` inside the
- * `.lbook`, so parsing has to be strict enough to catch typos in a file the user
+ * `toc.json`, so parsing has to be strict enough to catch typos in a file the user
  * wrote, and forgiving enough to accept the obvious shorthands. The renderer
  * only ever consumes the flattened form.
  *

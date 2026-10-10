@@ -8,8 +8,6 @@ export type {
   OcrPage,
   OcrPageBrief,
   PdfDocument,
-  PdfDocumentDetail,
   ReadingProgress,
   TocNode,
-  User,
 } from "@shared/types"

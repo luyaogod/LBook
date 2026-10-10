@@ -11,7 +11,7 @@ import { ProviderConfigError, type TranslateProvider } from "./types"
  * whether the cache answers.
  *
  * It knows no specific vendor (those arrive through the `registry`) and never touches
- * the UI or a `.lbook`. A caller hands over text and gets a translation back.
+ * the UI or a book folder. A caller hands over text and gets a translation back.
  */
 
 /** What the settings page may change. Empty string (or null) removes a field. */

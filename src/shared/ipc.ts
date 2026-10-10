@@ -1,12 +1,8 @@
 import type {
   BookToc,
-  OcrBlock,
   OcrPage,
-  OcrPageBrief,
   PdfDocument,
-  PdfDocumentDetail,
   ReadingProgress,
-  User,
 } from "./types"
 import type { TranslateResult, TranslateSettingsView } from "./translate"
 
@@ -22,30 +18,21 @@ export const IPC = {
 
   libraryList: "library:list",
   libraryGet: "library:get",
-  libraryScan: "library:scan",
-  libraryImport: "library:import",
-  libraryCreateFromFiles: "library:createFromFiles",
-  libraryDelete: "library:delete",
+  /** Adds a folder the user picked to the library (the only way a book arrives). */
+  libraryOpen: "library:open",
+  /** Forgets an entry. Never touches the disk (A11). */
+  libraryRemove: "library:remove",
+  libraryReveal: "library:reveal",
 
-  bookListPages: "book:listPages",
   bookGetPage: "book:getPage",
   bookReadPdfRange: "book:readPdfRange",
-  bookUpdateBlock: "book:updateBlock",
-  bookSave: "book:save",
-  bookReplaceOcr: "book:replaceOcr",
-  bookReplaceCover: "book:replaceCover",
   bookGetToc: "book:getToc",
-  bookReplaceToc: "book:replaceToc",
-  bookClearToc: "book:clearToc",
 
-  userGetCurrent: "user:getCurrent",
   progressGet: "progress:get",
   progressSave: "progress:save",
 
   settingsGet: "settings:get",
   settingsSet: "settings:set",
-  settingsChooseLibraryDir: "settings:chooseLibraryDir",
-  settingsRevealLibraryDir: "settings:revealLibraryDir",
 
   translateText: "translate:text",
   translateSpeak: "translate:speak",
@@ -55,8 +42,6 @@ export const IPC = {
   windowMinimize: "window:minimize",
   windowToggleMaximize: "window:toggleMaximize",
   windowClose: "window:close",
-
-  dialogPickFiles: "dialog:pickFiles",
 
   updatesGetState: "updates:getState",
   updatesCheck: "updates:check",
@@ -76,8 +61,6 @@ export type UpdateStatus =
   | { state: "downloading"; percent: number }
   | { state: "ready"; version: string }
   | { state: "error"; message: string }
-
-export type FileKind = "pdf" | "json" | "cover" | "lbook"
 
 export interface TranslationSettingsPatch {
   provider?: string
@@ -113,6 +96,11 @@ export type LocaleChoice = "system" | "en" | "zh-CN"
 export const LOCALE_CHOICES: readonly LocaleChoice[] = ["en", "zh-CN", "system"]
 
 export interface Settings {
+  /**
+   * Where a new book folder is created by default, and where the folder picker
+   * starts. Books already in the library may live anywhere (A11); this is only a
+   * convenience, so the app never takes ownership of the location.
+   */
   libraryDir: string
   /** False when libraryDir came from the default rather than the config file. */
   libraryDirIsDefault: boolean
@@ -141,56 +129,40 @@ export interface SettingsPatch {
   translate?: TranslationSettingsPatch
 }
 
-export interface ScanResult {
-  added: number
-  updated: number
-  removed: number
-  skipped: Array<{ file: string; reason: string }>
-}
+/**
+ * What happened when the user picked a folder to add as a book.
+ *
+ * "Not a book" is a normal answer here, not an error to log: the user may have
+ * picked the wrong folder, and the reply says exactly what a book folder needs to
+ * contain. `adopted` is true when a `meta.json` had to be written (a folder of
+ * PaddleOCR output that was never a package).
+ */
+export type OpenBookOutcome =
+  | { ok: true; doc: PdfDocument; alreadyKnown: boolean; adopted: boolean }
+  | { ok: false; error: string }
 
 /** Maps every channel to its request and response payload types. */
 export interface IpcMap {
   [IPC.hello]: { req: void; res: string }
 
   [IPC.libraryList]: { req: void; res: PdfDocument[] }
-  [IPC.libraryGet]: { req: { pdfId: number }; res: PdfDocumentDetail | null }
-  [IPC.libraryScan]: { req: void; res: ScanResult }
-  [IPC.libraryImport]: { req: { filePath: string }; res: PdfDocument }
-  [IPC.libraryCreateFromFiles]: {
-    req: {
-      pdfPath: string
-      ocrPath: string
-      coverPath: string | null
-      /** Optional toc.json to embed in the new package. */
-      tocPath: string | null
-      title?: string
-    }
-    res: PdfDocument
-  }
-  [IPC.libraryDelete]: { req: { pdfId: number; deleteFile: boolean }; res: void }
+  [IPC.libraryGet]: { req: { uid: string }; res: PdfDocument | null }
+  [IPC.libraryOpen]: { req: { dir?: string }; res: OpenBookOutcome | null }
+  [IPC.libraryRemove]: { req: { uid: string }; res: boolean }
+  [IPC.libraryReveal]: { req: { uid: string }; res: void }
 
-  [IPC.bookListPages]: { req: { pdfId: number }; res: OcrPageBrief[] }
-  [IPC.bookGetPage]: { req: { pdfId: number; pageNum: number }; res: OcrPage | null }
-  [IPC.bookReadPdfRange]: { req: { pdfId: number; begin: number; end: number }; res: Uint8Array }
-  [IPC.bookUpdateBlock]: { req: { blockId: number; blockContent: string }; res: OcrBlock }
-  [IPC.bookSave]: { req: { pdfId: number }; res: PdfDocument }
-  [IPC.bookReplaceOcr]: { req: { pdfId: number; ocrPath: string }; res: PdfDocument }
-  [IPC.bookReplaceCover]: { req: { pdfId: number; coverPath: string }; res: PdfDocument }
-  [IPC.bookGetToc]: { req: { pdfId: number }; res: BookToc | null }
-  [IPC.bookReplaceToc]: { req: { pdfId: number; tocPath: string }; res: BookToc }
-  [IPC.bookClearToc]: { req: { pdfId: number }; res: void }
+  [IPC.bookGetPage]: { req: { uid: string; pageNum: number }; res: OcrPage | null }
+  [IPC.bookReadPdfRange]: { req: { uid: string; begin: number; end: number }; res: Uint8Array }
+  [IPC.bookGetToc]: { req: { uid: string }; res: BookToc | null }
 
-  [IPC.userGetCurrent]: { req: void; res: User }
-  [IPC.progressGet]: { req: { pdfId: number }; res: ReadingProgress | null }
-  [IPC.progressSave]: { req: { pdfId: number; lastPageNum: number }; res: ReadingProgress }
+  [IPC.progressGet]: { req: { uid: string }; res: ReadingProgress | null }
+  [IPC.progressSave]: { req: { uid: string; lastPageNum: number }; res: ReadingProgress }
 
   [IPC.settingsGet]: { req: void; res: Settings }
   [IPC.settingsSet]: {
     req: SettingsPatch
     res: Settings
   }
-  [IPC.settingsChooseLibraryDir]: { req: void; res: Settings | null }
-  [IPC.settingsRevealLibraryDir]: { req: void; res: void }
 
   /** Translates one selection. `source` may be "auto"; `target` defaults to config. */
   [IPC.translateText]: {
@@ -208,7 +180,6 @@ export interface IpcMap {
   [IPC.windowToggleMaximize]: { req: void; res: void }
   [IPC.windowClose]: { req: void; res: void }
 
-  [IPC.dialogPickFiles]: { req: { kind: FileKind }; res: string[] }
   [IPC.updatesGetState]: { req: void; res: UpdateStatus }
   [IPC.updatesCheck]: { req: void; res: UpdateStatus }
   [IPC.updatesInstall]: { req: void; res: void }
@@ -232,45 +203,31 @@ export interface LbookApi {
   hello(): Promise<string>
   library: {
     list(): Promise<PdfDocument[]>
-    get(pdfId: number): Promise<PdfDocumentDetail | null>
-    scan(): Promise<ScanResult>
-    import(filePath: string): Promise<PdfDocument>
-    createFromFiles(input: {
-      pdfPath: string
-      ocrPath: string
-      coverPath: string | null
-      tocPath: string | null
-      title?: string
-    }): Promise<PdfDocument>
-    remove(pdfId: number, deleteFile: boolean): Promise<void>
+    get(uid: string): Promise<PdfDocument | null>
+    /**
+     * Registers a folder as a book. With no argument the main process opens a
+     * folder picker; null means the user cancelled it. The app never copies or
+     * moves the user's files.
+     */
+    open(dir?: string): Promise<OpenBookOutcome | null>
+    /** Forgets an entry; the folder on disk is left alone (A11). */
+    remove(uid: string): Promise<boolean>
+    /** Shows the book folder in the OS file manager. */
+    reveal(uid: string): Promise<void>
   }
   book: {
-    listPages(pdfId: number): Promise<OcrPageBrief[]>
-    getPage(pdfId: number, pageNum: number): Promise<OcrPage | null>
-    readPdfRange(pdfId: number, begin: number, end: number): Promise<Uint8Array>
-    updateBlock(blockId: number, blockContent: string): Promise<OcrBlock>
-    save(pdfId: number): Promise<PdfDocument>
-    replaceOcr(pdfId: number, ocrPath: string): Promise<PdfDocument>
-    replaceCover(pdfId: number, coverPath: string): Promise<PdfDocument>
+    getPage(uid: string, pageNum: number): Promise<OcrPage | null>
+    readPdfRange(uid: string, begin: number, end: number): Promise<Uint8Array>
     /** The book's table of contents, or null when it has none. */
-    getToc(pdfId: number): Promise<BookToc | null>
-    /** Writes the chosen toc.json into the package, replacing any existing one. */
-    replaceToc(pdfId: number, tocPath: string): Promise<BookToc>
-    /** Drops the table of contents entry from the package. */
-    clearToc(pdfId: number): Promise<void>
-  }
-  user: {
-    current(): Promise<User>
+    getToc(uid: string): Promise<BookToc | null>
   }
   progress: {
-    get(pdfId: number): Promise<ReadingProgress | null>
-    save(pdfId: number, lastPageNum: number): Promise<ReadingProgress>
+    get(uid: string): Promise<ReadingProgress | null>
+    save(uid: string, lastPageNum: number): Promise<ReadingProgress>
   }
   settings: {
     get(): Promise<Settings>
     set(patch: SettingsPatch): Promise<Settings>
-    chooseLibraryDir(): Promise<Settings | null>
-    revealLibraryDir(): Promise<void>
   }
   translate: {
     /** Translates a highlighted selection; vendors are configured in settings. */
@@ -286,26 +243,14 @@ export interface LbookApi {
     /** Fires with the new maximized state, so the icon can flip. */
     onMaximizeChanged(callback: (maximized: boolean) => void): () => void
   }
-  dialog: {
-    pickFiles(kind: FileKind): Promise<string[]>
-  }
   updates: {
     getState(): Promise<UpdateStatus>
     check(): Promise<UpdateStatus>
     install(): Promise<void>
   }
   events: {
-    /** Fires when packages are added, imported, removed or the library moves. */
+    /** Fires when the library list changes (a book was added or dropped). */
     onLibraryChanged(callback: () => void): () => void
     onUpdateStatus(callback: (status: UpdateStatus) => void): () => void
-  }
-  /**
-   * Probed at preload time. When false the renderer must obtain file paths via
-   * the open dialog instead of drag-and-drop.
-   */
-  capabilities: { filePaths: boolean }
-  files: {
-    /** Absolute path of a dropped/selected File, or null when unavailable. */
-    getPath(file: File): string | null
   }
 }

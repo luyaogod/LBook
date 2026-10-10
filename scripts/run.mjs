@@ -29,7 +29,10 @@ await build({
   target: "node22",
   format: "cjs",
   logLevel: "warning",
-  external: ["electron", "better-sqlite3", "yauzl", "yazl", "electron-updater"],
+  // The maintenance scripts do use better-sqlite3 and yauzl (the one-time
+  // converter reads the old database and the old packages), so they stay external
+  // here even though the app itself no longer links them.
+  external: ["electron", "better-sqlite3", "yauzl", "electron-updater"],
 })
 
 const result = spawnSync(process.execPath, [outfile, ...rest], { stdio: "inherit", cwd: root })

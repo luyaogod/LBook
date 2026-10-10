@@ -18,7 +18,8 @@ interface FlowPageData {
  */
 const PAINTED_PAGE_LIMIT = 6;
 
-interface FlowViewerProps {  pdfId: number;
+interface FlowViewerProps {
+  bookId: string;
   scale: number;
   overlayOpaque: boolean;
   highlightedBlockId: number | null;
@@ -40,7 +41,7 @@ function filterBlocks(allBlocks: OcrBlock[]): OcrBlock[] {
 }
 
 export function FlowViewer({
-  pdfId,
+  bookId,
   scale,
   overlayOpaque,
   highlightedBlockId,
@@ -108,8 +109,8 @@ export function FlowViewer({
     intersectingPages: new Set<number>(),
   });
 
-  const { pdfDoc, loading: pdfLoading, error: pdfError } = usePdfDocumentProxy(pdfId);
-  const { getPage, prefetch, version } = useFlowPages(pdfId);
+  const { pdfDoc, loading: pdfLoading, error: pdfError } = usePdfDocumentProxy(bookId);
+  const { getPage, prefetch, version } = useFlowPages(bookId);
   const totalPages = pdfDoc?.numPages ?? 0;
 
   // Keep refs in sync
@@ -141,12 +142,12 @@ export function FlowViewer({
     return () => { cancelled = true; };
   }, [pdfDoc]);
 
-  // Reset visible range when pdfId changes
+  // Reset the visible range when another book is opened.
   useEffect(() => {
     setVisibleRange([1, Math.min(3, totalPages || 3)]);
     initialScrollDoneRef.current = false;
     observedElementsRef.current.clear();
-  }, [pdfId, totalPages]);
+  }, [bookId, totalPages]);
 
   // Report all loaded pages in visible range when range or cache changes
   useEffect(() => {

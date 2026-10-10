@@ -161,8 +161,8 @@ app.whenReady().then(async () => {
 
   // The app has no menu commands of its own. Electron's default template would
   // only add a File/Edit/View/Window bar whose entries either do nothing useful
-  // here or duplicate shortcuts the renderer already owns (Ctrl+S is handled in
-  // App.tsx), so the whole menu bar is dropped rather than hidden.
+  // here or duplicate shortcuts the renderer already owns, so the whole menu bar
+  // is dropped rather than hidden.
   Menu.setApplicationMenu(null)
 
   registerAppProtocol()
@@ -197,24 +197,6 @@ app.whenReady().then(async () => {
 
   await createWindow()
 
-  // Index whatever is in the library folder, without holding up the window.
-  void appContext.library
-    .scan()
-    .then((result) => {
-      const changed = result.added + result.updated + result.removed
-      if (changed > 0) {
-        console.log(
-          `[main] library scan: +${result.added} ~${result.updated} -${result.removed}`,
-        )
-      }
-      for (const skipped of result.skipped) {
-        console.warn(`[main] skipped ${skipped.file}: ${skipped.reason}`)
-      }
-    })
-    .catch((error: unknown) => {
-      console.error("[main] library scan failed:", error)
-    })
-
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow()
   })
@@ -225,6 +207,6 @@ app.on("window-all-closed", () => {
 })
 
 app.on("before-quit", () => {
-  void context?.dispose()
+  context?.dispose()
   context = null
 })

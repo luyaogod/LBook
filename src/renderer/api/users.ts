@@ -1,14 +1,10 @@
-import type { ReadingProgress, User } from "@shared/types"
-
-export function fetchCurrentUser(): Promise<User> {
-  return window.api.user.current()
-}
+import type { ReadingProgress } from "@shared/types"
 
 /** Resolves to null when the book has never been opened. */
-export function fetchReadingProgress(pdfId: number): Promise<ReadingProgress | null> {
-  return window.api.progress.get(pdfId)
+export function fetchReadingProgress(uid: string): Promise<ReadingProgress | null> {
+  return window.api.progress.get(uid)
 }
 
-export function saveReadingProgress(pdfId: number, lastPageNum: number): Promise<ReadingProgress> {
-  return window.api.progress.save(pdfId, lastPageNum)
+export function saveReadingProgress(uid: string, lastPageNum: number): Promise<ReadingProgress> {
+  return window.api.progress.save(uid, lastPageNum)
 }

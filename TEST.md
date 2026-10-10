@@ -31,54 +31,39 @@ npx vitest --coverage                     # 带覆盖率（覆盖 src/main 与 s
 
 | 文件 | 锁住什么 |
 |---|---|
-| `tests/unit/db/schema.test.ts` | 五张表与索引存在；`user_version` 正确；**`foreign_keys` 为 ON**；`UNIQUE(pdf_id, page_num)` / `uid` / `file_hash` 生效 |
-| `tests/unit/db/migrations.test.ts` | 全新库升到当前版本；重复执行幂等；拒绝来自更高版本的库 |
-| `tests/unit/db/repositories.test.ts` | 行→渲染层类型映射（含 `cover_url`）；排序；**级联删除带走页与块**；块 bbox 解析与容错；`is_html_content` 重算；阅读进度 upsert 与越界拒绝 |
-| `tests/unit/config/config.test.ts` | 默认值；往返写读；**损坏文件自愈而非崩溃**；字段级回退；**阅读字号缺失时取默认、越界/非法值时夹取与取整**；原子写入不留临时文件 |
-| `tests/unit/lbook/zipIndex.test.ts` | 中央目录索引；`dataStart` 由局部文件头算出；区间读取与越界钳制；**拒绝对压缩条目做区间读**；条目名安全 |
+| `tests/unit/config/config.test.ts` | 默认值；往返写读；**损坏文件自愈而非崩溃**；字段级回退；**阅读字号缺失时取默认、越界/非法值时夹取与取整**；**`locale` 只接受已知取值，其余回落英文**；原子写入不留临时文件 |
 | `tests/unit/lbook/offsetIndex.test.ts` | 大 OCR JSON 的字节偏移索引：**跨块**（7/13/64 字节分块把结构字符劈开）、字符串里的括号与转义、多字节 UTF-8 被劈开、`limit` 早退（首屏只读“前缀 + 一块”）、找不到数组/空数组/截断文件都不抛；真实 fixture **逐页与整文件 parse 深度相等** |
-| `tests/unit/lbook/reader.test.ts` | **`readPdfRange(uid,0,8)` 以 `%PDF-` 开头**；随机区间与原始字节一致；尾块钳制；manifest / ocr / cover / toc 读取；**损坏的 `toc.json` 报错而不是当作没有目录**；**并发调用共享同一句柄**（句柄泄漏回归） |
-| `tests/unit/lbook/manifest.test.ts` | manifest 解析与容错；`slugify` 边界（纯符号标题、非 ASCII、超长） |
-| `tests/unit/lbook/validate.test.ts` | DEFLATE 的 PDF → 硬错误 + `needsRepack`；缺 manifest；格式串错；版本过高；**恶意 `../` 条目**；缺 book.pdf；截断包 |
-| `tests/unit/tencent/sign.test.ts` | **TC3-HMAC-SHA256 与官方文档算例逐项相等**（规范请求串、待签名字符串、Authorization、UTC 日期、region/STS 头的有无）——签名错一个换行，服务端只会回一句签名校验失败 |
-| `tests/unit/translate/service.test.ts` | 供应商解析与未知 id 回退；`auto` 本地判语种；**命中缓存不再调用**（同句第二次 `cached:true` 且供应商只被调一次）；源=目标短路（**一次都不调**）；空选直接拒绝；**设置载荷带出已存凭据**（供设置页预填与复制）与**清空字段 = 移除该键**；缺凭据抛 `ProviderConfigError` 且**不发请求**；朗读按「语言+文本」缓存、不同语言不串、厂商没有语音能力时报"不支持语音朗读"、超长文本在发请求前就被拦下 |
-| `tests/unit/translate/detect.test.ts` | 本地语种判断：纯英文/纯中文、英文里夹中文词、中文里夹标识符、无字母数字时返回 null |
-| `tests/unit/shared/toc.test.ts` | `toc.json` 的解析与校验（裸数组简写、缺 title、非正整数页号、死节点、嵌套深度、版本过高）；扁平化顺序与 id；**当前条目判定（含章与节同页时取更深的那个）**；祖先路径 |
-| `tests/unit/shared/bookFile.test.ts` | 书籍 `meta.json` 契约：缺 title 不当错、未知键忽略、更高 `formatVersion` 拒绝、必需字段逐一拒绝、**`ocrFile` 不得跳出书文件夹**（`../`/子目录/盘符/绝对路径）、垃圾输入只报错不抛；写出的键序稳定且可往返 |
+| `tests/unit/lbook/ocr.test.ts` | 页元素 → 渲染层形状：字段名保持 PaddleOCR 原样、**`block_index` 就是数组下标**（hover/滚动联动的身份）、半写坏的块不抛、页尺寸缺失时按 bbox 推断且**推不出来时是 null 而不是 0**、**`markdown.text` 原样读出且不从块派生**（A10） |
 | `tests/unit/library/book.test.ts` | `openBook()`：1-based 页号对应数组下标 0、小 chunk 跨块结果不变；越界/非整数页号报错；**页数以 OCR 文件为准而不是 meta**；PDF 缺失仍可读；meta 缺失/非 JSON/缺 uid 报错；**`ocrFile` 跳出文件夹被拒**；封面名探测与 `toc.json` 读取 |
 | `tests/unit/library/ledger.test.ts` | 书库台账：根内相对/根外绝对、**整库改名后相对路径仍可解析**、同一本不重复登记、**`remove()` 只删条目而文件夹仍在磁盘上**、手改坏的台账保住好条目并给出 issues、非 JSON 不崩、跨实例持久化 |
-| `tests/unit/library/service.test.ts` | 扫描导入；二次扫描幂等；坏包不中断扫描；**有未保存编辑时拒绝重导入**；文件消失后清理索引；**保存把编辑写回包**；**PDF 逐字节不变**；**未建模的块键保留**；**建书时附上目录**；**坏目录在建书前就被拒绝**；**目录写入/移除**；**只改目录时 OCR 与封面不丢**；**保存与移除目录都不吃掉其他条目**；导入复制到库目录 |
-| `tests/unit/migration/reconstruct.test.ts` | **黄金用例**（见第 4 节） |
+| `tests/unit/library/library.test.ts` | 书库门面：空库；列出一本；**文件夹被移走后仍列出来并带原因**（B8）；`open()` 在已有 meta 时**一个字节都不写**、重复登记、**无 meta 时创建它并把页数取自 OCR 数组**、不是书/是文件/不存在/OCR 没有页时各自说明缺什么；读页与越界返回 null；**`readPdfRange` 是闭区间**（差一字节每页都会坏）；目录缺失/损坏两种行为；进度越界拒绝；**`remove()` 只删台账条目而磁盘上的文件全在**；**书可以放在默认位置之外** |
+| `tests/unit/progress/progress.test.ts` | 阅读进度文件：按 `uid` 记住位置、多本互不干扰、原地更新、**重启后仍能读回**、`keep()` 丢掉已移除的书并写回磁盘、**坏文件降级为空而不是拒绝启动**、逐条容错（坏条目跳过、好条目留下） |
+| `tests/unit/shared/bookFile.test.ts` | 书籍 `meta.json` 契约：缺 title 不当错、未知键忽略、更高 `formatVersion` 拒绝、必需字段逐一拒绝、**`ocrFile` 不得跳出书文件夹**（`../`/子目录/盘符/绝对路径）、垃圾输入只报错不抛；写出的键序稳定且可往返 |
+| `tests/unit/shared/toc.test.ts` | `toc.json` 的解析与校验（裸数组简写、缺 title、非正整数页号、死节点、嵌套深度、版本过高）；扁平化顺序与 id；**当前条目判定（含章与节同页时取更深的那个）**；祖先路径 |
+| `tests/unit/tencent/sign.test.ts` | **TC3-HMAC-SHA256 与官方文档算例逐项相等**（规范请求串、待签名字符串、Authorization、UTC 日期、region/STS 头的有无）——签名错一个换行，服务端只会回一句签名校验失败；TTS 错误码 → 可执行提示 |
+| `tests/unit/translate/service.test.ts` | 供应商解析与未知 id 回退；`auto` 本地判语种；**命中缓存不再调用**（同句第二次 `cached:true` 且供应商只被调一次）；源=目标短路（**一次都不调**）；空选直接拒绝；**设置载荷带出已存凭据**（供设置页预填与复制）与**清空字段 = 移除该键**；缺凭据抛 `ProviderConfigError` 且**不发请求**；朗读按「语言+文本」缓存、不同语言不串、厂商没有语音能力时报错、超长文本在发请求前就被拦下 |
+| `tests/unit/translate/detect.test.ts` | 本地语种判断：纯英文/纯中文、英文里夹中文词、中文里夹标识符、无字母数字时返回 null |
 | `tests/unit/renderer/assetUrl.test.ts` | `imgs/x.jpg` → `lbook://asset/<uid>/imgs/x.jpg`；绝对 URL 与协议相对 URL 不动；不误伤正文文本 |
 
-### 两道硬闸
+### 一道硬闸
 
-- `tests/unit/lbook/reader.test.ts` 里的 `readPdfRange(uid,0,8) === '%PDF-'`。**这一条过了，包内所有偏移计算就都是对的。**
-- `tests/unit/lbook/zipIndex.test.ts` 里的 `book.pdf` 必须为 STORE。压缩的 PDF 会让阅读器退化成 O(n²)。
+`tests/unit/library/library.test.ts` 里的"**`readPdfRange(uid, 0, 7)` 恰好是 `%PDF-1.7`**"与"区间是闭区间"。这一条过了，PDF 的字节偏移与分包就都是对的；差一个字节，pdf.js 会拒绝每一个分块。
 
 ---
 
 ## 4. 黄金回归用例：迁移保真度
 
-`tests/unit/migration/reconstruct.test.ts` 是整个套件里价值最高的一个。
+第一批（Phase 4 之前的参考实现）是"重建保真"：把旧库里的块重建回 OCR JSON，与原始文件**逐字节**比对。原始 JSON 在 `dev-data/`，不在版本控制里，所以用例用 `describe.skipIf(文件不在)` 包着，缺失时整块跳过：
 
-**它比对什么**：把 `backend/lbook.db` 里第一本书的 `ocr_pages` + `ocr_blocks` 重建成 PaddleOCR JSON，与 `dev-data/Oxford Picture Dictionary 3 ed.ocr.json` 对比，要求 `dataInfo`、每页 `prunedResult`、每页 `markdown` **全部深度相等**（294 页 / 8609 块）。
+| 用例 | 用的文件 |
+|---|---|
+| 重建保真 | `dev-data/Oxford Picture Dictionary 3 ed.ocr.json`（294 页）与旧库 |
 
-**为什么重要**：这份 `dev-data` 里的 JSON 是这本书的**原始识别结果**，是唯一一份未经数据库中转的真相。如果重建算法漂移，比对会立刻失败——否则你会在几千个 block 已经悄悄变形之后才发现。
+第二批（Phase 1 的一次性迁移）在 `tests/unit/migrate/`（**待建**，T8）：
 
-**为什么它可能被跳过**：`backend/lbook.db` 与 `dev-data/` 都不在版本控制里（前者是历史遗留的数据文件，后者被 `.gitignore` 忽略）。缺任一个，该 describe 块整体 skip。这是有意的——宁可不跑，也不要静默地"通过"。
-
-**怎么重新启用**：迁移完成后 `backend/` 已按计划删除。要重新跑到这个用例，从迁移前的备份把旧库放回原位即可：
-
-```bash
-mkdir -p backend
-cp "D:/我的项目/LBook-backup-20261001/backend/lbook.db" backend/
-npm test
-```
-
-`dev-data/` 也需同时存在（它没有被删，一直在仓库里）。
-
-**重建为什么是合并而不是替换**：块内容从 `ocr_blocks` 取（用户在 App 里改过，第 3 本书第 22、24 页共 5 处），但块对象里 DB 没有列的键（`global_block_id`、`global_group_id`、`block_polygon_points`）只能从 `pruned_result` 取。**两者都不能偏废**——只用 `pruned_result` 会静默回退用户的编辑，只用 `ocr_blocks` 会丢掉那三个键。`service.test.ts` 里有一条专门的用例锁住后者。
+- 用 `tests/helpers/lbookPackage.ts` 造一个小包跑一遍迁移，断言：`book.pdf` 字节相同、`ocr.json` 字节相同、页数相同、进度相同、台账多一条。
+- **再跑一次什么都不做**（幂等）。
+- 真实那 5 本走 `npm run migrate:folders -- --dry-run`，逐本核对 PDF sha256、`ocr.json` 逐字节、页数、进度；原始 `.lbook` 必须原地不动。
 
 ---
 
@@ -174,27 +159,26 @@ npm test
 62. 点滑块右侧的 **↺** 回到 14px；当前已是默认值时该按钮禁用
 63. 关掉设置面板后字号保持；Markdown 与 Blocks 两个视图同一个字号；**重启应用**后仍是这个大小
 
-### 编辑与保存（Excel 模型）
+### 书文件夹（只读、外部改动、坏书）
 
-64. 在侧栏编辑一个 block 的内容，点击确认
-65. 顶栏书名右侧出现**琥珀色圆点**（有未保存修改；悬停提示 Ctrl+S）——顶栏已经没有 Save 按钮了
-66. 按 `Ctrl+S` 保存，圆点消失
-67. 返回首页——该书行上的 **Unsaved** 徽标消失
-68. 关闭并重开该书，**编辑仍然在**
-69. 用 7-Zip 打开该 `.lbook`，确认 `book.pdf` 的"方式"列是 **Store**，且 `ocr.json` / `toc.json` / 封面都还在
-70. 再编辑一次，然后直接按"返回首页"，应弹出未保存确认
-
-### 导入与资源
-
-71. 用 "Upload PDF" 选一个 PDF + PaddleOCR JSON（可加封面），确认能建成书并立即打开
-72. 用铅笔按钮替换 OCR JSON 与封面，确认生效
-73. 把一个 `.lbook` 手工拖进库目录，重启应用后应被自动发现
+64. 打开一本大书：能列、能翻页、能缩放、Fit Width、Flow 连滚 6 屏不卡、没有白页
+65. 目录跳转、当前页跟随、划词翻译、主题切换、阅读字号滑块、语言切换都还在
+66. **编辑入口全部消失**：界面上没有编辑按钮、没有未保存圆点、Ctrl+S 不做任何事；`grep -rn "book:save\|updateBlock" src/` 为空
+67. 外部改文件：在编辑器里改 `ocr.json` 某页的一个字（**页数不变**），**重启应用**后该页能看到（自动重读是 Phase 2）
+68. 把某本的 `meta.json` 删掉 → 列表里那本显示"需要修复"与原因，应用不崩，其他书照常
+69. 把某本的文件夹整个移走 → 同上，仍然列出来；点"从书库移除"后条目消失，**磁盘上的文件夹仍在**（如果它还在的话）
+70. 点"在文件管理器中显示" → 打开的就是那本书的文件夹
+71. 新增书籍：点"Add book"选一个**只有 book.pdf + 一个 OCR JSON**的文件夹 → 它写了一个 `meta.json`（页数取自 OCR 数组）、出现在列表里、能打开、能翻页
+72. 再选同一个文件夹 → 提示已在书库中，不重复登记
+73. 选一个空文件夹 → 弹出说明（没有 `meta.json` 也没有 `book.pdf`），**不写任何文件**
+74. 把一本书放在默认位置之外（比如另一个盘）→ 能加、能读；把整个默认目录改名 → 台账里相对路径那几本仍然能打开（A11）
+75. 阅读进度：读到第 30 页退出，重开应用 → 回到第 30 页；把书从书库移除再加回来 → 进度没了（键是 `uid`，移除时一并清掉）
 
 ### 存储与更新
 
-74. 设置里把库目录改到另一个盘，确认书仍能打开（文件应已被搬走）
-75. **断网启动**，确认不崩溃、不弹错误
-76. 打包版：安装 → 运行 → 确认更新检查无报错
+- 设置里把**默认新建位置**改到另一个盘：已在书库里的书**一个都不会被搬动**（A11），仍然能打开；之后新增的书默认落在新位置
+- **断网启动**：确认不崩溃、不弹错误
+- 打包版：安装 → 运行 → 确认更新检查无报错
 
 ---
 
@@ -205,8 +189,9 @@ npm test
 | React 组件渲染 | 需要 jsdom 或 Electron 环境，收益低于成本；UI 正确性靠第 6 节手工冒烟 |
 | Electron 主进程启动 | 需要真实 Electron 进程；`main/index.ts` 被刻意写得很薄，逻辑都在可测模块里 |
 | `electron-updater` 的真实更新流程 | 需要已发布的 Release；靠发版后的手工验证 |
-| `lbook://` 协议处理 | 需要 Electron 的 `protocol` 模块；其依赖的读取逻辑（`reader.ts`）已被单元测试覆盖 |
-| 并发写同一个库 | 单用户桌面应用，未做多实例互斥（见 `DESIGN.md` 已知限制） |
+| `lbook://` 协议处理 | 需要 Electron 的 `protocol` 模块；它只做"uid → 书文件夹 → 文件"这一步，取文件与路径校验的逻辑已被 `library/` 与 `bookFile` 的单测覆盖 |
+| 并发写同一个台账 | 单用户桌面应用，未做多实例互斥（见 `DESIGN.md` 已知限制）。书本身不受影响：应用从不写书 |
+| `.lbook` 迁移的端到端跑批 | 用一次性的真实数据验证（`--dry-run` + 逐本核对），比在单元测试里造大包更可信；小包的幂等与保真已有 `tests/unit/migrate/` 覆盖 |
 
 ---
 

@@ -2,7 +2,9 @@
 
 **目标**：把"数据库"和"自研包格式"这两套东西从代码里彻底清掉，只留文件夹。这一步的主要产出是**删除**，也是最容易被忽略的收益：打包不再需要原生模块那四件套配置。
 
-**前置**：Phase 1（读路径已切到文件夹）+ Phase 2（校验与反应式）都稳定跑过一段时间。
+**status（2026-10-11）：大部分已随 Phase 1 完成。** `src/main/db/**`、`library/{service,importer,legacy}.ts`、`lbook/{reader,zipIndex,archiveCache,packer,reconstruct,validate,manifest}.ts` 已删；`better-sqlite3` 与 `yauzl` 已移入 `devDependencies`（只有迁移脚本用），`yazl` 已移除；`electron-builder.yml` 的 `asarUnpack` 与 `npmRebuild` 已删；DESIGN/BUILD/TEST 与各目录 README 已重写。**剩下的是：跑完 T8 迁移、确认无误后删掉 `src/main/migrate/`、`scripts/migrate-folders.ts` 与那两个依赖，再实测一次打包体积。**
+
+**前置**：Phase 1（读路径已切到文件夹 + 迁移已跑过）+ Phase 2（校验与反应式）稳定跑过一段时间。
 
 ---
 
@@ -24,16 +26,14 @@
 
 ## 任务清单
 
-- [ ] 删 db 层与 `better-sqlite3`：`npm ls better-sqlite3` 必须为空。
-- [ ] 删 `yauzl` / `yazl`：确认代码里再无引用（`grep -rn "yauzl\|yazl" src/ scripts/`）。
-- [ ] `scripts/build.mjs` 的 `external` 只留必要项（`electron`、`electron-updater`）。
-- [ ] `electron-builder.yml`：删 `asarUnpack`、`npmRebuild`；确认 `files` 里没有多余项。
-- [ ] **迁移器不再依赖 DB**：`uid` 从包内 manifest 取（Phase 1 就是这么做的，这里只是去掉"进度从表里搬"那段——它必须在 Phase 1 完成）。
-- [ ] 全量回归：`npm run typecheck && npm run lint && npm run check:docs && npm test && npm run probe:perf`。
-- [ ] 打包实测：`npx electron-builder --win --publish never --config.electronDist=node_modules/electron/dist`，记录安装包体积与 `release/win-unpacked/resources/` 内容（应当没有 `app.asar.unpacked`）。
-- [ ] 启动耗时对比：冷启动到书库出现的时间，与 `baseline.md` 里的现状比。
-- [ ] 按上面的清单重写四份顶层文档；`AGENTS.md` 不用改（它的规则本身没变）。
-- [ ] `.agents/plan/README.md` 状态表改成 ✅；把实测数字追加到 `baseline.md`。
+- [x] 删 db 层（`src/main/db/**` 与 `tests/unit/db/**` 已删；`context.ts` 不再打开数据库）。
+- [x] `electron-builder.yml`：删 `asarUnpack`、`npmRebuild`。
+- [x] `scripts/build.mjs` 的 `external` 收尾（`yazl` 已移除；`better-sqlite3`/`yauzl` 只给脚本用）。
+- [ ] **跑完 T8 迁移之后**：删 `src/main/migrate/`、`scripts/migrate-folders.ts`，并把 `better-sqlite3`、`yauzl`、`@types/better-sqlite3`、`@types/yauzl` 从 `devDependencies` 里去掉（验收里的 `npm ls` 到那时才为空）。
+- [x] 全量回归：`npm run typecheck && npm run lint && npm run check:docs && npm test && npm run probe:perf`。
+- [ ] 打包实测：记录安装包体积与 `release/win-unpacked/resources/` 内容（应当没有 `app.asar.unpacked`）。
+- [x] 按上面的清单重写四份顶层文档；`AGENTS.md` 不用改（它的规则本身没变）。
+- [ ] `.agents/plan/README.md` 状态表改成 ✅（待迁移跑完）；把实测数字追加到 `baseline.md`。
 
 ---
 

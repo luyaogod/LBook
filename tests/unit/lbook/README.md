@@ -2,17 +2,14 @@
 
 ## 这个目录做什么
 
-`.lbook` 包格式的读写与校验测试。这是整个套件里最接近"物理正确性"的部分。
+OCR JSON 的**字节级**读法测试，以及"页元素 → 渲染层形状"的映射测试。这是整个套件里最接近"物理正确性"的部分。
 
 ## 关键文件
 
 | 文件 | 说明 |
 |---|---|
-| `offsetIndex.test.ts` | 大 OCR JSON 的字节偏移索引：**跨块**（7/13/64 字节分块，故意把结构字符劈开）、字符串里的括号与转义、多字节 UTF-8 被劈开、`limit` 早退（首屏只读“前缀 + 一块”）、找不到数组/空数组/截断文件都不抛异常；真实 fixture **逐页与整文件 parse 深度相等** |
-| `zipIndex.test.ts` | 中央目录索引、数据偏移解析、区间读取与越界钳制、压缩条目拒绝、条目名安全 |
-| `reader.test.ts` | **`readPdfRange(uid,0,8)` 以 `%PDF-` 开头**；随机区间与原始字节一致；manifest/ocr/cover 读取；并发调用共享句柄 |
-| `validate.test.ts` | DEFLATE 的 PDF、缺 manifest、格式串错、版本过高、恶意 `../` 条目、缺 book.pdf、截断包 |
-| `manifest.test.ts` | manifest 解析容错；`slugify()` 边界（纯符号、非 ASCII、超长） |
+| `offsetIndex.test.ts` | 字节偏移索引：**跨块**（7/13/64 字节分块，故意把结构字符劈开）、字符串里的括号与转义、多字节 UTF-8 被劈开、`limit` 早退（首屏只读"前缀 + 一块"）、找不到数组/空数组/截断文件都不抛异常；真实 fixture **逐页与整文件 parse 深度相等** |
+| `ocr.test.ts` | 映射：`parsing_res_list` → `OcrBlock[]`（字段名保持 PaddleOCR 原样、`block_index` 就是数组下标）、半写坏的块不抛异常、页尺寸缺失时按 bbox 推断、`markdown.text` **原样**读出来（不从块派生，A10） |
 
 ## 对外接口
 
@@ -20,9 +17,9 @@
 
 ## 依赖方向
 
-引用 `src/main/lbook/**`、`src/shared/urls.ts` 与 `tests/helpers/lbook.ts`。
+引用 `src/main/lbook/**` 与 `tests/helpers/bookFolder.ts`。
 
-夹具用 `writeRawZip()` 手工构造恶意 ZIP——yazl 会拒绝生成 `../` 这类条目名，只有手工构造才能测到。
+`ocr.test.ts` 里那几条断言看着平淡，但它们是渲染层的形状契约：`block_index` 是 hover/滚动联动的身份，`markdown_text` 与 `blocks` 是**两条独立的读法**，谁也不能从谁派生。
 
 ## 相关文档
 

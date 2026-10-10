@@ -2,19 +2,19 @@ import { useState, useEffect } from "react";
 import { fetchPdfPage } from "../api/pdfs";
 import type { OcrPage } from "../types";
 
-export function usePdfPage(pdfId: number | null, pageNum: number) {
+export function usePdfPage(uid: string | null, pageNum: number) {
   const [page, setPage] = useState<OcrPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (pdfId === null) return;
+    if (uid === null) return;
 
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    fetchPdfPage(pdfId, pageNum)
+    fetchPdfPage(uid, pageNum)
       .then((data) => {
         if (!cancelled) setPage(data);
       })
@@ -28,7 +28,7 @@ export function usePdfPage(pdfId: number | null, pageNum: number) {
     return () => {
       cancelled = true;
     };
-  }, [pdfId, pageNum]);
+  }, [uid, pageNum]);
 
   return { page, loading, error };
 }

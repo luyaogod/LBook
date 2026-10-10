@@ -18,13 +18,13 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(workerUrl, document.baseURI).to
  */
 class IpcRangeTransport extends pdfjsLib.PDFDataRangeTransport {
   private aborted = false;
-  private readonly pdfId: number;
+  private readonly bookId: string;
   private readonly byteLength: number;
   private readonly onError: (error: Error) => void;
 
-  constructor(pdfId: number, length: number, onError: (error: Error) => void) {
+  constructor(bookId: string, length: number, onError: (error: Error) => void) {
     super(length, null);
-    this.pdfId = pdfId;
+    this.bookId = bookId;
     this.byteLength = length;
     this.onError = onError;
   }
@@ -41,7 +41,7 @@ class IpcRangeTransport extends pdfjsLib.PDFDataRangeTransport {
     if (lastByte < begin) return;
 
     void window.api.book
-      .readPdfRange(this.pdfId, begin, lastByte)
+      .readPdfRange(this.bookId, begin, lastByte)
       .then((chunk) => {
         if (!this.aborted) this.onDataRange(begin, chunk);
       })
@@ -57,7 +57,7 @@ class IpcRangeTransport extends pdfjsLib.PDFDataRangeTransport {
   }
 }
 
-export function usePdfDocumentProxy(pdfId: number): {
+export function usePdfDocumentProxy(bookId: string): {
   pdfDoc: pdfjsLib.PDFDocumentProxy | null;
   loading: boolean;
   error: string | null;
@@ -79,13 +79,13 @@ export function usePdfDocumentProxy(pdfId: number): {
 
     void (async () => {
       try {
-        const document = await window.api.library.get(pdfId);
+        const document = await window.api.library.get(bookId);
         if (cancelled) return;
         if (!document) throw new Error("This book is no longer in the library.");
 
         // The transport must be given the exact byte length of book.pdf up
         // front; a wrong length surfaces as "Invalid PDF structure".
-        transport = new IpcRangeTransport(pdfId, document.file_size, (transportError) => {
+        transport = new IpcRangeTransport(bookId, document.file_size, (transportError) => {
           if (!cancelled) {
             setError(transportError.message);
             setLoading(false);
@@ -137,7 +137,7 @@ export function usePdfDocumentProxy(pdfId: number): {
         pdfDocRef.current = null;
       }
     };
-  }, [pdfId]);
+  }, [bookId]);
 
   return { pdfDoc, loading, error };
 }

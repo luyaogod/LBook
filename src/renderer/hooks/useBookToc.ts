@@ -9,45 +9,44 @@ import type { BookToc } from "../types";
  * effect, which would render the tree once in a stale state first.
  */
 interface TocEntry {
-  pdfId: number | null;
+  uid: string | null;
   toc: BookToc | null;
   error: string | null;
 }
 
 /**
- * Loads a book's table of contents out of its `.lbook`.
+ * Loads a book's table of contents from `toc.json` in its folder.
  *
- * Read-only on purpose: adding, replacing and removing an outline all happen in
- * the home page's upload/edit dialogs, which is where the file is picked. The
- * viewer only ever displays what the package currently holds.
+ * Read-only: the outline is a file the user edits, and the app never writes one
+ * back (A5). The viewer displays what the folder holds right now.
  */
-export function useBookToc(pdfId: number | null) {
-  const [entry, setEntry] = useState<TocEntry>({ pdfId: null, toc: null, error: null });
+export function useBookToc(uid: string | null) {
+  const [entry, setEntry] = useState<TocEntry>({ uid: null, toc: null, error: null });
 
   useEffect(() => {
-    if (pdfId === null) return;
+    if (uid === null) return;
 
     let cancelled = false;
-    fetchBookToc(pdfId)
+    fetchBookToc(uid)
       .then((toc) => {
-        if (!cancelled) setEntry({ pdfId, toc, error: null });
+        if (!cancelled) setEntry({ uid, toc, error: null });
       })
       .catch((err) => {
         if (!cancelled) {
-          setEntry({ pdfId, toc: null, error: err instanceof Error ? err.message : String(err) });
+          setEntry({ uid, toc: null, error: err instanceof Error ? err.message : String(err) });
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [pdfId]);
+  }, [uid]);
 
   // A result that belongs to a different book is not a result for this one.
-  const current = entry.pdfId === pdfId ? entry : null;
+  const current = entry.uid === uid ? entry : null;
   const toc = current?.toc ?? null;
   const error = current?.error ?? null;
-  const loading = pdfId !== null && current === null;
+  const loading = uid !== null && current === null;
 
   const nodes = useMemo(() => flattenToc(toc), [toc]);
 

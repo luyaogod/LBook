@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { fetchPdfPage } from "@/api/pdfs";
 import type { OcrPage } from "@/types";
 
-export function useFlowPages(pdfId: number): {
+export function useFlowPages(uid: string): {
   getPage: (pageNum: number) => OcrPage | undefined;
   prefetch: (pageNums: number[]) => void;
   version: number;
@@ -11,12 +11,12 @@ export function useFlowPages(pdfId: number): {
   const inFlightRef = useRef<Set<number>>(new Set());
   const [version, setVersion] = useState(0);
 
-  // Clear cache when pdfId changes
+  // Clear the cache when another book is opened.
   useEffect(() => {
     cacheRef.current.clear();
     inFlightRef.current.clear();
     setVersion(0);
-  }, [pdfId]);
+  }, [uid]);
 
   const getPage = useCallback((pageNum: number): OcrPage | undefined => {
     return cacheRef.current.get(pageNum);
@@ -31,9 +31,9 @@ export function useFlowPages(pdfId: number): {
       for (const pageNum of toFetch) {
         inFlightRef.current.add(pageNum);
 
-        fetchPdfPage(pdfId, pageNum)
+        fetchPdfPage(uid, pageNum)
           .then((data) => {
-            // A null result means the package has no OCR data for that page.
+            // A null result means the OCR JSON has no such page.
             if (data) cacheRef.current.set(pageNum, data);
             inFlightRef.current.delete(pageNum);
             setVersion((v) => v + 1);
@@ -44,7 +44,7 @@ export function useFlowPages(pdfId: number): {
           });
       }
     },
-    [pdfId]
+    [uid]
   );
 
   return { getPage, prefetch, version };

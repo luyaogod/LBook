@@ -38,10 +38,10 @@ export function BlockOverlayLayer({
     >
       {blocks.map((block) => (
         <BlockOverlay
-          key={block.id}
+          key={block.block_index}
           block={block}
           scale={scale}
-          isHighlighted={block.id === highlightedBlockId}
+          isHighlighted={block.block_index === highlightedBlockId}
           onHover={onBlockHover}
           scaleX={scaleX}
           scaleY={scaleY}

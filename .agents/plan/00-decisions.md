@@ -29,6 +29,13 @@
 | **A12** | **彻底放弃 `.lbook` 与"库目录扫描/导入"这一整套** | `.lbook` 只在迁移时读一次；`library:scan` / `library:import` / `library:createFromFiles` / `library:delete` 与 `importer.ts` / `legacy.ts` / `lbook/{reader,zipIndex,archiveCache,packer,reconstruct,validate,manifest}.ts` 全删（`ocr.ts` 留）。新增书籍 = **"打开一个书文件夹"**（选目录），即 Obsidian 的 Open folder as vault |
 | **A13** | **迁移由我执行，先备份** | 先备份你本机那 5 本（原 `.lbook` 至少留一份），再跑迁移创建书本目录，逐本校验：PDF sha256、`ocr.json` 逐字节、页数、进度。默认建在 `文档\LBook Library\<书名>/` 并注册进台账 |
 
+### A14–A15（Phase 1 施工中拍板）
+
+| # | 决定 | 说明 |
+|---|---|---|
+| **A14** | **IPC 里书用 `uid` 称呼，不再有数字行号** | A6 说“形状尽量不变”，但身份必须变：行号是 SQLite 的 `rowid`，它随数据库一起消失；而 `uid` 本来就已经是身份（封面 URL 一直是 `lbook://cover/<uid>`）。于是 `pdfId: number` → `uid: string`，`PdfDocument` 去掉 `id`/`status`/`dirty`、保留 `uid`，并加了 `dir`（“在文件管理器中显示”要用）与 `problem`（坏书） |
+| **A15** | **顺手删掉两个没人用的 IPC 形状**：`book:listPages` 与 `PdfDocumentDetail.pages` | 渲染层从来不读它们（总页数取自 `meta.pageCount`，页尺寸取自单页的 `usePdfPage`）。留着的话，`library:get` 得把**整份 OCR JSON 逐页解析**才能凑出那个数组——打开一本 665 页的书会因此多花一秒多。删掉之后，打开一本书只读一个 `meta.json` |
+
 ### 按建议默认执行（低风险，随时可改）
 
 | # | 默认 | 理由 |
@@ -43,9 +50,9 @@
 
 | # | 问题 | 现状 |
 |---|---|---|
-| B8 | 台账里的路径失效了（用户把文件夹移走/改名）怎么办？ | 列表里标"找不到" + 提供"移除条目"；"重新定位"（手选新路径）放 Phase 2 |
+| B8 | 台账里的路径失效了（用户把文件夹移走/改名）怎么办？ | 列表里标“找不到” + 提供“移除条目”，并给“在文件管理器中显示”。**已实现**（`problem` 字段 + 行上的徽标）；“重新定位”（手选新路径）放 Phase 2 |
 | B9 | 页元素里的 `outputImages` / `inputImage` 是过期的百度 BOS 签名 URL | 原样留着不读；将来"图片本地化"要重新下载，与本重构无关 |
-| B10 | 用户在编辑器里格式化过 JSON（缩进/换行变了） | 扫描器不假设缩进，只按 `mtime` 失效重扫——`PLAN.md` 第 4.2 节 |
+| B10 | 用户在编辑器里格式化过 JSON（缩进/换行变了） | 扫描器不假设缩进；**本轮还没做按 `mtime` 失效重扫**：索引在内存里缓存，重启应用才能看到外部改动。Phase 2 的事（`02-phase2-reactivity-validation.md`） |
 
 ---
 

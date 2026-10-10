@@ -6,8 +6,8 @@ import path from "node:path"
  *
  * `app.getPath()` is called exactly once, in `src/main/index.ts`, and the result
  * is passed down through this type. Everything below the main entry point takes
- * paths as arguments, which is what lets the data layer and the .lbook modules be
- * unit-tested under plain Node without launching Electron.
+ * paths as arguments, which is what lets the library and OCR modules be unit-tested
+ * under plain Node without launching Electron.
  *
  * Two rules keep this honest:
  *   1. nothing outside this module builds an app path by concatenating strings;
@@ -17,7 +17,7 @@ import path from "node:path"
 export interface AppPaths {
   /** %APPDATA%\LBook — config and database live here, never in the library. */
   userDataDir: string
-  /** User-configurable directory holding the .lbook packages. */
+  /** Default location for a new book folder (and where the folder picker starts). */
   libraryDir: string
   databaseFile: string
   configFile: string

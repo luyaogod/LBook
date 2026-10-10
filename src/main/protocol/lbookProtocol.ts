@@ -1,7 +1,9 @@
 import { protocol } from "electron"
+import { promises as fsp } from "node:fs"
+import fs from "node:fs"
 import path from "node:path"
 import type { AppContext } from "../context"
-import { readCover, readEntry, readManifest } from "../lbook/reader"
+import { coverPath } from "../library/book"
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -13,15 +15,18 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   ".bmp": "image/bmp",
 }
 
-function mimeFor(entryName: string): string {
-  return MIME_BY_EXTENSION[path.extname(entryName).toLowerCase()] ?? "application/octet-stream"
+function mimeFor(fileName: string): string {
+  return MIME_BY_EXTENSION[path.extname(fileName).toLowerCase()] ?? "application/octet-stream"
 }
 
 /**
- * Serves the contents of .lbook packages the DOM loads by URL:
+ * Serves the files a book folder holds that the DOM loads by URL:
  *
- *   lbook://cover/<uid>            the package cover
- *   lbook://asset/<uid>/<entry>    images referenced by OCR blocks
+ *   lbook://cover/<uid>            the book's cover file
+ *   lbook://asset/<uid>/<name>     an image an OCR block points at
+ *
+ * Both resolve *inside that book's folder*, and a name that escapes it is
+ * refused: the uid says which folder, and the path says what to read from it.
  *
  * The PDF deliberately does not go through here. pdf.js only issues range
  * requests against http(s) URLs, so book bytes travel over IPC instead — see
@@ -35,23 +40,30 @@ export function registerLbookProtocol(context: AppContext): void {
       const uid = decodeURIComponent(segments[0] ?? "")
       if (!uid) return notFound()
 
-      const row = context.repos.documents.getByUid(uid)
-      if (!row) return notFound()
+      const doc = await context.library.get(uid)
+      if (!doc) return notFound()
 
       if (host === "cover") {
-        const cover = await readCover(row.file_path, await readManifest(row.file_path))
-        if (!cover) return notFound()
-        return new Response(new Uint8Array(cover.data), {
-          headers: { "Content-Type": cover.mime, "Cache-Control": "no-cache" },
+        const file = coverPath(doc.dir)
+        if (!file) return notFound()
+        return new Response(new Uint8Array(await fsp.readFile(file)), {
+          headers: { "Content-Type": mimeFor(file), "Cache-Control": "no-cache" },
         })
       }
 
       if (host === "asset") {
-        const entryName = segments.slice(1).map(decodeURIComponent).join("/")
-        if (entryName === "") return notFound()
-        const data = await readEntry(row.file_path, entryName)
-        return new Response(new Uint8Array(data), {
-          headers: { "Content-Type": mimeFor(entryName) },
+        const name = segments.slice(1).map(decodeURIComponent).join("/")
+        if (name === "") return notFound()
+
+        const root = path.resolve(doc.dir)
+        const file = path.resolve(root, name)
+        // A relative reference inside an OCR block is data, not a path the user
+        // chose; anything that climbs out of the book folder is refused.
+        if (file !== root && !file.startsWith(root + path.sep)) return notFound()
+        if (!fs.existsSync(file)) return notFound()
+
+        return new Response(new Uint8Array(await fsp.readFile(file)), {
+          headers: { "Content-Type": mimeFor(file) },
         })
       }
 

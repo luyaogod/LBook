@@ -16,17 +16,10 @@ files:
 
 asar: true
 
-# better-sqlite3 is a native module: a .node file cannot be dlopen'd from inside
-# an asar archive, and it locates its binary through `bindings`, which reads the
-# filesystem directly.
-asarUnpack:
-  - node_modules/better-sqlite3/**
-  - node_modules/bindings/**
-  - node_modules/file-uri-to-path/**
-
-# Rebuild native modules against Electron's ABI during packaging.
-npmRebuild: true
-
+# No native modules are bundled any more: the app used to carry better-sqlite3 for
+# its index, and the index is now JSON files the main process reads and writes.
+# (The one-time converter in scripts/ still uses better-sqlite3, but it runs under
+# plain Node and is never shipped.)
 win:
   target:
     - target: nsis

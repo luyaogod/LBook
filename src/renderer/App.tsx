@@ -3,9 +3,7 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { UpdateBanner } from "@/components/layout/UpdateBanner";
 import { PaneSash } from "@/components/layout/PaneSash";
 import { HomePage } from "@/components/home/HomePage";
-import { UploadDialog } from "@/components/home/UploadDialog";
-import { EditDialog } from "@/components/home/EditDialog";
-import type { PdfDocument, OcrBlock } from "@/types";
+import type { OcrBlock } from "@/types";
 import type { Settings } from "@shared/ipc";
 import { PdfToolbar } from "@/components/viewer/PdfToolbar";
 import { PdfViewer } from "@/components/viewer/PdfViewer";
@@ -15,11 +13,11 @@ import { TocPanel } from "@/components/toc/TocPanel";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
-import { usePdfDocument } from "@/hooks/usePdfDocument";
+import { useBook } from "@/hooks/useBook";
 import { usePdfPage } from "@/hooks/usePdfPage";
 import { useBookToc } from "@/hooks/useBookToc";
 import { fetchReadingProgress, saveReadingProgress } from "@/api/users";
-import { savePdf } from "@/api/pdfs";
+import { openBookFolder } from "@/api/pdfs";
 import { applyReadingFontSize } from "@/lib/readingFont";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,14 +51,14 @@ interface AppShellProps {
 }
 
 function AppShell({ appSettings, setAppSettings }: AppShellProps) {
-  const [selectedPdfId, setSelectedPdfId] = useState<number | null>(null);
+  // A book is named by its `uid` (its `meta.json` identity), never by a row id or
+  // a path: renaming the folder must not disturb what is open.
+  const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
   const [scale, setScale] = useState(1.0);
   const [currentPage, setCurrentPage] = useState(1);
   const [highlightedBlockId, setHighlightedBlockId] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
-  const [showUpload, setShowUpload] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [editPdf, setEditPdf] = useState<PdfDocument | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [overlayOpaque, setOverlayOpaque] = useState(false);
   const [flowMode, setFlowMode] = useState(false);
@@ -84,12 +82,6 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [dragTarget, setDragTarget] = useState<"toc" | "sidebar" | null>(null);
-  // Edits live in the working copy until written back into the .lbook, the way
-  // a spreadsheet holds changes until you save.
-  const [docDirty, setDocDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const docDirtyRef = useRef(false);
-  docDirtyRef.current = docDirty;
   const dragStartX = useRef(0);
   const dragStartW = useRef(480);
   const initialFitDone = useRef(false);
@@ -99,22 +91,22 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
    *
    * Reading progress is written 2s after the last page change, and that delay is
    * exactly the window in which the reader can open another book. The callback that
-   * scheduled the write captured the *old* `selectedPdfId`, so a report from the
-   * book being opened landed in the previous book's row: measured, opening book B
-   * (saved at 98) while book A was at 120 rewrote A's row to 98. Every queued save
-   * therefore carries its `pdfId` and drops itself if the reader has moved on.
+   * scheduled the write captured the *old* `selectedBookId`, so a report from the
+   * book being opened landed in the previous book's entry: opening book B (saved at
+   * 98) while book A was at 120 rewrote A's entry to 98. Every queued save therefore
+   * carries its uid and drops itself if the reader has moved on.
    */
-  const progressSaveOwnerRef = useRef<number | null>(null);
-  const selectedPdfIdRef = useRef<number | null>(null);
-  selectedPdfIdRef.current = selectedPdfId;
+  const progressSaveOwnerRef = useRef<string | null>(null);
+  const selectedBookIdRef = useRef<string | null>(null);
+  selectedBookIdRef.current = selectedBookId;
 
-  const scheduleProgressSave = useCallback((pdfId: number, page: number, delayMs = 2000) => {
+  const scheduleProgressSave = useCallback((uid: string, page: number, delayMs = 2000) => {
     if (saveProgressTimerRef.current) clearTimeout(saveProgressTimerRef.current);
-    progressSaveOwnerRef.current = pdfId;
+    progressSaveOwnerRef.current = uid;
     saveProgressTimerRef.current = setTimeout(() => {
       saveProgressTimerRef.current = null;
-      if (selectedPdfIdRef.current !== pdfId) return;
-      saveReadingProgress(pdfId, page).catch(() => {});
+      if (selectedBookIdRef.current !== uid) return;
+      saveReadingProgress(uid, page).catch(() => {});
     }, delayMs);
   }, []);
 
@@ -149,9 +141,9 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
     };
   }, [dragTarget]);
 
-  const { pdf, loading: pdfLoading, error: pdfError } = usePdfDocument(selectedPdfId);
-  const { page, loading: pageLoading } = usePdfPage(selectedPdfId, currentPage);
-  const { toc, nodes: tocNodes, loading: tocLoading, error: tocError } = useBookToc(selectedPdfId);
+  const { pdf, loading: pdfLoading, error: pdfError } = useBook(selectedBookId);
+  const { page, loading: pageLoading } = usePdfPage(selectedBookId, currentPage);
+  const { toc, nodes: tocNodes, loading: tocLoading, error: tocError } = useBookToc(selectedBookId);
 
   // Opening the panel re-reads the settings (they may have been changed by a
   // previous window state); the startup read already happened in App.
@@ -202,8 +194,8 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
   const sidebarMarkdown = flowMode ? visiblePageMarkdown : (page?.markdown_text ?? null);
   const sidebarLoading = flowMode ? false : pageLoading;
 
-  const handleOpenPdf = useCallback((id: number) => {
-    setSelectedPdfId(id);
+  const handleOpenBook = useCallback((uid: string) => {
+    setSelectedBookId(uid);
     setCurrentPage(1); // default, will be overridden if progress exists
     // Reset the flow-mode cursor too. It belongs to the book being closed, and in
     // flow mode it is the page the sidebar and the viewer read — leaving it set
@@ -211,7 +203,6 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
     setVisiblePage(1);
     setHighlightedBlockId(null);
     setPageSize({ width: 0, height: 0 });
-    setDocDirty(false);
     initialFitDone.current = false;
 
     // A save queued for the book we are leaving must not fire against this one.
@@ -221,7 +212,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
     }
 
     // Restore last read page
-    fetchReadingProgress(id)
+    fetchReadingProgress(uid)
       .then((progress) => {
         // null means this book has never been opened — stay on page 1.
         if (progress && progress.last_page_num >= 1) {
@@ -234,20 +225,27 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
       });
   }, []);
 
-  const handleSave = useCallback(async () => {
-    if (selectedPdfId === null || saving) return;
-    setSaving(true);
+  /**
+   * Adds a book: the main process asks for a folder, checks it, writes a
+   * `meta.json` if the folder is raw PaddleOCR output, and registers it.
+   */
+  const handleAddBook = useCallback(async () => {
     try {
-      await savePdf(selectedPdfId);
-      setDocDirty(false);
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Could not save the book.");
-    } finally {
-      setSaving(false);
+      const outcome = await openBookFolder();
+      if (outcome === null) return; // the user closed the picker
+      if (!outcome.ok) {
+        window.alert(outcome.error);
+        return;
+      }
+      setRefreshKey((k) => k + 1);
+      // A folder that was just adopted is what the reader wanted to open; a book
+      // that was already in the library only got its entry refreshed, so leave the
+      // current view alone.
+      if (outcome.adopted) handleOpenBook(outcome.doc.uid);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Could not add that folder.");
     }
-  }, [selectedPdfId, saving]);
-
-  const handleBlockEdited = useCallback(() => setDocDirty(true), []);
+  }, [handleOpenBook]);
 
   const handleBack = useCallback(() => {
     // Save reading progress immediately before navigating away
@@ -255,21 +253,12 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
       clearTimeout(saveProgressTimerRef.current);
       saveProgressTimerRef.current = null;
     }
-    if (selectedPdfId !== null) {
+    if (selectedBookId !== null) {
       const pageToSave = flowMode ? visiblePage : currentPage;
-      saveReadingProgress(selectedPdfId, pageToSave).catch(() => {});
+      saveReadingProgress(selectedBookId, pageToSave).catch(() => {});
     }
-    if (docDirtyRef.current) {
-      const leave = window.confirm(
-        "This book has edits that have not been written into the .lbook yet.\n\n" +
-          "They stay in the app, but the file on disk is unchanged.\n" +
-          "Leave without saving?",
-      );
-      if (!leave) return;
-    }
-    setDocDirty(false);
-    setSelectedPdfId(null);
-  }, [selectedPdfId, currentPage, visiblePage, flowMode]);
+    setSelectedBookId(null);
+  }, [selectedBookId, currentPage, visiblePage, flowMode]);
 
   const handleZoomIn = useCallback(() => {
     setScale((s) => Math.min(3.0, +(s + 0.1).toFixed(1)));
@@ -289,10 +278,10 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
           setHighlightedBlockId(null);
         }
         // Debounced save reading progress
-        if (selectedPdfId !== null) scheduleProgressSave(selectedPdfId, page);
+        if (selectedBookId !== null) scheduleProgressSave(selectedBookId, page);
       }
     },
-    [totalPages, flowMode, selectedPdfId, scheduleProgressSave]
+    [totalPages, flowMode, selectedBookId, scheduleProgressSave]
   );
 
   // Keyboard shortcuts: N = next page, B = previous page
@@ -300,22 +289,14 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
   handlePageChangeRef.current = handlePageChange;
   const sidebarPageNumRef = useRef(sidebarPageNum);
   sidebarPageNumRef.current = sidebarPageNum;
-  const handleSaveRef = useRef(handleSave);
-  handleSaveRef.current = handleSave;
 
   useEffect(() => {
-    if (selectedPdfId === null) return;
+    if (selectedBookId === null) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target) {
         const tag = target.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) return;
-      }
-      // Ctrl/Cmd+S saves the working copy back into the .lbook.
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        void handleSaveRef.current();
-        return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const key = e.key.toLowerCase();
@@ -327,19 +308,19 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedPdfId]);
+  }, [selectedBookId]);
 
   const handleVisiblePageChange = useCallback(
     (pageNum: number, blocks: OcrBlock[], markdownText: string | null) => {
       setVisiblePage(pageNum);
       setVisiblePageBlocks(blocks);
       setVisiblePageMarkdown(markdownText);
-      // Save progress when scrolling in flow mode. `selectedPdfId` here can be one
+      // Save progress when scrolling in flow mode. `selectedBookId` here can be one
       // render behind a book switch, which is why the queued save is tagged and
       // re-checked when it fires.
-      if (selectedPdfId !== null) scheduleProgressSave(selectedPdfId, pageNum);
+      if (selectedBookId !== null) scheduleProgressSave(selectedBookId, pageNum);
     },
-    [selectedPdfId, scheduleProgressSave]
+    [selectedBookId, scheduleProgressSave]
   );
 
   const handleFlowScrollToPageHandled = useCallback(() => {
@@ -365,12 +346,12 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
         setFlowMode(false);
         setHighlightedBlockId(null);
         // Save progress when exiting flow mode
-        if (selectedPdfId !== null) {
-          saveReadingProgress(selectedPdfId, visiblePage).catch(() => {});
+        if (selectedBookId !== null) {
+          saveReadingProgress(selectedBookId, visiblePage).catch(() => {});
         }
       }
     },
-    [currentPage, visiblePage, selectedPdfId]
+    [currentPage, visiblePage, selectedBookId]
   );
 
   const handleWheelZoom = useCallback((delta: number) => {
@@ -407,38 +388,23 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
     setScrollTarget({ id, from });
   }, []);
 
-  const handleUploadSuccess = useCallback(() => {
-    setRefreshKey((k) => k + 1);
-  }, []);
-
   // Home page
-  if (selectedPdfId === null) {
+  if (selectedBookId === null) {
     return (
       <div className="flex h-svh flex-col bg-background">
         <AppHeader
           mode="home"
-          onUploadClick={() => setShowUpload(true)}
+          onAddBookClick={handleAddBook}
           onSettingsClick={openSettings}
         />
         <UpdateBanner />
-        <HomePage onOpenPdf={handleOpenPdf} refreshKey={refreshKey} onEditPdf={setEditPdf} />
-        <UploadDialog
-          open={showUpload}
-          onClose={() => setShowUpload(false)}
-          onSuccess={handleUploadSuccess}
-        />
-        <EditDialog
-          open={editPdf !== null}
-          pdf={editPdf}
-          onClose={() => setEditPdf(null)}
-          onSuccess={handleUploadSuccess}
-        />
+        <HomePage onOpenBook={handleOpenBook} onAddBook={handleAddBook} refreshKey={refreshKey} />
         {settingsDialog}
       </div>
     );
   }
 
-  // Viewer: loading (or pdf not yet set)
+  // Viewer: loading (or the book is not loaded yet)
   if (pdfLoading || !pdf) {
     return (
       <div className="flex h-svh flex-col bg-background">
@@ -484,7 +450,6 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
         fileName={pdf?.title}
         onBack={handleBack}
         onSettingsClick={openSettings}
-        dirty={docDirty}
       />
       <UpdateBanner />
       <div className="flex flex-1 overflow-hidden">
@@ -492,7 +457,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
         {tocOpen && (
           <>
             <TocPanel
-              key={selectedPdfId}
+              key={selectedBookId}
               nodes={tocNodes}
               loading={tocLoading}
               error={tocError}
@@ -527,7 +492,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
               />
               {flowMode ? (
                 <FlowViewer
-                  pdfId={selectedPdfId}
+                  bookId={selectedBookId}
                   scale={scale}
                   overlayOpaque={overlayOpaque}
                   highlightedBlockId={highlightedBlockId}
@@ -543,7 +508,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
                 />
               ) : (
                 <PdfViewer
-                  pdfId={selectedPdfId}
+                  bookId={selectedBookId}
                   pageNum={currentPage}
                   scale={scale}
                   blocks={pageBlocks}
@@ -582,9 +547,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
             flowMode={flowMode}
             onFlowModeChange={handleFlowModeToggle}
             flowPagesData={flowPagesData}
-            onBlockEdited={handleBlockEdited}
-            bookUid={pdf?.uid}
-            pdfId={selectedPdfId}
+            bookUid={selectedBookId}
             expanded={sidebarExpanded}
             onExpandedChange={setSidebarExpanded}
             onCollapse={() => {

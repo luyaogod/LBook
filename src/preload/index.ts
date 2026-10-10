@@ -1,55 +1,39 @@
-import { contextBridge, ipcRenderer, webUtils } from "electron"
+import { contextBridge, ipcRenderer } from "electron"
 import { IPC, UPDATE_STATUS_EVENT, WINDOW_MAXIMIZED_EVENT, type LbookApi, type UpdateStatus } from "../shared/ipc"
 
-// webUtils is only present in recent Electron builds; probe once so the renderer
-// can fall back to the open dialog for drag-and-drop.
-const canResolveFilePaths = typeof webUtils?.getPathForFile === "function"
-
+/**
+ * The bridge the renderer sees as `window.api`.
+ *
+ * Every method is a named channel with a typed payload — never a generic
+ * `invoke(channel, payload)`, which would hand the renderer the whole main
+ * process. Books are named by `uid` (their `meta.json` identity), so nothing here
+ * deals in row ids or paths the renderer did not receive from a dialog.
+ */
 const api: LbookApi = {
   hello: () => ipcRenderer.invoke(IPC.hello),
 
   library: {
     list: () => ipcRenderer.invoke(IPC.libraryList),
-    get: (pdfId) => ipcRenderer.invoke(IPC.libraryGet, { pdfId }),
-    scan: () => ipcRenderer.invoke(IPC.libraryScan),
-    import: (filePath) => ipcRenderer.invoke(IPC.libraryImport, { filePath }),
-    createFromFiles: (input) => ipcRenderer.invoke(IPC.libraryCreateFromFiles, input),
-    remove: (pdfId, deleteFile) => ipcRenderer.invoke(IPC.libraryDelete, { pdfId, deleteFile }),
+    get: (uid) => ipcRenderer.invoke(IPC.libraryGet, { uid }),
+    open: (dir) => ipcRenderer.invoke(IPC.libraryOpen, { dir }),
+    remove: (uid) => ipcRenderer.invoke(IPC.libraryRemove, { uid }),
+    reveal: (uid) => ipcRenderer.invoke(IPC.libraryReveal, { uid }),
   },
 
   book: {
-    listPages: (pdfId) => ipcRenderer.invoke(IPC.bookListPages, { pdfId }),
-    getPage: (pdfId, pageNum) => ipcRenderer.invoke(IPC.bookGetPage, { pdfId, pageNum }),
-    readPdfRange: (pdfId, begin, end) =>
-      ipcRenderer.invoke(IPC.bookReadPdfRange, { pdfId, begin, end }),
-    updateBlock: (blockId, blockContent) =>
-      ipcRenderer.invoke(IPC.bookUpdateBlock, { blockId, blockContent }),
-    save: (pdfId) => ipcRenderer.invoke(IPC.bookSave, { pdfId }),
-    replaceOcr: (pdfId, ocrPath) => ipcRenderer.invoke(IPC.bookReplaceOcr, { pdfId, ocrPath }),
-    replaceCover: (pdfId, coverPath) => ipcRenderer.invoke(IPC.bookReplaceCover, { pdfId, coverPath }),
-    getToc: (pdfId) => ipcRenderer.invoke(IPC.bookGetToc, { pdfId }),
-    replaceToc: (pdfId, tocPath) => ipcRenderer.invoke(IPC.bookReplaceToc, { pdfId, tocPath }),
-    clearToc: (pdfId) => ipcRenderer.invoke(IPC.bookClearToc, { pdfId }),
-  },
-
-  user: {
-    current: () => ipcRenderer.invoke(IPC.userGetCurrent),
+    getPage: (uid, pageNum) => ipcRenderer.invoke(IPC.bookGetPage, { uid, pageNum }),
+    readPdfRange: (uid, begin, end) => ipcRenderer.invoke(IPC.bookReadPdfRange, { uid, begin, end }),
+    getToc: (uid) => ipcRenderer.invoke(IPC.bookGetToc, { uid }),
   },
 
   progress: {
-    get: (pdfId) => ipcRenderer.invoke(IPC.progressGet, { pdfId }),
-    save: (pdfId, lastPageNum) => ipcRenderer.invoke(IPC.progressSave, { pdfId, lastPageNum }),
+    get: (uid) => ipcRenderer.invoke(IPC.progressGet, { uid }),
+    save: (uid, lastPageNum) => ipcRenderer.invoke(IPC.progressSave, { uid, lastPageNum }),
   },
 
   settings: {
     get: () => ipcRenderer.invoke(IPC.settingsGet),
     set: (patch) => ipcRenderer.invoke(IPC.settingsSet, patch),
-    chooseLibraryDir: () => ipcRenderer.invoke(IPC.settingsChooseLibraryDir),
-    revealLibraryDir: () => ipcRenderer.invoke(IPC.settingsRevealLibraryDir),
-  },
-
-  dialog: {
-    pickFiles: (kind) => ipcRenderer.invoke(IPC.dialogPickFiles, { kind }),
   },
 
   translate: {
@@ -85,12 +69,6 @@ const api: LbookApi = {
       ipcRenderer.on(UPDATE_STATUS_EVENT, listener)
       return () => ipcRenderer.removeListener(UPDATE_STATUS_EVENT, listener)
     },
-  },
-
-  capabilities: { filePaths: canResolveFilePaths },
-
-  files: {
-    getPath: (file) => (canResolveFilePaths ? webUtils.getPathForFile(file) : null),
   },
 }
 

@@ -9,20 +9,20 @@
 | 文件 | 说明 |
 |---|---|
 | `usePdfDocumentProxy.ts` | **最关键的 hook**：用 `IpcRangeTransport`（继承 `PDFDataRangeTransport`）经 IPC 分块取数，并加载 pdf.js worker |
-| `usePdfDocument.ts` | 取 `PdfDocumentDetail` |
+| `useBook.ts` | 取一本已注册书的元数据（`library:get`） |
 | `usePdfPage.ts` | 取单页 OCR 数据 |
 | `useFlowPages.ts` | Flow 模式的页面缓存与相邻页预取 |
-| `useBookToc.ts` | 读取包内 `toc.json` 并摊平成树（只读，增删改在首页对话框） |
+| `useBookToc.ts` | 读取书文件夹里的 `toc.json` 并摊平成树（只读：目录是用户的文件，应用不写回） |
 
 ## 对外接口
 
-`usePdfDocumentProxy(pdfId)`、`usePdfDocument(pdfId)`、`usePdfPage(pdfId, pageNum)`、`useFlowPages(pdfId)`、`useBookToc(pdfId)`。
+`usePdfDocumentProxy(bookId)`、`useBook(uid)`、`usePdfPage(uid, pageNum)`、`useFlowPages(uid)`、`useBookToc(uid)`。
 
 ## 依赖方向
 
 被 `src/renderer/components/viewer/` 与 `App.tsx` 使用。依赖 `pdfjs-dist`、`src/renderer/api/`、React。
 
-**`usePdfDocumentProxy.ts` 里的两个常量不能凭直觉改**：`requestDataRange` 的 `end` 是**排他**的；传给 transport 的 `length` 必须是 `book.pdf` 的精确字节数。
+**`usePdfDocumentProxy.ts` 里的两条契约不能凭直觉改**：IPC 的 `readPdfRange(begin, end)` 是**闭区间**，而 pdf.js 的 `requestDataRange(begin, end)` 是**排他**的（所以实现里减一）；传给 transport 的 `length` 必须是 `book.pdf` 的精确字节数，错了会直接报 "Invalid PDF structure"。
 
 **另外两处是实测调出来的，改之前先看 `DESIGN.md` 4.3**：`rangeChunkSize` 用 512KB（64KB 时 178MB 的书要 ~2850 次异步往返）；`disableAutoFetch` **刻意不设**——关掉它实测让稳态翻页变慢（首绘中位 90ms vs 60ms）。
 

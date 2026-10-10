@@ -8,20 +8,20 @@ LBook 本身**不做 OCR**。扫描与识别由外部的 PaddleOCR-VL / PP-Struc
 
 ---
 
-## 核心概念：`.lbook`
-
-一本书就是一个 `.lbook` 文件。**它本质是一个 ZIP，从不解压**：
+## 核心概念：一本书就是一个文件夹
 
 ```
-Book.lbook
-├── manifest.json    格式版本 / uid / 标题 / 作者 / 页数 / 封面引用
-├── book.pdf         书本体（必须 STORE 存储，可随机寻址）
-├── ocr.json         PaddleOCR-VL 原始输出
-├── cover.jpg        封面（可选）
-└── assets/          OCR 引用的图片（格式预留）
+我的书/
+├── meta.json     身份(uid)、标题、页数、ocrFile
+├── ocr.json      PaddleOCR-VL 原始输出（几 MB 到几十 MB，逐字节原样）
+├── book.pdf      书本体
+├── toc.json      可选：目录树
+└── cover.jpg     可选：封面
 ```
 
-文件本身**就是文档**，编辑后写回文件——和 Excel 处理 `.xlsx` 是同一个模型：运行时改动先落在工作副本里，显式保存（`Ctrl+S`）时才重写包。
+**书就是磁盘上一堆属于你的普通文件**：应用只记住路径（书库是一份台账，书可以在任何盘、任何目录），对内容**只读**——要改 OCR 文本或目录，就在你自己的编辑器里改。没有导入步骤，也没有未保存状态。
+
+**整个应用会写的只有三个文件**，都在 `%APPDATA%\LBook\`：`config.json`（设置）、`library.json`（书库台账）、`progress.json`（读到哪）。唯一会写进书文件夹的是 `meta.json`，而且只在你把“一个还没有 `meta.json` 的文件夹”加成书时创建一次。
 
 ---
 
@@ -49,10 +49,11 @@ npm run pack      # 产出 release/LBook-Setup-<version>.exe
 | 内容 | 位置 |
 |---|---|
 | 配置 `config.json` | `%APPDATA%\LBook\` |
-| 索引 `lbook.db` | `%APPDATA%\LBook\` |
-| 书本 `*.lbook` | 用户可配置的库目录，默认 `文档\LBook Library` |
+| 书库台账 `library.json` | `%APPDATA%\LBook\` |
+| 阅读进度 `progress.json` | `%APPDATA%\LBook\` |
+| 书 | **你自己挑的文件夹**（默认 `文档\LBook Library`，但可以在任何地方） |
 
-数据库与书本刻意分开：库目录可以放在移动硬盘或网络盘上，而索引必须始终在本地，不能跟着一起失联。把 `.lbook` 文件手工拷进库目录，应用下次扫描就会自动发现。
+台账与书刻意分开：书可以放在移动硬盘或网络盘上，而“哪些文件夹是书”这份列表始终在本地，不会跟着一起失联。想让应用认识一本书，就把它的文件夹加进来（Add book）；应用不会去扫描任何目录。
 
 ---
 
@@ -64,8 +65,8 @@ npm run pack      # 产出 release/LBook-Setup-<version>.exe
 | 主进程 | TypeScript，esbuild 打包为 CJS |
 | 渲染层 | React 19 + Vite 8 + Tailwind v4，经 `app://` 自定义协议加载 |
 | PDF | pdf.js 4.10，通过 IPC 的 `PDFDataRangeTransport` 按需取字节 |
-| 数据库 | better-sqlite3（N-API 预编译二进制，无需 C++ 工具链） |
-| 包格式 | 自研 `.lbook`（ZIP），读写分别用 `yauzl` / `yazl` |
+| 索引 | 无数据库：书库台账、阅读进度、配置都是 JSON（`%APPDATA%\LBook\`） |
+| 书的格式 | 一个文件夹 + PaddleOCR 自己的 JSON；应用对内容只读，OCR 按**字节偏移**按页读取 |
 | 测试 | Vitest，纯 Node 环境，不启动 Electron |
 | 更新 | electron-updater + GitHub Releases |
 
@@ -78,7 +79,7 @@ npm run pack      # 产出 release/LBook-Setup-<version>.exe
 | [DESIGN.md](./DESIGN.md) | 架构、`.lbook` 格式规范、IPC 契约、安全模型、**已知限制** |
 | [BUILD.md](./BUILD.md) | 开发、构建、发布、原生模块排错、常见错误速查 |
 | [TEST.md](./TEST.md) | 测试范围、黄金回归用例、手工冒烟清单 |
-| [PLAN.md](./PLAN.md) | **下一步怎么走**：从单文件 `.lbook` 改成 Obsidian 式文件夹书库的重构计划 |
+| [PLAN.md](./PLAN.md) | **下一步怎么走**：文件夹式书库落地之后还剩什么（外部改动反应式重读、坏书 UI、旧 `.lbook` 迁移） |
 | [AGENTS.md](./AGENTS.md) | 协约：目录 README 规则与文档索引规则 |
 
 源码各目录的说明见其自身的 `README.md`，从下面两个入口进入：
@@ -94,6 +95,6 @@ npm run pack      # 产出 release/LBook-Setup-<version>.exe
 
 **PDF 不走自定义协议。** 直觉上 `lbook://pdf/…` 配 HTTP Range 最自然，但 pdf.js 只对 `http(s)` 发范围请求（`pdf.mjs` 里的 `isHttp = /^https?:/i.test(source.url)`），对自定义 scheme 会退化成把整个文件读进内存——最大的一本书有 189MB。所以 PDF 走 IPC。
 
-**`.lbook` 里的 `book.pdf` 必须是 STORE（不压缩）。** 压缩条目的字节范围无法寻址，每读一块都要从字节 0 重新解压，读完整本书是 O(n²)。
+**一页的 OCR 是按字节偏移从那个大 JSON 里直接读出来的**，而不是整套 `JSON.parse`：15.6MB 的文件整份解析要 36ms 且常驻内存涨 46MB，按偏移读一页只要 0.1–0.3ms，内存与文件大小无关。
 
 两处的完整依据见 [DESIGN.md](./DESIGN.md)。

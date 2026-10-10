@@ -2,39 +2,32 @@
 
 ## 这个目录做什么
 
-`.lbook` 包格式的全部读写逻辑。这是本项目技术含量最高的一块。
+**大 OCR JSON 的读法**：把它当一个"可以按页随机访问"的文件，而不是每次整份 `JSON.parse`。
 
-它**不**负责：决定书在库里的位置（那是 `library/`），也不碰数据库。
+它**不**负责：书在哪儿（那是 `library/`）、书库列表（台账）、进度。也**不再**认识 `.lbook`——包格式的读取搬到了 `src/main/migrate/`，因为只有一次性迁移还需要它。
 
 ## 关键文件
 
 | 文件 | 说明 |
 |---|---|
-| `offsetIndex.ts` | **大 OCR JSON 的按页随机访问**：流式扫出 `layoutParsingResults[]` 每个元素的字节区间，再按偏移取单页。内存与文件大小无关（实测与取舍见 `PLAN.md` 4.2） |
-| `zipIndex.ts` | `ZipArchive`：中央目录索引、由**局部文件头**解析数据偏移、STORE 条目的字节区间读取、DEFLATE 条目的整条解压 |
-| `archiveCache.ts` | 打开句柄的 LRU 缓存。**缓存的是 pending Promise 而非已解析实例**——否则并发调用会各开一次并泄漏一个句柄 |
-| `manifest.ts` | manifest 解析/构造、条目名常量、`slugify()`、`packageFileName()` |
-| `validate.ts` | 包校验。`book.pdf` 非 STORE 报硬错误 |
-| `reader.ts` | 只读门面：`readPdfRange`、`readManifest`、`readOcrJson`、`readCover`、`readToc`、`readEntryText`、`pdfSize`、`pdfDataStart`、`closeBook` |
-| `packer.ts` | `packLbook()` 从零打包；`repackLbook()` 重写包，PDF 段**逐字节复制** |
-| `ocr.ts` | PaddleOCR JSON 的解析、校验与 `detectHtml()` |
-| `reconstruct.ts` | `buildOcrJsonFromDb()`：从库重建 OCR 载荷。保存与迁移共用同一函数 |
+| `offsetIndex.ts` | **按页随机访问**：流式扫出 `layoutParsingResults[]` 每个元素的字节区间（`scanPageSpans`），再按偏移读出并解析单页（`readSpanAt` / `readSpan`）。内存与文件大小无关（实测与取舍见 `PLAN.md` 4.2） |
+| `ocr.ts` | 把**一个页元素**映射成渲染层形状：`prunedResult.parsing_res_list` → `OcrBlock[]`、`markdown.text` → `markdown_text`、`prunedResult.width/height` → 页尺寸（缺失时按 bbox 推）。全部纯函数 |
 
 ## 对外接口
 
-`PageSpan`、`scanPageSpans()`、`readSpanAt()`、`readSpan()`；`ZipArchive`、`ZipEntryInfo`、`isSafeEntryName()`、`withArchive()`；缓存：`getArchive()`、`closeArchive()`、`closeAllArchives()`、`openArchiveCount()`；读取门面（见上表）；打包：`packLbook()`、`repackLbook()`；解析：`parseOcrPayload()`、`validateOcrJson()`、`detectHtml()`；重建：`buildOcrJsonFromDb()`、`mergeBlocks()`。
+`PageSpan`、`ScanResult`、`scanPageSpans()`、`readSpanAt()`、`readSpan()`；`toOcrPage()`、`toOcrBlock()`、`toOcrBlocks()`、`pageSizeOf()`。
 
 ## 依赖方向
 
-被 `src/main/library/`、`src/main/protocol/`、`scripts/` 使用。依赖 `yauzl`、`yazl`、`node:zlib`，**不依赖 `electron`**。
+被 `src/main/library/`（读书）、`scripts/perf-probe.ts`（量性能）与 `tests/` 使用。只依赖 `node:fs` / `node:path`，**不依赖 `electron`**，也不依赖任何第三方包。
 
-两条不可动摇的约定，改动前务必读 `DESIGN.md`：
-1. `book.pdf` 必须 STORE 且排在包内首位。
-2. `reconstruct.ts` 的块重建是**合并**（`pruned_result` 为底、`ocr_blocks` 覆盖内容），不是替换。
+三条不可动摇的约定，改动前务必读 `.agents/plan/00-decisions.md`：
 
-第三条容易被忽略：**`repackLbook()` 从头重建整个压缩包**，没被显式写回的条目就消失了。调用方（`library/service.ts` 的 `repackPackage()`）必须把本次不改动的 `ocr.json` / `toc.json` / 封面读回来再传进去。
+1. **页号 = `layoutParsingResults` 的数组下标**（A8）。PaddleOCR 的元素里没有页号字段，所以删掉或插入一个元素会让后面整体错位——上层必须拿 `meta.pageCount` 兜底校验。
+2. **扫描器全程流式**，内存里不出现整个文件（A3）。跨块不需要残留缓冲：`{ } [ ] " \` 都是单字节 ASCII，多字节 UTF-8 只可能出现在字符串内部。
+3. **`ocr.json` 逐字节原样**（A7）。应用不重排、不 pretty-print、不改键序，也不派生第二份数据（A10）。
 
 ## 相关文档
 
 - 父级：[../README.md](../README.md)
-- 相关：[../../../DESIGN.md](../../../DESIGN.md) 第 6 节（`.lbook` 格式）
+- 相关：[`../../.agents/plan/baseline.md`](../../../.agents/plan/baseline.md)（实测数据）、[`../../../DESIGN.md`](../../../DESIGN.md) 第 5 节

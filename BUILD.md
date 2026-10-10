@@ -9,7 +9,7 @@
 | Python / Visual Studio | **不需要** | 见第 5 节 |
 | 磁盘 | ≥ 2 GB | `node_modules` 含 Electron 二进制约 250MB |
 
-项目**不需要** Python 或 C++ 编译工具链——`better-sqlite3` 自带 N-API 预编译二进制，Node 与 Electron 通用。
+项目**不需要** Python 或 C++ 编译工具链，也不含任何原生模块：装机包里只有 JS（索引曾经是 better-sqlite3，如今是三份 JSON）。一次性迁移脚本仍用 better-sqlite3，但它跑在普通 Node 下、不进装机包。
 
 ---
 
@@ -32,7 +32,7 @@ ls node_modules/electron/dist/electron.exe   # 不存在即为此问题
 ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ node node_modules/electron/install.js
 ```
 
-`npm install` 输出里的 `allow-scripts … not yet covered by allowScripts` 警告是同一件事的提示。`better-sqlite3` 也在这个列表里，但它**不需要**编译——包内 `prebuilds/win32-x64.node` 就是可直接加载的 N-API 二进制。
+`npm install` 输出里的 `allow-scripts … not yet covered by allowScripts` 警告是同一件事的提示。`better-sqlite3`（只有迁移脚本用）也在这个列表里，但它**不需要**编译——包内 `prebuilds/win32-x64.node` 就是可直接加载的 N-API 二进制。
 
 ---
 
@@ -86,24 +86,14 @@ out/renderer/            渲染层静态资源，经 app://bundle 提供
 
 ---
 
-## 5. better-sqlite3 排错
+## 5. 原生模块：已经没有要排错的东西了
 
-这是打包环节最容易出问题的地方。四件事缺一不可，`electron-builder.yml` 里都已配好：
+应用不再链接任何原生模块。索引曾经是 `better-sqlite3`（需要 `asarUnpack` + `npmRebuild` 两件套才能从包里 dlopen），如今书库台账、阅读进度、配置都是普通 JSON，因此 `electron-builder.yml` 里那两项已经删掉。
 
-| 配置 | 作用 |
-|---|---|
-| 放在 `dependencies`（不是 `devDependencies`） | electron-builder 只打包生产依赖 |
-| esbuild `external` | 原生模块绝不能被打包进 bundle |
-| `npmRebuild: true` | 针对 Electron 的 ABI 重建 |
-| `asarUnpack` 含 `bindings`、`file-uri-to-path` | `.node` 无法从 asar 内 dlopen |
+仍会用到的例外是**一次性迁移脚本**（`scripts/migrate-folders.ts`）：它跑在普通 Node 下读旧的 `lbook.db`，需要的 `better-sqlite3` 在 `devDependencies` 里，不进装机包，也不参与 esbuild 打包主进程。所以：
 
-**连续两次打包之间要清缓存**，否则可能出现 `prebuilds/` 被清掉后找不到二进制的情况：
-
-```bash
-rm -rf node_modules/.cache release
-```
-
-**逃生舱**：Electron 44 内置 Node ≥ 22，`node:sqlite` 是内置模块且 API 几乎一致（同样同步）。若 `better-sqlite3` 在某个 Electron 版本上彻底打不通，换它是可行的，代价是重写 `src/main/db/open.ts` 与仓储层的少量类型。
+- 若在**打包之后**跑迁移脚本，二进制可能已被针对 Electron ABI 重建——迁移应在打包前跑完，或 `npx electron-rebuild` 之前跑。
+- 脚本报 `.node` 加载失败时，`npm rebuild better-sqlite3` 会把它装回 Node ABI（迁移专用，用过就可以连同依赖一起删）。
 
 ---
 
@@ -250,11 +240,11 @@ NSIS 配置为**每用户安装**（不需要管理员）、**可修改安装目
 |---|---|---|
 | `npm run dev` 报 `Port 5173 is already in use` | 上次的 Vite 进程没退干净 | `netstat -ano \| findstr :5173` 找到 PID 后 `taskkill /F /PID <pid>` |
 | Electron 窗口打不开、`npx electron --version` 卡住 | 二进制没下载 | 见第 2 节的镜像命令 |
-| `Cannot find module 'better-sqlite3'` | 打包时被 esbuild 打进去了 | 确认它在 `scripts/build.mjs` 的 `external` 列表里 |
-| 打包后启动报 `.node` 加载失败 | asar 未解包 | 确认 `electron-builder.yml` 的 `asarUnpack` |
-| 保存书本报 `EPERM: operation not permitted, rename` | 有文件句柄未释放 | 检查是否所有 `closeBook` / `archive.close()` 都被 `await` 了 |
-| 打开书本报 `Bad end offset: N` | `requestDataRange` 的 `end` 语义搞错 | `end` 是**排他**的，见 `usePdfDocumentProxy.ts` 注释 |
-| 打开书本报 `Invalid PDF structure` | 传给 range transport 的 `length` 不对 | 必须是 `book.pdf` 的 `uncompressedSize`，即 `PdfDocument.file_size` |
+| 迁移脚本报 `was compiled against a different Node.js version` | `better-sqlite3` 已被针对 Electron ABI 重建 | `npm rebuild better-sqlite3`（迁移跑完就可以删掉这个依赖） |
+| 列表里某本书显示“需要修复” | 文件夹被移走/改名，或 `meta.json`/`ocr.json` 被删 | 鼠标悬停在徒标上看原因；把文件夹放回原处，或“从书库移除”（**不会删文件**） |
+| 打开书报 `Bad end offset: N` | `requestDataRange` 的 `end` 语义搞错 | pdf.js 的 `end` 是**排他**的、IPC 的 `readPdfRange` 是**闭区间**，转换在 `usePdfDocumentProxy.ts` 里，别改动它 |
+| 打开书报 `Invalid PDF structure` | 传给 range transport 的 `length` 不对 | 必须是 `book.pdf` 的精确字节数，即 `PdfDocument.file_size` |
+| 翻到某一页显示“该页没有 OCR 文本” | OCR 数组比 `meta.json` 的 `pageCount` 短（OCR 漏页） | 看一眼控制台里那行 `[library] page N of …`；页数校验与坏书 UI 是 Phase 2 的事 |
 | 更新检查 404 | Release 里缺 `latest.yml` | 用 `npm run release` 上传，不要手工只传 `.exe` |
 | 打包后 exe 还是 Electron 默认图标 | `resources/icon.ico` 缺失或不是 256×256 起 | 按第 7 节重新生成 |
 | `npm run pack` 报 `read ECONNRESET` / `connect ETIMEDOUT` 且卡在 `packaging` | electron-builder 每次打包都要从 GitHub 取 Electron 压缩包，网络被重置 | 用本地已有的那份，完全不联网：`npx electron-builder --win --publish never --config.electronDist=node_modules/electron/dist` |

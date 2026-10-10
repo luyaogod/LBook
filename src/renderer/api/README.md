@@ -10,18 +10,23 @@
 
 | 文件 | 说明 |
 |---|---|
-| `pdfs.ts` | 书目、页面、块编辑、保存、替换、创建、导入、扫描、目录读取与替换 |
-| `users.ts` | 当前用户与阅读进度 |
+| `pdfs.ts` | 书目列表、单本元数据、**打开一个书文件夹**（`openBookFolder()`）、从书库移除、在文件管理器中显示、读一页 OCR、读 `toc.json` |
+| `users.ts` | 阅读进度（按 `uid`） |
+| `translate.ts` | 划词翻译与朗读 |
 
 ## 对外接口
 
-`fetchPdfs()`、`fetchPdfDetail()`、`fetchPdfPage()`、`fetchPdfPages()`、`updateBlock()`、`savePdf()`、`replaceOcr()`、`replaceCover()`、`fetchBookToc()`、`replaceBookToc()`、`clearBookToc()`、`createFromFiles()`、`importPackage()`、`scanLibrary()`；`fetchCurrentUser()`、`fetchReadingProgress()`、`saveReadingProgress()`。
+`fetchBooks()`、`fetchBook()`、`openBookFolder()`、`removeBook()`、`revealBook()`、`fetchPdfPage()`、`fetchBookToc()`；`fetchReadingProgress()`、`saveReadingProgress()`。
 
 ## 依赖方向
 
 被 `src/renderer/hooks/` 与 `src/renderer/components/` 调用。只依赖 `src/shared` 的类型与 `window.api`。**不依赖 `electron`**。
 
-注意 `fetchPdfDetail()` 与 `fetchPdfPage()` 可能返回 `null`（书不存在 / 该页无 OCR 数据），调用方必须处理。
+三点要注意：
+
+- 书一律用 **`uid`** 称呼（书文件夹 `meta.json` 里的身份），不是行号，也不是路径。
+- `fetchBook()` 与 `fetchPdfPage()` 可能返回 `null`（书已被移除 / 该页不在 OCR 文件里），调用方必须处理。
+- `removeBook()` 只让应用忘掉这本书：**磁盘上的文件夹一个字节都不动**（A11），UI 的文案必须说清楚这一点。
 
 ## 相关文档
 
