@@ -24,7 +24,8 @@
     "lint": "oxlint",
     "check:docs": "node scripts/check-docs.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "probe:perf": "node scripts/run.mjs perf-probe"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

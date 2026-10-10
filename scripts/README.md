@@ -15,6 +15,7 @@
 | `seed-library.ts` | 开发用：把一对 PDF + OCR JSON 打包进库目录，方便起手 |
 | `apply-toc.ts` | 把一份 `toc.json` 写进（或从）`.lbook` 里移除，用于批量预备书库 |
 | `tencent-probe.ts` | 腾讯云连通性探针：用真实密钥各打一次语音合成与机器翻译，原样打印 RequestId 与错误码 |
+| `perf-probe.ts` | 性能探针：把"文件夹式书库"的读路径（单个大 OCR JSON + 字节偏移索引）与现在的路径（SQLite + zip 区间读）放在同一张表里量，并**自检**索引与 V8 的解析结果是否逐页一致。见 `PLAN.md` 第 4.2 节 |
 | `verify-package.ts` | 校验一个 `.lbook`，并比对其 PDF 字节与原始文件是否逐字节相同 |
 
 ## 对外接口
@@ -26,6 +27,8 @@
 被 `package.json` 的 scripts 调用。它们引用 `src/main/lbook/`、`src/main/library/`、`src/main/db/`、`src/main/tencent/`，因此**这些模块必须保持不依赖 `electron`**，否则脚本跑不起来。
 
 `tencent-probe.ts` 是个例外：它**会联网**，且需要真实密钥（见文件头的三种提供方式）。它是唯一会发起外部请求的脚本，其余脚本只碰本地文件。
+
+`perf-probe.ts` **只读**库目录与 `lbook.db`（以 readonly 打开），往 `%TEMP%\lbook-perf` 写临时书文件夹（加 `--keep` 保留，否则跑完自删）。它默认挑库里 `ocr.json` 最大的那本，也可以用 `--ocr <文件>` 直接量一个裸的 OCR JSON。
 
 ## 相关文档
 
