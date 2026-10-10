@@ -78,6 +78,7 @@ npm run pack      # 产出 release/LBook-Setup-<version>.exe
 | [DESIGN.md](./DESIGN.md) | 架构、`.lbook` 格式规范、IPC 契约、安全模型、**已知限制** |
 | [BUILD.md](./BUILD.md) | 开发、构建、发布、原生模块排错、常见错误速查 |
 | [TEST.md](./TEST.md) | 测试范围、黄金回归用例、手工冒烟清单 |
+| [PLAN.md](./PLAN.md) | **下一步怎么走**：从单文件 `.lbook` 改成 Obsidian 式文件夹书库的重构计划 |
 | [AGENTS.md](./AGENTS.md) | 协约：目录 README 规则与文档索引规则 |
 
 源码各目录的说明见其自身的 `README.md`，从下面两个入口进入：

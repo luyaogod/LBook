@@ -439,5 +439,5 @@ connect-src 'self' lbook:; worker-src 'self'
 ## 13. 相关文档
 
 - 父级：[README.md](./README.md)
-- 同级：[BUILD.md](./BUILD.md)、[TEST.md](./TEST.md)、[AGENTS.md](./AGENTS.md)
+- 同级：[BUILD.md](./BUILD.md)、[TEST.md](./TEST.md)、[AGENTS.md](./AGENTS.md)、[PLAN.md](./PLAN.md)
 - 子目录：[src/main/README.md](./src/main/README.md)、[src/renderer/README.md](./src/renderer/README.md)
