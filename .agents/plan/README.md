@@ -11,8 +11,9 @@
 | **Phase 2** | 外部编辑的反应式重读 + 校验与坏书 UI | ⬜ 未开始 | [`02-phase2-reactivity-validation.md`](./02-phase2-reactivity-validation.md) |
 | **Phase 3** | 删 SQLite 与三个依赖、重写相关文档 | ⬜ 未开始 | [`03-phase3-drop-sqlite.md`](./03-phase3-drop-sqlite.md) |
 | **Phase 4** | 后期：Monaco 按页编辑（独立立项） | 🅿️ 搁置 | [`04-phase4-monaco.md`](./04-phase4-monaco.md) |
+| **界面多语言** | i18next 接入；英文为基准 + 简体中文；设置里有 Language 三张卡片 | 🟡 进行中 | [`05-i18n.md`](./05-i18n.md) |
 
-`00-decisions.md` 是决策台账：**动工前先看它**，里面有 5 条待拍板的事与已经定下来的事。`baseline.md` 是 Phase 0 的实测数据，Phase 3 的"删除到底省了多少"要拿它对比。
+`05-i18n.md` 是与 Phase 1 并行的一条线（互不阻塞）。`00-decisions.md` 是决策台账：**动工前先看它**，里面有 5 条待拍板的事与已经定下来的事。`baseline.md` 是 Phase 0 的实测数据，Phase 3 的"删除到底省了多少"要拿它对比。
 
 ## 怎么用这套文件
 

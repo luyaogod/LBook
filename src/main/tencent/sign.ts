@@ -7,7 +7,7 @@ import { createHash, createHmac } from "node:crypto"
  * is tens of megabytes of generated clients for a single pair of calls, and the
  * app ships as an offline installer (see DESIGN.md). The algorithm is fixed and
  * small, and `tests/unit/tencent/sign.test.ts` pins it to the worked example in
- * the vendor's own 签名方法 v3 documentation.
+ * the vendor's own signature v3 documentation.
  *
  * Pure Node — no `electron`, no I/O — so it runs under Vitest.
  */

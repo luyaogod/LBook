@@ -447,8 +447,8 @@ export function OcrSidebar({
 
       {/* Content */}
       <div ref={listRef} className="flex-1 overflow-y-auto p-3 space-y-2">
-        {/* 划词翻译只在 Markdown 视图下生效：块视图里选中的是分块文本，
-            那不是"读一段话"的场景。 */}
+        {/* Selection translation only makes sense in Markdown view: in Blocks view a
+            selection is a fragment of a fragment, not a passage someone reads. */}
         <SelectionPopup
           containerRef={listRef}
           enabled={effectiveMode === "markdown"}

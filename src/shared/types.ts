@@ -74,7 +74,7 @@ export interface BookCoverRef {
  * viewer actually navigates to. It is not the page number printed on the paper:
  * a scan whose front matter is unnumbered shifts every printed number by a
  * constant, and that constant is nowhere in the PDF. `printedPage` records the
- * printed number for display only, so a reader can still see "第 3 页" while the
+ * printed number for display only, so a reader can still see "page 3" on the paper while the
  * viewer jumps to scan page 6.
  */
 export interface TocNode {

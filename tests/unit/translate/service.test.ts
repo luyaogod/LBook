@@ -122,7 +122,7 @@ describe("translate service", () => {
   it("rejects an empty selection before spending a call", async () => {
     const { provider, calls } = fakeProvider()
     const { service } = serviceWith(provider)
-    await expect(service.translate({ text: "   " })).rejects.toThrow(/没有选中/)
+    await expect(service.translate({ text: "   " })).rejects.toThrow(/Nothing is selected/)
     expect(calls).toHaveLength(0)
   })
 
@@ -214,7 +214,7 @@ describe("speech", () => {
     const { provider } = fakeProvider({ speak: undefined })
     const { service } = serviceWith(provider, { fake: { token: "t" } })
 
-    await expect(service.speak({ text: "Hello", language: "en" })).rejects.toThrow(/不支持语音朗读/)
+    await expect(service.speak({ text: "Hello", language: "en" })).rejects.toThrow(/cannot read text aloud/)
   })
 
   it("refuses over-long text before spending a synthesis request", async () => {
@@ -238,7 +238,7 @@ describe("speech", () => {
 
     // 501 Latin letters, one over the documented per-request limit.
     await expect(service.speak({ text: "a".repeat(501), language: "en" })).rejects.toThrow(
-      /超过单次朗读上限/,
+      /over the .* limit for one request/,
     )
     expect(fetchSpy).not.toHaveBeenCalled()
   })

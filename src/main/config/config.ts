@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import { READING_FONT_SIZE } from "../../shared/ipc"
+import { LOCALE_CHOICES, READING_FONT_SIZE, type LocaleChoice } from "../../shared/ipc"
 
 export const CONFIG_VERSION = 1
 
@@ -36,6 +36,8 @@ export interface AppConfig {
   autoCheckUpdates: boolean
   /** Reading-panel font size in px, clamped to `READING_FONT_SIZE`. */
   readingFontSize: number
+  /** Interface language; see `LocaleChoice`. */
+  locale: LocaleChoice
   translate: TranslateConfig
 }
 
@@ -50,6 +52,9 @@ export function defaultConfig(): AppConfig {
     theme: "system",
     autoCheckUpdates: true,
     readingFontSize: READING_FONT_SIZE.default,
+    // English is the source of truth for the interface, so a fresh install opens
+    // in English; the settings page offers Simplified Chinese and "follow the system".
+    locale: "en",
     translate: defaultTranslateConfig(),
   }
 }
@@ -118,6 +123,9 @@ function coerce(raw: unknown): AppConfig {
     // Missing in every config written before the font setting existed; the clamp
     // turns that (and anything a hand edit produced) into 14.
     readingFontSize: clampReadingFontSize(record.readingFontSize),
+    // Missing in every config written before the language setting existed; an
+    // unrecognised value is treated the same way (English).
+    locale: LOCALE_CHOICES.includes(record.locale as LocaleChoice) ? (record.locale as LocaleChoice) : "en",
     // Missing in every config written before translation existed; coerce fills it.
     translate: coerceTranslate(record.translate),
   }

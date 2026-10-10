@@ -102,6 +102,16 @@ export interface TranslationSettingsPatch {
  */
 export const READING_FONT_SIZE = { min: 12, max: 24, default: 14 } as const
 
+/**
+ * Which language the interface is drawn in.
+ *
+ * Here rather than in the renderer because both ends need the list: main
+ * validates what it stores in `config.json`, the settings page draws the cards.
+ * English is the source of truth and the fallback. "system" follows the OS.
+ */
+export type LocaleChoice = "system" | "en" | "zh-CN"
+export const LOCALE_CHOICES: readonly LocaleChoice[] = ["en", "zh-CN", "system"]
+
 export interface Settings {
   libraryDir: string
   /** False when libraryDir came from the default rather than the config file. */
@@ -110,6 +120,8 @@ export interface Settings {
   autoCheckUpdates: boolean
   /** Size of the text in the reading panel; see `READING_FONT_SIZE`. */
   readingFontSize: number
+  /** Interface language; see `LocaleChoice`. */
+  locale: LocaleChoice
   version: string
   translate: TranslateSettingsView
 }
@@ -125,6 +137,7 @@ export interface SettingsPatch {
   theme?: Settings["theme"]
   autoCheckUpdates?: boolean
   readingFontSize?: number
+  locale?: LocaleChoice
   translate?: TranslationSettingsPatch
 }
 

@@ -14,6 +14,7 @@ import { OcrSidebar } from "@/components/sidebar/OcrSidebar";
 import { TocPanel } from "@/components/toc/TocPanel";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { LocaleProvider } from "@/i18n/LocaleProvider";
 import { usePdfDocument } from "@/hooks/usePdfDocument";
 import { usePdfPage } from "@/hooks/usePdfPage";
 import { useBookToc } from "@/hooks/useBookToc";
@@ -37,7 +38,11 @@ function App() {
 
   return (
     <ThemeProvider settings={appSettings} onSettings={setAppSettings}>
-      <AppShell appSettings={appSettings} setAppSettings={setAppSettings} />
+      {/* The language is applied next to the theme class and for the same reason:
+          both are imperative one-liners that belong to <html>, not React state. */}
+      <LocaleProvider choice={appSettings?.locale}>
+        <AppShell appSettings={appSettings} setAppSettings={setAppSettings} />
+      </LocaleProvider>
     </ThemeProvider>
   );
 }

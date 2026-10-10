@@ -26,6 +26,7 @@ function settingsPayload(context: AppContext): Settings {
     theme: context.config.theme,
     autoCheckUpdates: context.config.autoCheckUpdates,
     readingFontSize: context.config.readingFontSize,
+    locale: context.config.locale,
     version: app.getVersion(),
     translate: context.translate.settingsView(),
   }
@@ -232,12 +233,14 @@ export function registerIpcHandlers(
       if (
         patch.theme !== undefined ||
         patch.autoCheckUpdates !== undefined ||
-        patch.readingFontSize !== undefined
+        patch.readingFontSize !== undefined ||
+        patch.locale !== undefined
       ) {
         context.updateSettings({
           theme: patch.theme,
           autoCheckUpdates: patch.autoCheckUpdates,
           readingFontSize: patch.readingFontSize,
+          locale: patch.locale,
         })
         if (patch.theme !== undefined) hooks.onThemeChanged?.(patch.theme)
       }

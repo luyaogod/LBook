@@ -8,18 +8,31 @@
 
 export interface ProviderFieldSpec {
   key: string
+  /** English label, used as the fallback when `labelKey` has no translation. */
   label: string
+  /**
+   * Translation key for `label`.
+   *
+   * A provider carries both: the key so the interface can be translated, and the
+   * English string so a vendor that ships no keys still renders. The renderer
+   * prefers the key and falls back to the label.
+   */
+  labelKey?: string
   /** Rendered as a password box; the value is never sent back to the renderer. */
   secret?: boolean
   placeholder?: string
   /** Shown under the field to explain where the value comes from. */
   hint?: string
+  /** Translation key for `hint`. */
+  hintKey?: string
 }
 
 /** What the settings page needs to render one vendor. Never contains secrets. */
 export interface TranslateProviderInfo {
   id: string
   label: string
+  /** Translation key for `label`, resolved by the renderer. */
+  labelKey?: string
   fields: ProviderFieldSpec[]
   /** Language codes this provider accepts, used to populate the pickers. */
   languages: string[]

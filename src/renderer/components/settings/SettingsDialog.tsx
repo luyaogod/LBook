@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Bolt, Languages, Settings2, Type, X } from "lucide-react";
 import type { Settings } from "@shared/ipc";
 import { GeneralSettings } from "./GeneralSettings";
@@ -22,13 +23,15 @@ const SECTIONS: Array<{ id: SectionId; label: string; icon: typeof Settings2 }> 
 ];
 
 /**
- * 设置面板。
+ * The settings panel.
  *
- * 结构照 Claude Desktop 的设置：左边一列目录，右边是内容，整体一个浮层。
- * 目前三项：General（外观）、Font（阅读字号）、Translate（翻译供应商与凭据）。
- * Font 排在 Translate 前面，因为它是**读的时候**想改的，而不是配一次就不再碰的。
+ * Claude Desktop's shape: a column of sections on the left, content on the right,
+ * over a dimmed backdrop. Three sections: General (appearance, language), Font
+ * (reading size), Translate (vendors and credentials). Font comes before
+ * Translate because it is changed *while reading*, not configured once.
  */
 export function SettingsDialog({ open, onClose, onSettings, settings }: SettingsDialogProps) {
+  const { t } = useTranslation();
   const [section, setSection] = useState<SectionId>("general");
 
   // Every open starts on General rather than wherever the user left off: the
@@ -88,13 +91,15 @@ export function SettingsDialog({ open, onClose, onSettings, settings }: Settings
             <h2 className="text-base font-semibold text-foreground">
               {SECTIONS.find((item) => item.id === section)?.label}
             </h2>
-            <button onClick={onClose} className="text-muted-foreground hover:text-foreground" title="关闭">
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground" title={t("settings.close")}>
               <X className="h-4 w-4" />
             </button>
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 py-5">
-            {section === "general" && <GeneralSettings />}
+            {section === "general" && settings && (
+              <GeneralSettings settings={settings} onSettings={onSettings} />
+            )}
             {section === "font" && settings && (
               <FontSettings settings={settings} onSettings={onSettings} />
             )}

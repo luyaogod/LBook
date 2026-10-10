@@ -14,6 +14,7 @@ React 渲染层：首页书目列表与 PDF 阅读器（单页模式 + Flow 连�
 | `main.tsx` | React 入口 |
 | `index.html` | 页面骨架，经 `app://bundle` 提供 |
 | `index.css` | Tailwind v4 主题令牌与 `.markdown-body` 样式 |
+| `i18n/` | 界面语言：英文基准 + 简体中文，见其 `README.md` |
 | `global.d.ts` | 声明 `window.api` |
 
 ## 对外接口
@@ -27,5 +28,5 @@ React 渲染层：首页书目列表与 PDF 阅读器（单页模式 + Flow 连�
 ## 相关文档
 
 - 父级：[../README.md](../README.md)
-- 子目录：[api/README.md](./api/README.md)、[components/README.md](./components/README.md)（内含 [settings/README.md](./components/settings/README.md)、[translate/README.md](./components/translate/README.md)）、[hooks/README.md](./hooks/README.md)、[types/README.md](./types/README.md)
+- 子目录：[api/README.md](./api/README.md)、[components/README.md](./components/README.md)（内含 [settings/README.md](./components/settings/README.md)、[translate/README.md](./components/translate/README.md)）、[i18n/README.md](./i18n/README.md)、[hooks/README.md](./hooks/README.md)、[types/README.md](./types/README.md)
 - 相关：[../../DESIGN.md](../../DESIGN.md)

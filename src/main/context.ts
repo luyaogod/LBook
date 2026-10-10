@@ -8,6 +8,7 @@ import {
   type Theme,
   type TranslateConfig,
 } from "./config/config"
+import type { LocaleChoice } from "../shared/ipc"
 import { openDatabaseWithRepositories, type Repositories } from "./db"
 import { closeAllArchives } from "./lbook/archiveCache"
 import { LBOOK_EXTENSION } from "./lbook/manifest"
@@ -27,6 +28,7 @@ export interface AppContext {
     theme?: Theme
     autoCheckUpdates?: boolean
     readingFontSize?: number
+    locale?: LocaleChoice
   }): AppConfig
   /** Persists a new `translate` section; the translate service owns its shape. */
   updateTranslateConfig(translate: TranslateConfig): AppConfig

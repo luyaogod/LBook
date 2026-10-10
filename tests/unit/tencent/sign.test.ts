@@ -148,8 +148,8 @@ describe("error hints", () => {
   it("turns the quota codes into an action, and unknown codes into nothing", () => {
     // Hit for real on an account whose free pack was spent; it reads like a bug
     // otherwise.
-    expect(explainTtsError("UnsupportedOperation.PkgExhausted")).toMatch(/资源包已用尽/)
-    expect(explainTtsError("InvalidParameterValue.AppIdNotRegistered")).toMatch(/未开通/)
+    expect(explainTtsError("UnsupportedOperation.PkgExhausted")).toMatch(/quota is spent/)
+    expect(explainTtsError("InvalidParameterValue.AppIdNotRegistered")).toMatch(/not enabled for this account/)
     expect(explainTtsError("SomethingElse.Entirely")).toBeNull()
   })
 })

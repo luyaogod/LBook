@@ -3,7 +3,7 @@ import { callTencentApi } from "./client"
 import type { TencentCredentials } from "./sign"
 
 /**
- * 语音合成 (TTS) — `tts.tencentcloudapi.com`, action `TextToVoice`.
+ * Text-to-speech (TTS) — `tts.tencentcloudapi.com`, action `TextToVoice`.
  * https://cloud.tencent.com/document/product/1073/37995
  */
 
@@ -23,7 +23,7 @@ export const TTS_MAX_LATIN_LETTERS = 500
 
 export interface TextToVoiceInput {
   text: string
-  /** 音色 ID; the catalogue is per-account, see 音色列表 in the docs. */
+  /** Voice ID; the catalogue is per-account, see the voice list in the docs. */
   voiceType?: number
   /** 1 = Chinese (default), 2 = English. */
   primaryLanguage?: number
@@ -77,22 +77,22 @@ export function assertTextFits(text: string, primaryLanguage = 1): void {
  *
  * Verified against a real account: a valid key on an account whose free quota is
  * spent answers `UnsupportedOperation.PkgExhausted`, which reads like a bug until
- * you know it is a billing state. Billing order is 免费资源包 → 预付费资源包 →
- * 后付费, and when the free pack runs out the product **stops serving** unless
+ * you know it is a billing state. Billing runs free pack -> prepaid pack -> pay as you
+ * go, and when the free pack is spent the product **stops serving** unless
  * pay-as-you-go has been switched on in the console.
  */
 const TTS_ERROR_HINTS: Record<string, string> = {
   "UnsupportedOperation.PkgExhausted":
-    "语音合成资源包已用尽。控制台领取免费资源包（基础/精品音色 800 万字符，3 个月有效、每账号一次），或开通后付费/购买资源包。",
+    "The text-to-speech quota is spent. Claim the free pack in the console (8M characters, valid 3 months, once per account) or enable pay-as-you-go / buy a pack.",
   "UnsupportedOperation.NoFreeAccount":
-    "免费资源包已用尽且未开通后付费。控制台领取或开通后付费。",
-  "UnsupportedOperation.AccountArrears": "账号欠费，语音合成已停服。",
+    "The free pack is spent and pay-as-you-go is off. Claim or enable one in the console.",
+  "UnsupportedOperation.AccountArrears": "The account is in arrears, so text-to-speech is suspended.",
   "InvalidParameterValue.AppIdNotRegistered":
-    "该账号未开通语音合成服务。去 https://console.cloud.tencent.com/tts 点开通。",
-  "InvalidParameterValue.VoiceType": "音色 ID 不在该账号可用的音色列表里。",
-  "InvalidParameterValue.Text": `文本不合法或超出单次上限（中文 ${TTS_MAX_CJK_CHARS} 字、英文 ${TTS_MAX_LATIN_LETTERS} 字母）。`,
-  "UnsupportedOperation.TextTooLong": "文本过长，需要分段。",
-  "LimitExceeded.AccessLimit": "超过并发/频率限制，需要退避重试。",
+    "Text-to-speech is not enabled for this account. Enable it at https://console.cloud.tencent.com/tts.",
+  "InvalidParameterValue.VoiceType": "That voice ID is not available to this account.",
+  "InvalidParameterValue.Text": `The text is invalid or over one request's limit (${TTS_MAX_CJK_CHARS} Chinese characters, ${TTS_MAX_LATIN_LETTERS} letters).`,
+  "UnsupportedOperation.TextTooLong": "The text is too long and has to be split.",
+  "LimitExceeded.AccessLimit": "Rate or concurrency limit hit; back off and retry.",
 }
 
 /** A human action for a TTS error code, or null when the code is not a known one. */

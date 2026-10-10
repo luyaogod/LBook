@@ -7,10 +7,11 @@ import { createProviderRegistry, type ProviderRegistry } from "./registry"
 import { ProviderConfigError, type TranslateProvider } from "./types"
 
 /**
- * 划词翻译的服务层：决定用哪个供应商、用什么凭据、要不要走缓存。
+ * The service layer for selection translation: which provider, which credentials,
+ * whether the cache answers.
  *
- * 它**不**知道任何具体厂商（供应商通过 `registry` 注入），也不碰 UI 与 `.lbook`。
- * 调用方只需要给一段文字，拿回译文。
+ * It knows no specific vendor (those arrive through the `registry`) and never touches
+ * the UI or a `.lbook`. A caller hands over text and gets a translation back.
  */
 
 /** What the settings page may change. Empty string (or null) removes a field. */
@@ -117,7 +118,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
 
     async translate(input) {
       const text = input.text.trim()
-      if (text === "") throw new Error("没有选中任何文本")
+      if (text === "") throw new Error("Nothing is selected")
 
       const config = deps.getConfig().translate
       const provider: TranslateProvider = registry.resolve(config.provider)
@@ -145,10 +146,10 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
 
     async speak(input) {
       const text = input.text.trim()
-      if (text === "") throw new Error("没有可朗读的文本")
+      if (text === "") throw new Error("There is no text to read aloud")
 
       const provider = registry.resolve(deps.getConfig().translate.provider)
-      if (!provider.speak) throw new Error(`${provider.label} 不支持语音朗读。`)
+      if (!provider.speak) throw new Error(`${provider.label} cannot read text aloud`)
 
       const key = `${provider.id}\u0000${input.language}\u0000${text}`
       const hit = speechCache.get(key)

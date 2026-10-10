@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Copy, Languages, Loader2, Square, TriangleAlert, Volume2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { speakToObjectUrl, translateText } from "@/api/translate";
+import { languageLabel } from "@/i18n";
 
 /**
  * Placement rules are ported from the Google Translate extension bubble, whose
@@ -59,23 +61,6 @@ interface PopupState {
   error?: string;
 }
 
-const LANGUAGE_LABELS: Record<string, string> = {
-  auto: "自动检测",
-  zh: "中文（简体）",
-  en: "英语",
-  ja: "日语",
-  ko: "韩语",
-  fr: "法语",
-  de: "德语",
-  es: "西班牙语",
-  ru: "俄语",
-};
-
-function labelOf(code: string | undefined): string {
-  if (!code) return "";
-  return LANGUAGE_LABELS[code] ?? code;
-}
-
 const clampX = (x: number, width: number) => Math.min(Math.max(x, 8), Math.max(8, window.innerWidth - width - 8));
 
 interface SelectionPopupProps {
@@ -88,14 +73,20 @@ interface SelectionPopupProps {
 }
 
 /**
- * 划词翻译：选中文字先出一个**小图标**，点它才翻译。
+ * Selection translation: highlight text, a small icon appears, clicking it
+ * translates.
  *
- * 不自动翻译是刻意的——选中往往只是为了复制或划线，直接请求既打断阅读也花钱。
- * 图标停在选区末尾（Google 插件的位置），点了才展开卡片。
+ * Not translating automatically is deliberate — a selection is often just for
+ * copying or marking, and firing a request interrupts reading and costs money.
+ * The icon sits at the end of the selection (where the Google extension puts it)
+ * and only clicking it opens the card.
  *
- * 卡片里的两个喇叭读原文与译文，音频按"文本 + 语言"缓存在内存里，重复点击不再合成。
+ * The card has two speakers, for the original and for the translation; audio is
+ * cached in memory per "text + language", so asking twice does not synthesise
+ * twice.
  */
 export function SelectionPopup({ containerRef, enabled, onOpenSettings }: SelectionPopupProps) {
+  const { t } = useTranslation();
   const [state, setState] = useState<PopupState | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
@@ -298,7 +289,7 @@ export function SelectionPopup({ containerRef, enabled, onOpenSettings }: Select
         style={{ left: state.icon.x, top: state.icon.y }}
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => void run(state)}
-        title="翻译选中的文字"
+        title={t("translate.icon")}
         // The chrome copies the Google Translate extension's trigger (light:
         // #f5f5f5 / #dcdcdc / #5f6368); the dark values are that palette's own
         // dark counterparts rather than a generic token, so it still reads as
@@ -327,7 +318,7 @@ export function SelectionPopup({ containerRef, enabled, onOpenSettings }: Select
       <button
         onClick={() => void speakAloud(kind)}
         disabled={busy}
-        title={isActive ? "停止朗读" : kind === "source" ? "朗读原文" : "朗读译文"}
+        title={isActive ? t("translate.stopSpeaking") : kind === "source" ? t("translate.speakSource") : t("translate.speakTarget")}
         className="shrink-0 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
       >
         {isLoading ? (
@@ -352,12 +343,12 @@ export function SelectionPopup({ containerRef, enabled, onOpenSettings }: Select
       <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           {speaker("source")}
-          {labelOf(state.source) || "…"}
+          {languageLabel(t, state.source) || "…"}
         </span>
         {state.phase === "done" && (
           <button
             onClick={() => void navigator.clipboard.writeText(state.translation ?? "")}
-            title="复制译文"
+            title={t("translate.copy")}
             className="text-muted-foreground transition-colors hover:text-foreground"
           >
             <Copy className="h-3.5 w-3.5" />
@@ -370,11 +361,11 @@ export function SelectionPopup({ containerRef, enabled, onOpenSettings }: Select
 
         <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           {speaker("target")}
-          {labelOf(state.target)}
+          {languageLabel(t, state.target)}
           {state.cached && (
-            <span className="flex items-center gap-1" title="来自本地缓存，未调用接口">
+            <span className="flex items-center gap-1" title={t("translate.cachedHint")}>
               <Check className="h-3 w-3 text-emerald-500" />
-              缓存
+              {t("translate.cached")}
             </span>
           )}
         </div>
@@ -382,7 +373,7 @@ export function SelectionPopup({ containerRef, enabled, onOpenSettings }: Select
         {state.phase === "loading" && (
           <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            翻译中…
+            {t("translate.inProgress")}
           </p>
         )}
 
@@ -400,7 +391,7 @@ export function SelectionPopup({ containerRef, enabled, onOpenSettings }: Select
                   onClick={onOpenSettings}
                   className="ml-1 underline underline-offset-2 hover:text-foreground"
                 >
-                  去设置
+                  {t("translate.openSettings")}
                 </button>
               )}
             </span>

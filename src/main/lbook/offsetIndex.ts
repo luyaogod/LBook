@@ -1,32 +1,39 @@
 import fs from "node:fs"
 
 /**
- * 把一个大 OCR JSON 当"按页随机访问"的文件来读。
+ * Random access into one large OCR JSON, page by page.
  *
- * 为什么需要它：一本书的 OCR 输出是**一个 8–40MB 的 JSON 文件**（PaddleOCR 原样保存），
- * 而应用要的往往只是"第 N 页"。整文件 `JSON.parse` 在 15.6MB 上要 36ms 并让常驻内存
- * 涨 46MB，而且随文件线性增长；按偏移读一页只要 0.1–0.3ms，**内存与文件大小无关**。
- * 完整实测与取舍见 `PLAN.md` 第 4.2 节，数据存档在 `.agents/plan/baseline.md`。
+ * Why this exists: a book's OCR output is **one 8–40 MB JSON file** (PaddleOCR's
+ * own, stored verbatim), while the app usually wants "page N". Parsing the whole
+ * file costs 36 ms and 46 MB of resident memory for 15.6 MB of JSON, and both
+ * grow with the file; reading one page by offset costs 0.1–0.3 ms and its memory
+ * does not depend on file size. The measurements are in PLAN.md 4.2 and archived
+ * in .agents/plan/baseline.md.
  *
- * 这个模块里定死了三件事：
+ * Three things are decided here:
  *
- * 1. **流式分块**：内存里永远不出现整个文件。状态机是纯字节的——`{ } [ ] " \` 都是单字节
- *    ASCII，多字节 UTF-8 只可能出现在字符串内部，而字符串内部只找 `"` 与 `\`——所以
- *    **跨块不需要任何残留缓冲**。
- * 2. **不假设格式**：只跟踪花括号层级与字符串状态。用户用编辑器重排过、换行被改成
- *    LF/CRLF、整份被格式化过，都不影响（唯一要做的就是重新扫一遍）。
- * 3. **页号 = `layoutParsingResults` 的数组下标**：PaddleOCR 的元素里没有页号字段。
- *    删掉或插入一个元素会让后面整体错位，所以上层必须拿"页数 = meta.pageCount =
- *    PDF 页数"去兜底校验。
+ * 1. **Streaming, in chunks**: the whole file is never held in memory. The state
+ *    machine is byte-level — `{ } [ ] " \\` are single-byte ASCII and multi-byte
+ *    UTF-8 can only appear inside strings, where only `"` and `\\` matter — so
+ *    **no carry buffer is needed across chunk boundaries**.
+ * 2. **No assumptions about formatting**: only brace depth and string state are
+ *    tracked. A user who reformats the file, or an editor that rewrites line
+ *    endings, changes nothing but the need to scan again.
+ * 3. **A page number is the array index** of `layoutParsingResults`. PaddleOCR's
+ *    elements carry no page field, so deleting or inserting one shifts every page
+ *    after it — which is why callers must cross-check "pages = meta.pageCount =
+ *    PDF page count".
  */
 
 const DEFAULT_CHUNK_BYTES = 1024 * 1024
 
 /**
- * 找数组左括号时前缀的上限。
+ * How far the search for the array's opening bracket will read.
  *
- * 正常输出里 key 就在头几行，这里只是兜底：前缀按 8 倍递增，最多读到这么多。
- * 比"带跨块残留的搜索状态机"简单得多，而那条路径是这一块最容易出错的地方。
+ * In a real output the key is within the first few lines; this is only a fallback
+ * (the prefix grows eightfold each time). Far simpler than a search state machine
+ * with cross-chunk residue, which is the part of this module most likely to be
+ * subtly wrong.
  */
 const MAX_PREFIX_BYTES = 8 * 1024 * 1024
 
@@ -40,42 +47,44 @@ const BACKSLASH = 0x5c // \
 
 export interface PageSpan {
   readonly start: number
-  /** 排他：`[start, end)` 正好是这一页元素的字节区间。 */
+  /** Exclusive: `[start, end)` is exactly this page element's byte range. */
   readonly end: number
 }
 
 export interface ScanResult {
   spans: PageSpan[]
-  /** 文件总字节数。 */
+  /** Size of the file. */
   fileBytes: number
   /**
-   * 实际读了多少字节。带 `limit` 时它远小于 `fileBytes`——这正是"首屏只付几毫秒"
-   * 的来源，也是 `TEST.md` 里那条"渐进式"的量化依据。
+   * How many bytes were actually read. With `limit` this is far below
+   * `fileBytes` — that is where "the first screen costs a few milliseconds"
+   * comes from, and it is what the progressive-reading claim is measured by.
    */
   scannedBytes: number
 }
 
 export interface ScanOptions {
-  /** 只找前 N 页（首屏只需要第一屏那些页）。 */
+  /** Stop after N pages (the first screen only needs the pages it shows). */
   limit?: number
-  /** 分块大小。测试会把它调得很小，好用少量样本精确打到块边界上。 */
+  /** Chunk size. Tests shrink it so small samples land exactly on the boundaries. */
   chunkBytes?: number
 }
 
 interface ScanState {
-  /** 数组本身的层级：左括号不计入扫描，所以从 1 开始。 */
+  /** Depth of the array itself: the bracket is not scanned, so this starts at 1. */
   depth: number
   inString: boolean
   escaped: boolean
-  /** 当前元素在文件里的绝对起始偏移；-1 表示不在元素里。 */
+  /** Absolute offset where the current element starts; -1 when outside one. */
   start: number
 }
 
 /**
- * 扫描整个文件，给出每一页的字节区间。
+ * Scans the file and reports every page's byte range.
  *
- * 文件里找不到 `layoutParsingResults`、或它是个空数组时返回空数组——**不抛异常**：
- * 这是用户手改过的文件，坏文件要在书库里被"报出来"，而不是让整个书库崩掉。
+ * A file without `layoutParsingResults`, or with an empty array, yields no spans
+ * and **does not throw**: this is data the user may have edited by hand, and a bad
+ * book has to be reported in the library rather than taking the library down.
  */
 export async function scanPageSpans(filePath: string, options: ScanOptions = {}): Promise<ScanResult> {
   const chunkBytes = Math.max(64, options.chunkBytes ?? DEFAULT_CHUNK_BYTES)
@@ -91,8 +100,9 @@ export async function scanPageSpans(filePath: string, options: ScanOptions = {})
     if (found === null) return { spans, fileBytes, scannedBytes: 0 }
     scannedBytes += found.bytesRead
 
-    // 前缀里已经读进来的那一段就地扫掉，不再从磁盘重读一遍：一来账目准确
-    // （`scannedBytes` 就是真实读入量），二来首屏少一次 IO。
+    // The part of the prefix already in memory is scanned in place instead of
+    // being read from disk again: the accounting stays honest (`scannedBytes` is
+    // what was really read) and the first screen saves an IO.
     let done = scanBytes(
       found.buf.subarray(found.arrayAt + 1, found.bytesRead),
       state,
@@ -118,10 +128,11 @@ export async function scanPageSpans(filePath: string, options: ScanOptions = {})
 }
 
 /**
- * 读出某个区间并解析。
+ * Reads one range and parses it.
  *
- * 用调用方持有的 `fd`（`openBook` 返回的句柄），这样连页读不会反复开文件。
- * `span` 必须来自本模块扫出来的结果——它保证是完整的元素，所以能独立 `JSON.parse`。
+ * Takes an `fd` from the caller (the handle `openBook` keeps) so reading pages in
+ * sequence does not reopen the file. `span` must come from this module: that is
+ * what guarantees it is a whole element and can be parsed on its own.
  */
 export function readSpanAt(fd: number, span: PageSpan): unknown {
   const length = span.end - span.start
@@ -129,13 +140,16 @@ export function readSpanAt(fd: number, span: PageSpan): unknown {
   let read = 0
   while (read < length) {
     const n = fs.readSync(fd, buf, read, length - read, span.start + read)
-    if (n <= 0) throw new Error(`短读：期望 ${length} 字节，只读到 ${read}`)
+    if (n <= 0) throw new Error(`short read: wanted ${length} bytes, got ${read}`)
     read += n
   }
   return JSON.parse(buf.toString("utf8"))
 }
 
-/** 便利版：自己开、自己关。单次读一页时用它就够（开文件的代价小于一次 JSON.parse）。 */
+/**
+ * Convenience form: opens and closes the file itself. For a single page that is
+ * enough — an open/close pair costs less than the parse it feeds.
+ */
 export function readSpan(filePath: string, span: PageSpan): unknown {
   const fd = fs.openSync(filePath, "r")
   try {
@@ -146,10 +160,12 @@ export function readSpan(filePath: string, span: PageSpan): unknown {
 }
 
 /**
- * 读一段前缀，在其中找 `layoutParsingResults` 后面那个左括号的绝对偏移。
+ * Reads a prefix and finds the absolute offset of the opening bracket after
+ * `layoutParsingResults`.
  *
- * 前缀不够就翻倍（64KB → 512KB → 4MB → 8MB），找不到就返回 null。
- * 返回的 `buf` 一并交回去，让调用方就地扫掉，不必重读。
+ * The prefix grows eightfold (64KB -> 512KB -> 4MB -> 8MB) and gives up with null.
+ * The buffer comes back with it so the caller can scan it in place instead of
+ * reading those bytes twice.
  */
 async function readArrayStart(
   handle: fs.promises.FileHandle,
@@ -171,8 +187,9 @@ async function readArrayStart(
 }
 
 /**
- * 状态机本体；`base` 是这一块在文件里的绝对偏移（元素起点要记绝对位置）。
- * 返回 true 表示可以收工：数组结束，或已经拿到 `limit` 个元素。
+ * The state machine itself. `base` is this chunk's absolute offset in the file,
+ * because element starts are recorded in absolute terms. Returns true when the job
+ * is done: the array ended, or `limit` elements have been collected.
  */
 function scanBytes(
   buf: Buffer,

@@ -2,7 +2,7 @@
 
 ## 这个目录做什么
 
-设置面板：一个浮层，左边目录、右边内容。目录是 **General**（外观：Light / Dark / System）、**Font**（阅读区字号，只有一个滑块）与 **Translate**（翻译供应商与凭据）。**每次打开都停在 General**——面板是反复回来改同样几件事的地方，让"默认页"跟着上次停留走，它就变成历史记录而不是默认值了。
+设置面板：一个浮层，左边目录、右边内容。目录是 **General**（外观 + 语言）、**Font**（阅读区字号，只有一个滑块）与 **Translate**（翻译供应商与凭据）。**每次打开都停在 General**——面板是反复回来改同样几件事的地方，让"默认页"跟着上次停留走，它就变成历史记录而不是默认值了。
 
 它**不**负责：持久化（走 `settings:*` IPC，配置由主进程写 `config.json`），也不认识任何云厂商。
 
@@ -13,7 +13,7 @@ Font 排在 Translate 前面：它是**读的时候**想改的，而不是配一
 | 文件 | 说明 |
 |---|---|
 | `SettingsDialog.tsx` | 浮层骨架：左侧分区列表、右侧内容、Esc/点背景关闭、左下角版本号 |
-| `GeneralSettings.tsx` | General 分区：Appearance 三选一卡片 |
+| `GeneralSettings.tsx` | General 分区：Appearance 与 Language 各三张卡片 |
 | `FontSettings.tsx` | Font 分区：只有一个字号滑块（+ 数值与恢复默认）。**拖动时不走 IPC**，松手才落盘，理由写在文件头 |
 | `TranslateSettings.tsx` | 翻译分区：选供应商、填凭据、选语言、保存、"测试翻译" |
 

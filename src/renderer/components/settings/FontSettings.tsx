@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { RotateCcw } from "lucide-react";
 import { READING_FONT_SIZE, type Settings } from "@shared/ipc";
 import { Button } from "@/components/ui/button";
@@ -21,18 +22,20 @@ function single(value: number | readonly number[]): number {
 }
 
 /**
- * 字体分区：只有一项——字号。
+ * The Font section: one setting, the reading size.
  *
- * **拖动时不走 IPC。** 一边拖一边把值写回主进程，会让 `config.json` 在几秒内被
- * 原子重写几十次，而且每次回来的载荷都会重渲染整个应用。所以拖动过程只改本地值
- * 并直接改 CSS 变量（面板跟着鼠标动），松手才落盘一次（Base UI 的
- * `onValueCommitted`）。两者写的是同一个数，所以松手不会跳。
+ * **Dragging does not touch the IPC channel.** Saving on every tick would have
+ * main rewrite config.json dozens of times in a few seconds and re-render the
+ * whole app for each payload; so a drag only updates local state and the CSS
+ * variable (the pane follows the pointer) and saves once when released (Base UI's
+ * `onValueCommitted`). Both write the same number, so releasing cannot jump.
  *
- * 不做"两种字号"（比如 Markdown 一套、Blocks 一套）：这两个视图读的是**同一页的两种 OCR 产出**
- * （`markdown_text` 字符串 vs 带 bbox 的块，见 `DESIGN.md` 5.5），但它们是同一块面板、同一个阅读动作；
- * 字号不同只会让人切视图时疑心自己看错了书。
+ * There is deliberately no second size for Blocks: Markdown and Blocks are two
+ * OCR outputs of one page (see DESIGN.md 5.5) but one panel and one reading
+ * action, and two sizes would only make a reader doubt their eyes.
  */
 export function FontSettings({ settings, onSettings }: FontSettingsProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState(settings.readingFontSize);
 
   // A payload arriving from main (after any save) is the source of truth.
@@ -61,9 +64,9 @@ export function FontSettings({ settings, onSettings }: FontSettingsProps) {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-sm font-medium text-foreground">Font size</p>
+        <p className="text-sm font-medium text-foreground">{t("settings.font.title")}</p>
         <p className="text-xs text-muted-foreground">
-          阅读区文字的大小，单位为像素。Markdown 与 Blocks 两个视图共用这一档字号。
+          {t("settings.font.desc")}
         </p>
       </div>
 
@@ -76,7 +79,7 @@ export function FontSettings({ settings, onSettings }: FontSettingsProps) {
           step={1}
           onValueChange={(value) => preview(single(value))}
           onValueCommitted={(value) => commit(single(value))}
-          aria-label="Font size"
+          aria-label={t("settings.font.title")}
         />
         <span className="w-7 shrink-0 text-right text-sm tabular-nums text-foreground">{draft}</span>
         <Button
@@ -87,15 +90,18 @@ export function FontSettings({ settings, onSettings }: FontSettingsProps) {
             preview(READING_FONT_SIZE.default);
             commit(READING_FONT_SIZE.default);
           }}
-          title="恢复默认"
+          title={t("settings.font.reset")}
         >
           <RotateCcw className="h-3.5 w-3.5" />
         </Button>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        范围 {READING_FONT_SIZE.min}–{READING_FONT_SIZE.max}px，默认 {READING_FONT_SIZE.default}px。
-        改动写进 config.json，重启后仍然是这个大小。
+        {t("settings.font.range", {
+          min: READING_FONT_SIZE.min,
+          max: READING_FONT_SIZE.max,
+          default: READING_FONT_SIZE.default,
+        })}
       </p>
     </div>
   );

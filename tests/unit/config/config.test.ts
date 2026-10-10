@@ -36,6 +36,7 @@ describe("config", () => {
       theme: "dark",
       autoCheckUpdates: false,
       readingFontSize: 18,
+      locale: "zh-CN",
       translate: {
         provider: "tencent",
         sourceLang: "en",
@@ -50,6 +51,7 @@ describe("config", () => {
       theme: "dark",
       autoCheckUpdates: false,
       readingFontSize: 18,
+      locale: "zh-CN",
       translate: {
         provider: "tencent",
         sourceLang: "en",
@@ -129,6 +131,18 @@ describe("config", () => {
       fs.writeFileSync(file, JSON.stringify({ readingFontSize: stored }), "utf8")
       expect(readConfig(file).readingFontSize, `stored ${String(stored)}`).toBe(expected)
     }
+  })
+
+  it("keeps a known locale and falls back to English for anything else", () => {
+    const known = tempConfigFile()
+    fs.writeFileSync(known, JSON.stringify({ locale: "zh-CN" }), "utf8")
+    expect(readConfig(known).locale).toBe("zh-CN")
+
+    // A config written before the setting existed, or a hand-edited language we
+    // do not ship: English is the interface's source of truth.
+    const unknown = tempConfigFile()
+    fs.writeFileSync(unknown, JSON.stringify({ locale: "fr" }), "utf8")
+    expect(readConfig(unknown).locale).toBe("en")
   })
 
   it("keeps a valid libraryDir while repairing sibling fields", () => {
