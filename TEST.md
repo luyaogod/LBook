@@ -44,6 +44,9 @@ npx vitest --coverage                     # 带覆盖率（覆盖 src/main 与 s
 | `tests/unit/translate/service.test.ts` | 供应商解析与未知 id 回退；`auto` 本地判语种；**命中缓存不再调用**（同句第二次 `cached:true` 且供应商只被调一次）；源=目标短路（**一次都不调**）；空选直接拒绝；**设置载荷带出已存凭据**（供设置页预填与复制）与**清空字段 = 移除该键**；缺凭据抛 `ProviderConfigError` 且**不发请求**；朗读按「语言+文本」缓存、不同语言不串、厂商没有语音能力时报"不支持语音朗读"、超长文本在发请求前就被拦下 |
 | `tests/unit/translate/detect.test.ts` | 本地语种判断：纯英文/纯中文、英文里夹中文词、中文里夹标识符、无字母数字时返回 null |
 | `tests/unit/shared/toc.test.ts` | `toc.json` 的解析与校验（裸数组简写、缺 title、非正整数页号、死节点、嵌套深度、版本过高）；扁平化顺序与 id；**当前条目判定（含章与节同页时取更深的那个）**；祖先路径 |
+| `tests/unit/shared/bookFile.test.ts` | 书籍 `meta.json` 契约：缺 title 不当错、未知键忽略、更高 `formatVersion` 拒绝、必需字段逐一拒绝、**`ocrFile` 不得跳出书文件夹**（`../`/子目录/盘符/绝对路径）、垃圾输入只报错不抛；写出的键序稳定且可往返 |
+| `tests/unit/library/book.test.ts` | `openBook()`：1-based 页号对应数组下标 0、小 chunk 跨块结果不变；越界/非整数页号报错；**页数以 OCR 文件为准而不是 meta**；PDF 缺失仍可读；meta 缺失/非 JSON/缺 uid 报错；**`ocrFile` 跳出文件夹被拒**；封面名探测与 `toc.json` 读取 |
+| `tests/unit/library/ledger.test.ts` | 书库台账：根内相对/根外绝对、**整库改名后相对路径仍可解析**、同一本不重复登记、**`remove()` 只删条目而文件夹仍在磁盘上**、手改坏的台账保住好条目并给出 issues、非 JSON 不崩、跨实例持久化 |
 | `tests/unit/library/service.test.ts` | 扫描导入；二次扫描幂等；坏包不中断扫描；**有未保存编辑时拒绝重导入**；文件消失后清理索引；**保存把编辑写回包**；**PDF 逐字节不变**；**未建模的块键保留**；**建书时附上目录**；**坏目录在建书前就被拒绝**；**目录写入/移除**；**只改目录时 OCR 与封面不丢**；**保存与移除目录都不吃掉其他条目**；导入复制到库目录 |
 | `tests/unit/migration/reconstruct.test.ts` | **黄金用例**（见第 4 节） |
 | `tests/unit/renderer/assetUrl.test.ts` | `imgs/x.jpg` → `lbook://asset/<uid>/imgs/x.jpg`；绝对 URL 与协议相对 URL 不动；不误伤正文文本 |

@@ -50,28 +50,23 @@
 
 > 施工中发现的真 bug：第一版把“找数组左括号”的前缀读了一遍、循环里又从磁盘重读——`scannedBytes` 因此账不实（比文件还大）。改成前缀就地扫掉，顺带少一次 IO。
 
-### T2 `meta.json` 契约（`src/shared/bookFile.ts`）
+### T2 `meta.json` 契约（`src/shared/bookFile.ts`）✅ 已完成
 
-- [ ] `BookMeta`：`formatVersion` / `uid` / `title` / `author?` / `pageCount` / `ocrFile` / `createdAt?` / `source?`。
-- [ ] `parseBookMeta(raw): { meta } | { error }`——纯函数、零依赖、**校验而不抛**（坏书也要能列出来）。
-- [ ] `writeBookMeta(meta): string`——两空格缩进、键序固定（B5），只此一处负责格式。
-- [ ] 单测：缺 `uid`、`pageCount` 非数字、`ocrFile` 空、未知键保留不报错。
+- [x] `BookMeta`、`BOOK_FORMAT_VERSION`、`parseBookMeta()`（**只报错不抛**）、`writeBookMeta()`（固定键序 + 两空格 + 末尾换行）、`isSafeBookFileName()`。
+- [x] 单测 `tests/unit/shared/bookFile.test.ts`（10 个用例）：完整文件、缺 title 不当错、未知键忽略、更高 formatVersion 拒绝、必需字段逐一拒绝、**`ocrFile` 不得跳出文件夹**（`../`、子目录、盘符、绝对路径、`..`）、垃圾输入只报错；写出键序不受插入顺序影响、可往返。
 
-### T3 书库台账（`src/main/library/ledger.ts` + `src/shared/ledger.ts`）
+### T3 书库台账（`src/shared/ledger.ts` + `src/main/library/ledger.ts`）✅ 已完成
 
-- [ ] `library.json`（`%APPDATA%\LBook\`）：`{ version, books: [{ path, uid, addedAt }] }`；`path` 在默认新建位置之下时**存相对路径**（B7）。
-- [ ] `list()` / `add(folder)` / `remove(path)`——`remove` **只动台账**（A11），磁盘一律不碰。
-- [ ] 解析/写出的纯函数放 `src/shared/ledger.ts`：坏台账（手改坏了）→ 能列出能读到的条目，并给一条 issue，**不能崩**。
-- [ ] 原子写（temp + rename，照抄 `src/main/config/config.ts` 的 `writeConfig`）。
-- [ ] 单测：相对/绝对路径的换算、去重（同一个 `uid` 或同一路径加两次）、坏条目、`remove` 不碰磁盘（用临时目录断言文件还在）。
+- [x] 纯函数半边 `src/shared/ledger.ts`（形状 + 解析/序列化，零依赖）；文件半边 `src/main/library/ledger.ts`（`list/add/remove/resolve` + 原子写）。
+- [x] 路径语义：在默认新建位置之内存相对路径（**整库改名不断链**），之外存绝对路径；`add()` 按 uid 或解析后的路径去重。
+- [x] `remove()` 只动台账（A11），并有单测断言文件夹与其中文件仍在磁盘上。
+- [x] 单测 `tests/unit/library/ledger.test.ts`（8 个用例）：空启动、相对/绝对、改名后仍可解析、不重复登记、只删条目、手改坏的台账保住好条目并给 issues、非 JSON 不崩、跨实例持久化 + 原子写。
 
-### T4 读一本书（`src/main/library/book.ts`）
+### T4 读一本书（`src/main/library/book.ts`）✅ 已完成
 
-- [ ] `openBook(dir)`：读 `meta.json` → 定位 `ocr.json` → 懒扫偏移（第一次用到才扫）→ 返回句柄。
-- [ ] `readPage(dir, pageNum)`：形状与现在 `book:getPage` **完全一致**（A6）。
-- [ ] `readToc` / `readCover` / `pdfPath` / `pdfSize`。
-- [ ] 一律 `fs.promises` + 用完即关的 `fd`（Windows 上句柄没放会挡住用户改名/移动——现状踩过的坑）。
-- [ ] 单测：临时目录造 2~3 本假书，覆盖"meta 坏""ocr.json 缺""页号越界""空文件"。
+- [x] `openBook(dir)`：读 `meta.json` → 校验 `ocrFile` 存在且不跳出文件夹 → **懒扫偏移索引**（按需增长：要第 n 页就扫到 2n，顺序阅读收敛为每次翻倍一次），不持有文件句柄（Windows 上句柄会挡住用户改名/移动；每页 open+close 只要 0.01–0.05ms）。
+- [x] `readPage(n)`（1-based，对应数组下标 n-1，A8）、`pageCount()`（**以 OCR 文件为准**，与 `meta.pageCount` 的出入留给 Phase 2 的校验器）、`hasPdf`、`readTocText()`、`coverPath()`。
+- [x] 单测 `tests/unit/library/book.test.ts`（12 个用例）：页号与下标、跨块不变、越界/非整数报错、页数以文件为准、PDF 缺失仍可读、meta 缺失/非 JSON/缺 uid 报错、**`ocrFile` 跳出文件夹被拒**、封面探测、`toc.json` 读取。
 
 ### T5 PDF 区间读改真实文件
 

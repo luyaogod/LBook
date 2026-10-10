@@ -8,14 +8,16 @@
 
 | 文件 | 说明 |
 |---|---|
-| `service.ts` | `createLibraryService()`：列表、读取、扫描、导入、创建、保存、替换、删除、进度 |
+| `service.ts` | `createLibraryService()`：列表、读取、扫描、导入、创建、保存、替换、删除、进度（**写半边在 Phase 1 会被删掉**） |
+| `book.ts` | **读一本书文件夹**：`openBook()`（懒扫偏移索引，**不持有文件句柄**）、`readTocText()`、`coverPath()` |
+| `ledger.ts` | **书库台账**（`library.json`）：增/删/列路径，`resolve()` 给出绝对目录；**`remove()` 从不碰磁盘** |
 | `importer.ts` | `importPackage()`：把包索引进库。**有未保存编辑时拒绝重导入** |
 | `legacy.ts` | 只读旧版 `backend/lbook.db`，并重建其 OCR 载荷。迁移与黄金测试共用 |
 | `hash.ts` | `sha256File()`，流式，不把 200MB 读进内存 |
 
 ## 对外接口
 
-`createLibraryService()` 与 `LibraryService`；`importPackage()`、`ImportSkipped`；`readLegacyDocuments()`、`readLegacyProgress()`、`reconstructLegacyBook()`；`sha256File()`。
+`createLibraryService()` 与 `LibraryService`；`openBook()`、`readTocText()`、`coverPath()`、`OpenBook`；`createLedgerStore()`、`LedgerStore`；`importPackage()`、`ImportSkipped`；`readLegacyDocuments()`、`readLegacyProgress()`、`reconstructLegacyBook()`；`sha256File()`。
 
 ## 依赖方向
 
