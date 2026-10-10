@@ -192,6 +192,8 @@ function validateRangeRequestCapabilities({ getResponseHeader, isHttp, rangeChun
 
 `markdown_images` 渲染层不读，留着只为保存时不丢 OCR 的图片表。
 
+**代价（2026-10-11 实测，库内 5 本 1872 页）：**`pruned_result` 19.5MB、`ocr_blocks.block_content` 3.5MB、`markdown_text` 3.4MB + `markdown_images` 1.6MB，库文件 38.6MB——**同一页的文字大致存了三份**（markdown 一份、块表一份、`pruned_result` 里再一份）。单页看（BPP 第 21 页，`pruned_result` 13KB）：`parsing_res_list` 占 66%（8KB，块表那份的来源）、`layout_det_res` 占 31%（4KB，**只存在这里**）、该页 24 个块的文字合计 3KB、`markdown_text` 3KB。三份**都删不得**：markdown 我们重建不了；`pruned_result` 是保存时原样写回的那一份，未建模的键（与 `layout_det_res`）全靠它；块表要 bbox 与逐块编辑。真要省掉那 ~3.5MB 块文字重复，唯一诚实的做法是反向做一次 `mergeBlocks`（写库时剥掉已建模的键，保存时再拼回），代价是"存进去的 `pruned_result` 不许带这些键"变成一条容易忘的不变量：以后每新增一个从 JSON 拆出来的列，都得同时记得从这份 JSON 里剥掉，否则某次保存会把旧值复活——为 ~9% 的库容量不值得。`markdown_images`（1.6MB）是这里唯一纯粹为保险而留的东西。
+
 ---
 
 ## 6. `.lbook` 格式规范
