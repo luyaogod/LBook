@@ -242,6 +242,54 @@ async function main(): Promise<void> {
   longEditor.destroy()
   outer.remove()
 
+  // ---- the block card's shape, which is a different problem ----------------------
+  // A card does not fill anything: it sits in a scrolling column and must shrink to its
+  // content, so its wrapper has **no height of its own**, only a cap. The editor then needs
+  // a ceiling of its own (`maxHeightPx`) or it grows to the whole document inside the capped
+  // wrapper: the wrapper clips, the editor has nothing to scroll, and the reader cannot move
+  // the text — which is exactly the bug this case exists for. The first version of this
+  // check mirrored the *pane's* shape only, so it passed while the card was stuck.
+  const card = document.createElement("div")
+  card.style.maxHeight = "384px"
+  card.style.display = "flex"
+  card.style.minHeight = "0"
+  card.style.flexDirection = "column"
+  card.style.overflow = "hidden"
+  document.body.appendChild(card)
+  const cardHost = document.createElement("div")
+  cardHost.style.flex = "1"
+  cardHost.style.minHeight = "0"
+  cardHost.style.overflow = "hidden"
+  card.appendChild(cardHost)
+  const tableHtml = `<table><tr>${Array.from({ length: 300 }, (_, index) => `<td>cell ${index + 1}</td>`).join("")}</tr></table>`
+  const cardEditor = await createSourceEditor({
+    parent: cardHost,
+    value: tableHtml,
+    language: "html",
+    dark: true,
+    maxHeightPx: 384,
+    onSave: () => undefined,
+    onCancel: () => undefined,
+    onValueChange: () => undefined,
+  })
+  const cardScroller = card.querySelector(".cm-scroller")
+  checks.push({
+    what: "a long block scrolls inside its card",
+    ok: cardScroller !== null && cardScroller.scrollHeight > cardScroller.clientHeight + 10,
+    detail:
+      cardScroller === null
+        ? "no scroller"
+        : `${cardScroller.scrollHeight}px of content in ${cardScroller.clientHeight}px`,
+  })
+  checks.push({
+    what: "and the card stays within its cap",
+    ok: card.getBoundingClientRect().height <= 385,
+    detail: `card ${Math.round(card.getBoundingClientRect().height)}px`,
+  })
+  cardEditor.destroy()
+  card.remove()
+
+
   report(checks)
 
 }

@@ -192,7 +192,11 @@ export function BlockCard({
             **No border of its own** — the card is already outlined while editing, and a box
             inside a box is just two lines to look at. Keys on the buttons, no captions. */}
         <SourceEditorField
+          // Both: the wrapper caps the card's box, the editor caps itself — and it is the
+          // editor's own ceiling that lets a long table's HTML scroll inside it.
           className="max-h-96"
+          maxHeightPx={384}
+
 
           value={baseValue}
           language={isTableBlock(block) ? "html" : "markdown"}

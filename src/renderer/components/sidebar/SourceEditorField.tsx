@@ -23,6 +23,14 @@ interface SourceEditorFieldProps {
    * whole column.
    */
   className?: string;
+  /**
+   * A ceiling in pixels, for a field that sizes to its content instead of filling a box.
+   *
+   * Without it the editor grows to its content inside a capped wrapper: the wrapper clips,
+   * the editor has nothing to scroll, and the reader cannot move the text. See
+   * `createSourceEditor`.
+   */
+  maxHeightPx?: number;
   /** The text to open with. Read once, on mount: later changes are the editor's business. */
   value: string;
   /** `html` for a table block's source, `markdown` for everything else. */
@@ -37,6 +45,7 @@ interface SourceEditorFieldProps {
 
 export function SourceEditorField({
   className = "",
+  maxHeightPx,
   value,
   language,
   onValueChange,
@@ -88,6 +97,7 @@ export function SourceEditorField({
           value,
           language,
           dark: document.documentElement.classList.contains("dark"),
+          maxHeightPx,
           phrases,
           onSave: () => handlers.current.onSave(),
           onCancel: () => handlers.current.onCancel(),
@@ -126,7 +136,7 @@ export function SourceEditorField({
     // content, so the editor grew to the height of the whole document, got clipped by the
     // panel's `overflow-hidden`, and **neither box could scroll**. Two scrollbars was the
     // complaint before; none at all was the bug after.
-    <div className={`flex min-h-0 flex-col ${className}`}>
+    <div className={`flex min-h-0 flex-col overflow-hidden ${className}`}>
       <div
         ref={host}
         // No border: the box is the panel. A block card draws its own outline around the

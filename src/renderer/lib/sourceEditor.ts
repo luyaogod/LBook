@@ -43,6 +43,18 @@ export interface SourceEditorOptions {
   /** Every change, so the caller's Save button can tell whether anything changed. */
   onValueChange: (value: string) => void
   /**
+   * A ceiling, for an editor that is **not** filling a box.
+   *
+   * There are two layouts and they need two rules. The Markdown pane hands the editor the
+   * panel's remaining height, so the editor is `height: 100%` and the box does the sizing.
+   * A block card sits in a scrolling column and must shrink to its content — but a table's
+   * HTML is thousands of pixels, and without a ceiling the editor grows to all of it inside
+   * a capped box: **the box clips, the editor has nothing to scroll, and the reader cannot
+   * move the text at all**. `maxHeightPx` puts the ceiling on the editor itself, which is
+   * what gives its scroller something to do.
+   */
+  maxHeightPx?: number
+  /**
    * CodeMirror's own labels for the search panel, in the reader's language.
    *
    * Passed in rather than translated here, so this module keeps knowing nothing about the
@@ -53,7 +65,7 @@ export interface SourceEditorOptions {
 }
 
 /** The one theme, small enough to keep here rather than pull a package for it. */
-async function themeFor(dark: boolean) {
+async function themeFor(dark: boolean, maxHeightPx?: number) {
   const { EditorView } = await import("@codemirror/view")
   const reading = getComputedStyle(document.documentElement).getPropertyValue("--reading-font-size").trim()
   return EditorView.theme(
@@ -62,6 +74,9 @@ async function themeFor(dark: boolean) {
         fontSize: reading === "" ? "14px" : reading,
         backgroundColor: "transparent",
         color: "inherit",
+        // Filling a box, or capped: see `maxHeightPx`.
+        ...(maxHeightPx === undefined ? {} : { maxHeight: `${maxHeightPx}px` }),
+
       },
       ".cm-content": {
         fontFamily:
@@ -161,7 +176,7 @@ export async function createSourceEditor(options: SourceEditorOptions): Promise<
       keymap.of(searchKeymap),
       EditorState.phrases.of(options.phrases ?? {}),
       EditorView.lineWrapping,
-      await themeFor(options.dark),
+      await themeFor(options.dark, options.maxHeightPx),
       language,
       EditorView.updateListener.of((update) => {
         // No dirty state is kept here (A20): the caller compares against the text it loaded.
