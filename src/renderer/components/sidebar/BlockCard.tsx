@@ -184,13 +184,14 @@ export function BlockCard({
       >
         <div className="mb-1 flex items-center gap-2">
           <BlockLabel label={block.block_label} colors={colors} />
-          <span className="text-[11px] text-muted-foreground">{t("block.sourceHint")}</span>
         </div>
 
         {/* A CodeMirror field, on the source as it is in the file: Markdown for a text
-            block, HTML for a table (the table's content *is* HTML). Same keys as before —
-            Mod-Enter saves, Esc closes, nothing is written without a save. */}
+            block, HTML for a table (the table's content *is* HTML). Capped rather than
+            filling: a card lives in a scrolling column, and one card must not swallow it.
+            Keys on the buttons, no line of explanation (they were being ignored anyway). */}
         <SourceEditorField
+          className="max-h-96"
           value={baseValue}
           language={isTableBlock(block) ? "html" : "markdown"}
           onValueChange={setText}
@@ -198,24 +199,23 @@ export function BlockCard({
           onCancel={() => setEditing(false)}
         />
 
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">{t("block.saveHint")}</span>
-          <div className="ml-auto flex items-center gap-1">
-            <button
-              className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
-              onClick={() => setEditing(false)}
-              disabled={saving}
-            >
-              {t("common.cancel")}
-            </button>
-            <button
-              className="rounded bg-primary px-2 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              onClick={() => void save()}
-              disabled={saving || text === baseValue}
-            >
-              {t("common.save")}
-            </button>
-          </div>
+        <div className="mt-2 flex items-center justify-end gap-1">
+          <button
+            className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
+            onClick={() => setEditing(false)}
+            disabled={saving}
+            title={t("block.escapeHint")}
+          >
+            {t("common.cancel")}
+          </button>
+          <button
+            className="rounded bg-primary px-2 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            onClick={() => void save()}
+            disabled={saving || text === baseValue}
+            title={t("block.saveKeysHint")}
+          >
+            {t("common.save")}
+          </button>
         </div>
 
         {error !== null && <p className="mt-2 text-xs text-destructive">{error}</p>}

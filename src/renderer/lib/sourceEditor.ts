@@ -150,9 +150,11 @@ export async function createSourceEditor(options: SourceEditorOptions): Promise<
         // No dirty state is kept here (A20): the caller compares against the text it loaded.
         if (update.docChanged) options.onValueChange(update.state.doc.toString())
       }),
-      // Only one editor is ever open, so a bounded height with its own scrolling is
-      // simpler than growing the panel — and it keeps the surrounding page still.
-      EditorView.theme({ "&": { maxHeight: "60vh" } }),
+      // **The editor fills its box**; the box decides how big that is. The pane hands it the
+      // remaining height of the panel, a block card caps it. `height: 100%` of an
+      // auto-height parent resolves to `auto`, so the same rule works in both places.
+      EditorView.theme({ "&": { height: "100%" } }),
+
 
     ],
   })

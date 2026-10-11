@@ -132,9 +132,9 @@ export const en = {
   "editor.currentMatch": "current match",
   "editor.onLine": "on line",
   "block.edit": "Edit this block's text",
-  "block.sourceHint":
-    "Editing the source that lives in ocr.json — the text exactly as PaddleOCR wrote it, Markdown and HTML included.",
-  "block.saveHint": "Ctrl+Enter saves, Esc cancels. Clicking away does not save.",
+  // No prose in the way: what the reader needs is on the buttons.
+  "block.saveKeysHint": "Ctrl+Enter",
+  "block.escapeHint": "Esc",
   "block.saved": "Written to ocr.json",
   "block.undo": "Undo this edit",
   "block.reverted": "Put back",
@@ -144,10 +144,8 @@ export const en = {
   "undo.block": "a block on page {{page}}",
   "undo.markdown": "the Markdown of page {{page}}",
   "undo.more": "{{more}} more can be undone",
-  "markdown.edit": "Edit this page's Markdown",
-  "markdown.editing": "Editing this page's Markdown",
-  "markdown.sourceHint":
-    "Editing the source in ocr.json — the page as PaddleOCR wrote it. The Blocks view reads its own copy and will not change.",
+  "markdown.edit": "Edit this page",
+  "markdown.editing": "Editing this page",
 
   // Messages this app writes itself. A vendor's error text is not translated (I6);
   // these are ours, and they arrive from main as a key with English as the fallback.

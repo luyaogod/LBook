@@ -17,7 +17,7 @@
 | `check-i18n.mjs` |
 | `check-launch.mjs` | 装完之后**它到底能不能开**：启动 `D:\APPS\LBook\LBook.exe`，等主进程自己打的 `[main] renderer loaded from app://bundle`（`did-finish-load` 才打这行），失败则按 `renderer failed to load` 判定，然后 `taskkill /T` 杀掉整棵树。**不要再用"进程还活着"当启动成功的证据**——窗口起不来的版本，进程照样活着（2026-10-11 就用这个弱检查发出去过一个打不开的构建）；也别只杀父进程，Windows 上渲染/GPU/工具进程会留下来 |
 | `check-editor.ts` |
- 在**真实 Electron**（`app://` + 生产 CSP，用的是应用同一份 `src/main/bundleHost.ts`）里验证源码编辑器（CodeMirror 6）：装得上、样式生效、行号在、**语言支持确实走懒块且到了**、值能读回、HTML 语言也能载入；同时收集 `securitypolicyviolation` 与 `console.error`，两者非空即失败。**十项**断言里有一条专门验交互陷阱：查找面板开着时 `Esc` 应当关面板而不是关编辑器（第一次 `Esc` 关面板且 `onCancel` 未被调用，第二次才关编辑器）。它验的是"打包后还能用"——开发环境里好用的编辑器，在生产 CSP 下可能只是一只空盒子。`npm run check:editor` |
+ 在**真实 Electron**（`app://` + 生产 CSP，用的是应用同一份 `src/main/bundleHost.ts`）里验证源码编辑器（CodeMirror 6）：装得上、样式生效、行号在、**语言支持确实走懒块且到了**、值能读回、HTML 语言也能载入；同时收集 `securitypolicyviolation` 与 `console.error`，两者非空即失败。**十一项**断言里有两件是容易"看着对、其实不对"的：查找面板开着时 `Esc` 应当关面板而不是关编辑器（第一次 `Esc` 关面板且 `onCancel` 未被调用，第二次才关编辑器）；以及**编辑器填满它的容器**（容器 240px，编辑器就得是 240px——用 `max-height` 会得到一个矮编辑器加下面一片空白，那正是用户截图里抱怨的样子）。它验的是"打包后还能用"——开发环境里好用的编辑器，在生产 CSP 下可能只是一只空盒子。`npm run check:editor` |
 | `check-locate.ts` | 在**真台账**上验证"定位"：拷一份 `library.json` 与一本书的 `.lbook/`（meta + ocr）到临时目录，然后 ①**半拷的文件夹必须被拒**（并点名缺哪个文件）且**台账一字未动**——这条是本轮真机验证抓到的 bug（原来先改台账后读文件夹）；②完整文件夹定位成功：只改那一行的路径、书数不变、无重复行、能从新位置读回页；③**真的 `library.json` 一个字节都没动**。做这个检查是因为 `library.json` 是应用唯一的自有状态，改坏了就是丢书库 |
 | `patch-text.mjs` |
  给文档打补丁的工具（`node scripts/patch-text.mjs <job-file>`）：补丁内容放在纯文本 job 文件里，**不需要任何转义**——中文文档里同时有 ASCII 引号与反引号（代码片段），写在 JS 字符串里总要转义其中一个，"忘一个引号"的代价是语法错误或把文档改坏（这个工具就是被这个坑逼出来的）。**每个文件要么全改要么不改**，锚点对不上就报出是哪个并无事退出（半应用的文档比没应用更糟）；`@=FILE=` / `@=OLD=` / `@=NEW=` 三个标记必须独占一行 |

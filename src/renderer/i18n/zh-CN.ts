@@ -122,9 +122,9 @@ export const zhCN: Record<TranslationKeys, string> = {
   "editor.onLine": "在第几行",
   "block.edit": "编辑这个块的文字",
 
-  "block.sourceHint":
-    "正在编辑 ocr.json 里的源文——PaddleOCR 写下的原文，Markdown 与 HTML 都原样显示。",
-  "block.saveHint": "Ctrl+Enter 保存，Esc 取消；点别处不会保存。",
+  // 界面上不摆解释：需要知道的都在按钮上
+  "block.saveKeysHint": "Ctrl+Enter",
+  "block.escapeHint": "Esc",
   "block.saved": "已写入 ocr.json",
   "block.undo": "撤销这次修改",
   "block.reverted": "已恢复",
@@ -134,10 +134,9 @@ export const zhCN: Record<TranslationKeys, string> = {
   "undo.block": "第 {{page}} 页的一段文字",
   "undo.markdown": "第 {{page}} 页的 Markdown",
   "undo.more": "还能再撤 {{more}} 处",
-  "markdown.edit": "编辑这一页的 Markdown",
-  "markdown.editing": "正在编辑：这一页的 Markdown",
-  "markdown.sourceHint":
-    "正在编辑 ocr.json 里的源文——PaddleOCR 写下的这一页原文。块视图读的是另一份，不会跟着变。",
+  "markdown.edit": "编辑这一页",
+  "markdown.editing": "正在编辑这一页",
+
 
   // 应用自己写的提示（厂商报错不翻译，I6）。主进程发来的是 key，英文原文作回落。
   "message.edit.bookGone": "这本书已经不在书库里了。",

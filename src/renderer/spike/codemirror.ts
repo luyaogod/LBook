@@ -109,6 +109,18 @@ async function main(): Promise<void> {
     what: "line numbers rendered",
     ok: surface.querySelector(".cm-gutters") !== null,
   })
+  // The layout contract: the editor **fills its box**, and the box decides how big that is
+  // (the Markdown pane hands it the panel's remaining height, a block card caps it). The
+  // container here is 240px, so the editor has to be 240px — a max-height would leave a
+  // short editor with empty space under it, which is what the reader complained about.
+  const container = surface.getBoundingClientRect().height
+  const editorBox = surface.querySelector(".cm-editor")?.getBoundingClientRect().height ?? 0
+  checks.push({
+    what: "the editor fills its container",
+    ok: Math.abs(editorBox - container) <= 2,
+    detail: `editor ${Math.round(editorBox)}px of ${Math.round(container)}px`,
+  })
+
   // The Markdown language support is a separate lazy chunk; highlighted spans only appear
   // once it has arrived.
   await new Promise((resolve) => setTimeout(resolve, 300))

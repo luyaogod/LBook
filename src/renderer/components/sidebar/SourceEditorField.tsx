@@ -15,6 +15,14 @@ import type { SourceEditorHandle } from "@/lib/sourceEditor";
  * writes).
  */
 interface SourceEditorFieldProps {
+  /**
+   * Sizing for the field's box, from whoever is placing it.
+   *
+   * The editor fills its box (see `sourceEditor.ts`), so the box decides: the Markdown pane
+   * hands it `flex-1` to fill the panel, a block card caps it so one card cannot swallow the
+   * whole column.
+   */
+  className?: string;
   /** The text to open with. Read once, on mount: later changes are the editor's business. */
   value: string;
   /** `html` for a table block's source, `markdown` for everything else. */
@@ -28,6 +36,7 @@ interface SourceEditorFieldProps {
 }
 
 export function SourceEditorField({
+  className = "",
   value,
   language,
   onValueChange,
@@ -114,7 +123,7 @@ export function SourceEditorField({
     <div>
       <div
         ref={host}
-        className="overflow-hidden rounded border border-primary bg-background"
+        className={`overflow-hidden rounded border border-primary bg-background ${className}`}
         style={{ fontSize: "var(--reading-font-size, 14px)" }}
       />
       {error !== null && <p className="mt-1 text-xs text-destructive">{error}</p>}

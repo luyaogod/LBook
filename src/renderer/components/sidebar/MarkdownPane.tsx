@@ -103,16 +103,17 @@ export function MarkdownPane({ uid, pageIndex, value, children, editable }: Mark
 
   if (editing) {
     return (
-      <div>
-        <div className="mb-1 flex items-center gap-2">
-          {/* A18: the editor names its target. The other view is not being changed. */}
-          <span className="text-xs font-medium">{t("markdown.editing")}</span>
-          <span className="text-[11px] text-muted-foreground">{t("markdown.sourceHint")}</span>
-        </div>
+      // Fills the panel while editing: a page's Markdown is the thing being worked on, so it
+      // gets the space, and the two buttons sit at the bottom of the panel instead of
+      // floating under a short editor with empty space beneath them.
+      <div className="flex h-full min-h-0 flex-col gap-2">
+        {/* A18: the editor names its target — the Blocks view is not what is being changed.
+            Nothing else is said here: the keys are on the buttons' tooltips, and a line of
+            explanation in the reader's way is worse than no line. */}
+        <span className="shrink-0 text-xs font-medium">{t("markdown.editing")}</span>
 
-        {/* CodeMirror, opened on the text exactly as it is in the file. Mod-Enter saves and
-            Esc closes — the keys the plain textarea had, and the only ones that write. */}
         <SourceEditorField
+          className="min-h-0 flex-1"
           value={baseValue}
           language="markdown"
           onValueChange={setText}
@@ -120,27 +121,26 @@ export function MarkdownPane({ uid, pageIndex, value, children, editable }: Mark
           onCancel={() => setEditing(false)}
         />
 
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">{t("block.saveHint")}</span>
-          <div className="ml-auto flex items-center gap-1">
-            <button
-              className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
-              onClick={() => setEditing(false)}
-              disabled={saving}
-            >
-              {t("common.cancel")}
-            </button>
-            <button
-              className="rounded bg-primary px-2 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              onClick={() => void save()}
-              disabled={saving || text === baseValue}
-            >
-              {t("common.save")}
-            </button>
-          </div>
-        </div>
+        {error !== null && <p className="shrink-0 text-xs text-destructive">{error}</p>}
 
-        {error !== null && <p className="mt-2 text-xs text-destructive">{error}</p>}
+        <div className="flex shrink-0 items-center justify-end gap-1">
+          <button
+            className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
+            onClick={() => setEditing(false)}
+            disabled={saving}
+            title={t("block.escapeHint")}
+          >
+            {t("common.cancel")}
+          </button>
+          <button
+            className="rounded bg-primary px-2 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            onClick={() => void save()}
+            disabled={saving || text === baseValue}
+            title={t("block.saveKeysHint")}
+          >
+            {t("common.save")}
+          </button>
+        </div>
       </div>
     );
   }
