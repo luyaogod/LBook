@@ -191,7 +191,7 @@ export function BlockCard({
             filling: a card lives in a scrolling column, and one card must not swallow it.
             Keys on the buttons, no line of explanation (they were being ignored anyway). */}
         <SourceEditorField
-          className="max-h-96"
+          className="max-h-96 rounded border border-primary"
           value={baseValue}
           language={isTableBlock(block) ? "html" : "markdown"}
           onValueChange={setText}

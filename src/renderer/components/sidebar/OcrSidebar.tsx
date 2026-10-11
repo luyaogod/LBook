@@ -158,6 +158,17 @@ export function OcrSidebar({
   // and the one a proof-reader reads top to bottom.
   const [viewMode, setViewMode] = useState<"blocks" | "markdown">("markdown");
   /**
+   * The pane's buttons live in this footer row, not in the pane.
+   *
+   * They used to sit above the text (an "Edit" button) or under a short editor (Cancel and
+   * Save), which meant the actions were wherever the content happened to end. The footer is
+   * outside the scrolling area, so they are always in the same place, always reachable, and
+   * the reading view is nothing but the page.
+   */
+  const [paneActions, setPaneActions] = useState<HTMLDivElement | null>(null);
+  /** While the editor is open it owns the area: no padding, and no second scrollbar. */
+  const [markdownEditing, setMarkdownEditing] = useState(false);
+  /**
    * The session's corrections to this book, and the way to reverse the last one.
    *
    * This is the panel's, not the editors': an editor offers to undo *its own* save, and
@@ -559,7 +570,14 @@ export function OcrSidebar({
       {undoError !== null && <p className="px-3 pb-1 text-[11px] text-destructive">{undoError}</p>}
 
       {/* Content */}
-      <div ref={listRef} className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div
+        ref={listRef}
+        // Editing: edge to edge and no scrolling here, because the editor fills this box and
+        // scrolls itself. Two scrollbars for one document is what the reader complained about.
+        className={
+          markdownEditing ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto p-3 space-y-2"
+        }
+      >
         {/* Selection translation only makes sense in Markdown view: in Blocks view a
             selection is a fragment of a fragment, not a passage someone reads. */}
         <SelectionPopup
@@ -641,6 +659,8 @@ export function OcrSidebar({
                 pageIndex={pageNum - 1}
                 value={markdownText}
                 editable={!loading}
+                actionsSlot={paneActions}
+                onEditingChange={setMarkdownEditing}
               >
                 <div className="leading-relaxed markdown-body">
                   <ReactMarkdown
@@ -692,6 +712,8 @@ export function OcrSidebar({
                   chars: totalChars,
                 })}
           </span>
+          {/* The pane's buttons are portalled in here — see MarkdownPane. */}
+          <div ref={setPaneActions} className="flex flex-1 items-center justify-end gap-1" />
           <span>{t("sidebar.page", { page: pageNum })}</span>
         </div>
       )}

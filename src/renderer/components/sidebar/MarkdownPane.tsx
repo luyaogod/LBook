@@ -1,4 +1,5 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Check, Pencil, Undo2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { readField, writeField } from "@/api/pdfs";
@@ -6,7 +7,6 @@ import { recordEdit } from "@/lib/editHistory";
 import { useEditHistory } from "@/hooks/useEditHistory";
 import { writeErrorText } from "@/lib/writeError";
 import { SourceEditorField } from "./SourceEditorField";
-
 
 /**
  * This page's Markdown, and the way to correct it.
@@ -16,13 +16,18 @@ import { SourceEditorField } from "./SourceEditorField";
  * what it renders to — and one save replaces that one field's bytes in `ocr.json`.
  *
  * **Two readings of one page.** The Blocks view reads `parsing_res_list`; this view reads
- * `markdown.text`. Correcting one does not rewrite the other (A10, A18), so the editor
- * says which copy is open and offers no way to "sync" them: that would mean reproducing
- * PaddleOCR's own layout rules, and guessing wrong is worse than two honest versions.
+ * `markdown.text`. Correcting one does not rewrite the other (A10, A18), so this pane
+ * never offers to "sync" them: that would mean reproducing PaddleOCR's own layout rules,
+ * and guessing wrong is worse than two honest versions.
  *
- * The chrome lives here and the reading view is the parent's `children`, so the plugins
- * that render OCR Markdown stay in one place and this component only knows how to edit
- * a string.
+ * **No chrome of its own.** The buttons that open, cancel, save or undo an edit are
+ * rendered into the panel's footer (`actionsSlot`), so the reading view is nothing but the
+ * page's own text and the editing view is nothing but the editor. The editor fills the
+ * space between, and scrolls itself — the panel around it never scrolls while editing
+ * (`onEditingChange`), or the reader would be dragging two scrollbars to reach one document.
+ *
+ * What it does *not* say any more: "Editing this page". The editor is on screen and the
+ * Save button is two inches away; a caption explaining that is furniture.
  */
 interface MarkdownPaneProps {
   /** Book uid, needed to write. */
@@ -38,9 +43,21 @@ interface MarkdownPaneProps {
    * (see `.agents/plan/04-phase4-content-edit.md`).
    */
   editable: boolean;
+  /** Where the buttons go — the panel's footer. Until it exists, they are not drawn. */
+  actionsSlot?: HTMLElement | null;
+  /** Lets the panel drop its padding and its scrolling while the editor owns the area. */
+  onEditingChange?: (editing: boolean) => void;
 }
 
-export function MarkdownPane({ uid, pageIndex, value, children, editable }: MarkdownPaneProps) {
+export function MarkdownPane({
+  uid,
+  pageIndex,
+  value,
+  children,
+  editable,
+  actionsSlot = null,
+  onEditingChange,
+}: MarkdownPaneProps) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
@@ -51,6 +68,10 @@ export function MarkdownPane({ uid, pageIndex, value, children, editable }: Mark
   /** This pane's entry on the session's history, while it is still there. */
   const [entryId, setEntryId] = useState<number | null>(null);
   const myEntry = entryId === null ? undefined : entries.find((entry) => entry.id === entryId);
+
+  useEffect(() => {
+    onEditingChange?.(editing);
+  }, [editing, onEditingChange]);
 
   const startEditing = useCallback(async () => {
     if (uid === undefined) return;
@@ -75,13 +96,7 @@ export function MarkdownPane({ uid, pageIndex, value, children, editable }: Mark
         setError(writeErrorText(t, outcome));
         return;
       }
-      const entry = recordEdit({
-        uid,
-        pageIndex,
-        field: "markdown",
-        before: baseValue,
-        after: text,
-      });
+      const entry = recordEdit({ uid, pageIndex, field: "markdown", before: baseValue, after: text });
       setEntryId(entry.id);
       setEditing(false);
     } finally {
@@ -101,85 +116,90 @@ export function MarkdownPane({ uid, pageIndex, value, children, editable }: Mark
     }
   }, [myEntry, undoEntry, t]);
 
+  const cancel = useCallback(() => setEditing(false), []);
+
+  /** The panel's footer buttons for whichever mode this pane is in. */
+  const actions =
+    actionsSlot === null
+      ? null
+      : createPortal(
+          editing ? (
+            <>
+              <button
+                className="rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                onClick={cancel}
+                disabled={saving}
+                title={t("block.escapeHint")}
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                className="rounded bg-primary px-2 py-0.5 text-[11px] text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                onClick={() => void save()}
+                disabled={saving || text === baseValue}
+                title={t("block.saveKeysHint")}
+              >
+                {t("common.save")}
+              </button>
+            </>
+          ) : (
+            <>
+              {myEntry !== undefined && (
+                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                  <Check className="h-3 w-3" />
+                  {t("block.saved")}
+                </span>
+              )}
+              {myEntry !== undefined && (
+                <button
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  onClick={() => void undo()}
+                  disabled={saving}
+                  title={t("block.undo")}
+                >
+                  <Undo2 className="h-3 w-3" />
+                  {t("block.undo")}
+                </button>
+              )}
+              {editable && (
+                <button
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  onClick={() => void startEditing()}
+                  title={t("markdown.edit")}
+                >
+                  <Pencil className="h-3 w-3" />
+                  {t("markdown.edit")}
+                </button>
+              )}
+            </>
+          ),
+          actionsSlot,
+        );
+
   if (editing) {
     return (
-      // Fills the panel while editing: a page's Markdown is the thing being worked on, so it
-      // gets the space, and the two buttons sit at the bottom of the panel instead of
-      // floating under a short editor with empty space beneath them.
-      <div className="flex h-full min-h-0 flex-col gap-2">
-        {/* A18: the editor names its target — the Blocks view is not what is being changed.
-            Nothing else is said here: the keys are on the buttons' tooltips, and a line of
-            explanation in the reader's way is worse than no line. */}
-        <span className="shrink-0 text-xs font-medium">{t("markdown.editing")}</span>
-
+      // The editor is the whole area: no padding to look at, no border to look at, and it
+      // scrolls inside itself. The error, when there is one, is a line above it — rare
+      // enough not to deserve space, important enough to be seen without hunting.
+      <div className="flex h-full min-h-0 flex-col">
+        {error !== null && <p className="shrink-0 px-3 py-1 text-xs text-destructive">{error}</p>}
         <SourceEditorField
           className="min-h-0 flex-1"
           value={baseValue}
           language="markdown"
           onValueChange={setText}
           onSave={() => void save()}
-          onCancel={() => setEditing(false)}
+          onCancel={cancel}
         />
-
-        {error !== null && <p className="shrink-0 text-xs text-destructive">{error}</p>}
-
-        <div className="flex shrink-0 items-center justify-end gap-1">
-          <button
-            className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
-            onClick={() => setEditing(false)}
-            disabled={saving}
-            title={t("block.escapeHint")}
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            className="rounded bg-primary px-2 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            onClick={() => void save()}
-            disabled={saving || text === baseValue}
-            title={t("block.saveKeysHint")}
-          >
-            {t("common.save")}
-          </button>
-        </div>
+        {actions}
       </div>
     );
   }
 
   return (
-    <div>
-      {editable && (
-        <div className="mb-2 flex items-center gap-2">
-          {myEntry !== undefined && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
-              <Check className="h-3 w-3" />
-              {t("block.saved")}
-            </span>
-          )}
-          {myEntry !== undefined && (
-            <button
-              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
-              onClick={() => void undo()}
-              disabled={saving}
-              title={t("block.undo")}
-            >
-              <Undo2 className="h-3 w-3" />
-              {t("block.undo")}
-            </button>
-          )}
-          <button
-            className="ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
-            onClick={() => void startEditing()}
-            title={t("markdown.edit")}
-          >
-            <Pencil className="h-3 w-3" />
-            {t("markdown.edit")}
-          </button>
-        </div>
-      )}
-
-      {error !== null && !editing && <p className="mb-2 text-xs text-destructive">{error}</p>}
-
+    <>
       {children}
-    </div>
+      {actions}
+    </>
   );
 }

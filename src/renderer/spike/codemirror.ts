@@ -181,7 +181,43 @@ async function main(): Promise<void> {
   })
   html.destroy()
 
+  // ---- who owns the scrollbar ---------------------------------------------------
+  // A long document must scroll **inside** the editor, and the box around it must not
+  // scroll at all: the panel gives the editor an exact height, and the editor is the only
+  // thing that moves. Two scrollbars for one document is what the reader reported.
+  const outer = document.createElement("div")
+  outer.style.height = "200px"
+  outer.style.overflow = "hidden"
+  document.body.appendChild(outer)
+  const longText = Array.from({ length: 200 }, (_, index) => `line ${index + 1}`).join("\n")
+  const longEditor = await createSourceEditor({
+    parent: outer,
+    value: longText,
+    language: "markdown",
+    dark: true,
+    onSave: () => undefined,
+    onCancel: () => undefined,
+    onValueChange: () => undefined,
+  })
+  const scroller = outer.querySelector(".cm-scroller")
+  checks.push({
+    what: "a long page scrolls inside the editor",
+    ok: scroller !== null && scroller.scrollHeight > scroller.clientHeight + 10,
+    detail:
+      scroller === null
+        ? "no scroller"
+        : `${scroller.scrollHeight}px of content in ${scroller.clientHeight}px`,
+  })
+  checks.push({
+    what: "and the box around it does not scroll",
+    ok: outer.scrollHeight <= outer.clientHeight + 1,
+    detail: `${outer.scrollHeight}px of content in ${outer.clientHeight}px`,
+  })
+  longEditor.destroy()
+  outer.remove()
+
   report(checks)
+
 }
 
 void main().catch((error: unknown) => {

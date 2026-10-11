@@ -123,7 +123,10 @@ export function SourceEditorField({
     <div>
       <div
         ref={host}
-        className={`overflow-hidden rounded border border-primary bg-background ${className}`}
+        // No border: the box is the panel. A block card draws its own outline around the
+        // whole card and asks for one; the Markdown pane wants the text, edge to edge.
+        className={`overflow-hidden bg-background ${className}`}
+
         style={{ fontSize: "var(--reading-font-size, 14px)" }}
       />
       {error !== null && <p className="mt-1 text-xs text-destructive">{error}</p>}
