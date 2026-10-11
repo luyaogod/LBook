@@ -57,9 +57,9 @@ export const en = {
   "home.unknownBook": "this book",
   "home.leftoversTitle": "{{count}} old .lbook packages in {{dir}}",
   "home.leftoversBody":
-    "A book is a folder now, so the app cannot read these. Convert them once, from a terminal:",
+    "These are the packages from before the migration. A book is a folder now, and the one-way converter was removed once every book had been moved (DESIGN.md 6.4 has it in git history). The app does not touch anything here.",
   "home.leftoversHint":
-    "It only plans by default — add --apply to write the folders. The packages themselves are left exactly where they are.",
+    "Once you are happy with the folder layout, delete them yourself — the app never will.",
   "home.leftoversShowFolder": "Show the folder",
   "home.leftoversHide": "Hide",
   "home.addFailed": "Could not add that folder.",

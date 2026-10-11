@@ -47,8 +47,9 @@ export const zhCN: Record<TranslationKeys, string> = {
     "把“{{title}}”从书库移除？\n\n文件夹与其中的文件不会被删除——应用只是不再列出它。你随时可以把这个文件夹再加回来。",
   "home.unknownBook": "这本书",
   "home.leftoversTitle": "{{dir}} 里有 {{count}} 个旧的 .lbook 包",
-  "home.leftoversBody": "现在的书是一个文件夹，所以应用读不了这些。请在终端里做一次性转换：",
-  "home.leftoversHint": "默认只出计划——加 --apply 才真正写入文件夹。原来的包会原封不动留在原地。",
+  "home.leftoversBody":
+    "这些是迁移前的旧包。现在的书是一个文件夹，而一次性转换器在全部书都搬完之后就删掉了（取回方法见 DESIGN.md 第 6.4 节）。应用不会动这里的任何东西。",
+  "home.leftoversHint": "确认新布局没问题之后，你可以自己把它们删掉——应用永远不会替你删。",
   "home.leftoversShowFolder": "打开所在文件夹",
   "home.leftoversHide": "隐藏",
   "home.addFailed": "无法添加这个文件夹。",

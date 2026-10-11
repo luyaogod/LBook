@@ -85,11 +85,13 @@ export function HomePage({ onOpenBook, onAddBook, onEditBook, notice = null, ref
   }, []);
 
   /**
-   * Old packages in the default location.
+   * Old packages sitting in the default location.
    *
-   * The migration is a one-time script rather than an app feature: this build has no
-   * zip reader and no database (A12), so the honest thing is to say the command and
-   * open the folder rather than offer a button that cannot work.
+   * This build reads folders only (A12), so it cannot open them — and it cannot convert
+   * them either: the converter did its work on every book and was then deleted
+   * (`DESIGN.md` 6.4 says how to fetch it back from history). So the banner says what
+   * these files are, says plainly that the app will not touch them, and offers the
+   * folder. Naming a command that no longer exists would be worse than saying nothing.
    */
   const leftoverBanner =
     leftovers && !leftoversHidden ? (
@@ -102,9 +104,6 @@ export function HomePage({ onOpenBook, onAddBook, onEditBook, notice = null, ref
                 {t("home.leftoversTitle", { count: leftovers.files.length, dir: leftovers.dir })}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">{t("home.leftoversBody")}</p>
-              <code className="mt-1.5 block rounded bg-background px-2 py-1 text-xs">
-                npm run migrate:folders
-              </code>
               <p className="mt-1 text-xs text-muted-foreground">{t("home.leftoversHint")}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1">

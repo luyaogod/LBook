@@ -20,9 +20,10 @@ import { readField, writeField as writeBookField } from "../library/edit"
 /**
  * The extension of the old package format.
  *
- * A literal rather than an import from `src/main/migrate/`: the running app knows
- * nothing about `.lbook` (A12), and the only reason this name appears at all is to
- * notice old files sitting in the default location and point at the one-time script.
+ * A literal rather than an import from `src/main/migrate/` (deleted once the migration
+ * was done): the running app knows nothing about `.lbook` (A12). The name appears only
+ * so the interface can notice old files sitting in the default location and say that
+ * they are not the app's to touch.
  */
 const LEFTOVER_EXTENSION = ".lbook"
 

@@ -12,47 +12,49 @@
 
 > 实现：`src/main/library/watch.ts`（每本书一个 `fs.watch`，300ms 去抖，挂不上时降级为 30s 轮询）、`OpenBook.isStale()`（每次读都比较 `meta.json`/`ocr.json` 的 `mtime+size`，约 20µs）、`app.on("browser-window-focus")` 重扫 + `library:refresh`、渲染层的 `useBookChange()` 把版本号喂给三个数据 hook（**只换数据，不动页码与滚动**）。`book.pdf` 被替换的情况不在范围内：重开这本书即可。
 
-- [ ] `fs.watch` 挂在**已登记的那些书文件夹**上（台账里每个 path 一个 watcher，而不是扫一个库目录；上限很多时只挂父目录或降级到轮询），去抖 300ms。
-- [ ] 窗口聚焦时重扫一次（`app.on("browser-window-focus")` 或渲染层的 `visibilitychange` → IPC）——网络盘/移动盘上 watch 不可靠，聚焦重扫是兜底。
-- [ ] 正在读的那一页所在文件变了：**只重读该页**（用 `mtimeMs + size` 判断），保持页码与滚动位置。
-- [ ] `ocr.json` 变了：偏移索引失效重扫（这是唯一的失效条件；缩进被改、换行被改都归到这里）。
-- [ ] 显式的"刷新"按钮（书库页右上角），并做 30s 轮询兜底（仅当 watcher 报告过失败时启用）。
-- [ ] 主进程到渲染层的通知通道：`library:changed` / `book:changed` 事件（参考现有的 `UPDATE_STATUS_EVENT` 写法）。
-- [ ] 不要在看 PDF 时把整页闪一下：重读只替换数据，不重挂载查看器。
+- [x] `fs.watch` 挂在**已登记的那些书文件夹**上（台账里每个 path 一个 watcher，而不是扫一个库目录；上限很多时只挂父目录或降级到轮询），去抖 300ms。
+- [x] 窗口聚焦时重扫一次（`app.on("browser-window-focus")` 或渲染层的 `visibilitychange` → IPC）——网络盘/移动盘上 watch 不可靠，聚焦重扫是兜底。
+- [x] 正在读的那一页所在文件变了：**只重读该页**（用 `mtimeMs + size` 判断），保持页码与滚动位置。
+- [x] `ocr.json` 变了：偏移索引失效重扫（这是唯一的失效条件；缩进被改、换行被改都归到这里）。
+- [x] 显式的"刷新"按钮（书库页右上角），并做 30s 轮询兜底（仅当 watcher 报告过失败时启用）。
+- [x] 主进程到渲染层的通知通道：`library:changed` / `book:changed` 事件（参考现有的 `UPDATE_STATUS_EVENT` 写法）。
+- [x] 不要在看 PDF 时把整页闪一下：重读只替换数据，不重挂载查看器。
 
 ### T2 校验器（一套消息，两处用）✅ 已完成
 
 > 实现：`src/shared/validateBook.ts`（规则 + 文案，零依赖、不做 I/O、**永不抛异常**）+ `src/main/library/inspect.ts`（把输入读齐）。额外发现并补上的一条：逐页切片读法对"页与页之间少一个逗号"是免疫的，所以深度检查还会整份 `JSON.parse` 一次——否则这份文件对本应用没事、对别的工具却是坏的。
 
-- [ ] `src/shared/validateBook.ts`：输入"一个书文件夹的原始内容摘要"，输出 `Issue[]`（`{ level: "error"|"warn", file, message, offset?, jsonPath? }`）。
-  - [ ] `meta.json`：缺 `uid` / `pageCount` 非数字 / `ocrFile` 指向不存在的文件。
-  - [ ] `ocr.json`：找不到 `layoutParsingResults`；某页元素不是对象；`parsing_res_list` 不是数组；`block_bbox` 不是 4 个数。
-  - [ ] 交叉：页文件数与 `pageCount` 与 PDF 页数三者不一致 → 提示"**页码可能整体移位**"（页号 = 数组下标，A8）。
-  - [ ] `toc.json`：复用现有 `parseToc` 的消息。
-  - [ ] `book.pdf`：文件头不是 `%PDF-`。
-- [ ] 单测：每条规则一个用例；**坏到极致也不能抛异常**（校验器自己崩了就等于书库崩了）。
+- [x] `src/shared/validateBook.ts`：输入"一个书文件夹的原始内容摘要"，输出 `Issue[]`（`{ level: "error"|"warn", file, message, offset?, jsonPath? }`）。
+  - [x] `meta.json`：缺 `uid` / `pageCount` 非数字 / `ocrFile` 指向不存在的文件。
+  - [x] `ocr.json`：找不到 `layoutParsingResults`；某页元素不是对象；`parsing_res_list` 不是数组；`block_bbox` 不是 4 个数。
+  - [x] 交叉：页文件数与 `pageCount` 与 PDF 页数三者不一致 → 提示"**页码可能整体移位**"（页号 = 数组下标，A8）。
+  - [x] `toc.json`：复用现有 `parseToc` 的消息。
+  - [x] `book.pdf`：文件头不是 `%PDF-`。
+- [x] 单测：每条规则一个用例；**坏到极致也不能抛异常**（校验器自己崩了就等于书库崩了）。
 
 ### T3 书库里的"需要修复" ✅ 已完成
 
 > 实现：列表行的徽标 + 原因（已有），加一个 **Check** 按钮展开明细：每条给出文件、人话、`jsonPath`、字节偏移，并配 "Open" 与 "Show in folder"。坏书仍可点开（能读多少读多少）。
 
-- [ ] `listBooks` 返回的 `problem` 在列表项上显示成一个徽标 + 一句人话（不是堆栈）。
-- [ ] 展开明细：文件名、JSON 路径（`layoutParsingResults[300]`）、**字节偏移**、期望什么。
-- [ ] 坏书仍然可以点开（能读多少读多少），不能因为一本坏挡住整个书库。
+- [x] `listBooks` 返回的 `problem` 在列表项上显示成一个徽标 + 一句人话（不是堆栈）。
+- [x] 展开明细：文件名、JSON 路径（`layoutParsingResults[300]`）、**字节偏移**、期望什么。
+- [x] 坏书仍然可以点开（能读多少读多少），不能因为一本坏挡住整个书库。
 
 ### T4 打开位置与外部编辑器 ✅ 已完成
 
 > 实现：`library:openPath` / `library:showInFolder`（按**角色**取名：`folder`/`meta`/`ocr`/`toc`/`pdf`/`cover`，路径由 `Library.resolveFile()` 解析）+ 首页的 Refresh 与 “Show the folder”。
 
-- [ ] "在资源管理器中显示"（`shell.showItemInFolder`）与"用系统默认程序打开该文件"（`shell.openPath`）——库根、书文件夹、`ocr.json`、`meta.json` 各一个入口。
-- [ ] 沿用 `settings:revealLibraryDir` 的写法（错误要回传给渲染层显示，不要静默）。
+- [x] "在资源管理器中显示"（`shell.showItemInFolder`）与"用系统默认程序打开该文件"（`shell.openPath`）——库根、书文件夹、`ocr.json`、`meta.json` 各一个入口。
+- [x] 沿用 `settings:revealLibraryDir` 的写法（错误要回传给渲染层显示，不要静默）。
 
 ### T5 未迁移的 `.lbook` ✅ 已完成
 
-> 实现：`library:leftovers` 找出默认位置里的旧包，首页顶部一条可隐藏的提示写明命令（`npm run migrate:folders`，默认只出计划、加 `--apply` 才写）并说明原包不会被删。应用自己不跑迁移：A12 之后它既没有 zip 读取器也没有数据库，承诺一个做不到的按钮不如说清命令。
+> 实现：`library:leftovers` 找出默认位置里的旧包，首页顶部一条可隐藏的提示说明它们是什么、**应用不会动它们**，并给一个打开所在文件夹的入口。
+>
+> **2026-10-11 修正**：这条提示原先写着 `npm run migrate:folders`，而那个脚本在 Phase 3 随迁移代码一起删掉了——照它输入只会得到 `Missing script`。文案改成：这些是迁移前的旧包、一次性转换器在全部书都搬完之后已删除（取回见 `DESIGN.md` 6.4）、这里的东西应用一个字节都不碰、看着没问题就自己删掉。**界面里不该出现仓库里不存在的命令。**
 
-- [ ] 迁移是一次的（A12/A13，由脚本跑完）；这里只处理“迁移之后又冒出来的旧包”：在默认新建位置里发现 `.lbook` 时提示一次，给个入口跑迁移。
-- [ ] 迁移完提示"原包保留着，确认新布局没问题后可以自己删掉"。
+- [x] 迁移是一次的（A12/A13，由脚本跑完）；这里只处理“迁移之后又冒出来的旧包”：在默认新建位置里发现 `.lbook` 时提示一次。~~给个入口跑迁移~~ → **转换器已随 Phase 3 删除**，所以入口是“打开所在文件夹”，而不是承诺一个做不到的按钮。
+- [x] 迁移完提示"原包保留着，确认新布局没问题后可以自己删掉"（2026-10-11 文案修正后为真）。
 
 ---
 
