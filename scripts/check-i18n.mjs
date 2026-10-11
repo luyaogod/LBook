@@ -77,8 +77,14 @@ for (const file of walk(ROOT)) {
   const lineOf = (index) => source.slice(0, index).split("\n").length
   const line = (index) => source.slice(0, index).split("\n").length
 
-  // 1. JSX text nodes, single- or multi-line.
-  for (const match of withoutConsole.matchAll(/>([^<>{}]+)</gs)) {
+  // 1. JSX text nodes, single- or multi-line — .tsx only.
+  //
+  // Not .ts: there is no JSX there, and the pattern cannot tell a type from a tag. It
+  // read `=> Promise<UndoOutcome>` as the text between two tags and reported `Promise`
+  // as untranslated copy, which is the kind of false positive that gets a lint turned
+  // off. `.ts` files still go through the visible-attribute rule below.
+  const jsxText = file.endsWith(".tsx") ? withoutConsole : ""
+  for (const match of jsxText.matchAll(/>([^<>{}]+)</gs)) {
     const text = match[1]
     if (!looksLikeCopy(text)) continue
     // A text node is reported once per occurrence; the offset inside `withoutConsole`

@@ -13,11 +13,12 @@
 | `usePdfPage.ts` | 取单页 OCR 数据 |
 | `useFlowPages.ts` | Flow 模式的页面缓存与相邻页预取 |
 | `useBookChange.ts` | 订阅"这本书的文件变了"，返回一个自增的版本号；三个数据 hook 把它当 effect 依赖，于是**只换数据、不动页码与滚动位置** |
+| `useEditHistory.ts` | 一本书的勘误历史与**唯一一处撤销**：从 `lib/editHistory.ts` 读（`useSyncExternalStore`），撤销就是再走一次 `writeField`（写 `before`、`after` 当 `baseValue`），成功才从历史里去掉。被拒时**不移除**——文件已经往前走了，留着比假装成功好 |
 | `useBookToc.ts` | 读取书文件夹里的 `toc.json` 并摊平成树（只读：目录是用户的文件，应用不写回） |
 
 ## 对外接口
 
-`usePdfDocumentProxy(bookId)`、`useBook(uid)`、`usePdfPage(uid, pageNum)`、`useFlowPages(uid)`、`useBookToc(uid)`、`useBookChange(uid)`。
+`usePdfDocumentProxy(bookId)`、`useBook(uid)`、`usePdfPage(uid, pageNum)`、`useFlowPages(uid)`、`useBookToc(uid)`、`useBookChange(uid)`、`useEditHistory(uid)`、`describeEntry(entry, t, snippet)`。
 
 ## 依赖方向
 

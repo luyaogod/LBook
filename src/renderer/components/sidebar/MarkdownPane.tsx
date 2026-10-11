@@ -2,6 +2,9 @@ import { useCallback, useState, type ReactNode } from "react";
 import { Check, Pencil, Undo2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { readField, writeField } from "@/api/pdfs";
+import { recordEdit } from "@/lib/editHistory";
+import { useEditHistory } from "@/hooks/useEditHistory";
+import { writeErrorText } from "@/lib/writeError";
 
 /**
  * This page's Markdown, and the way to correct it.
@@ -42,8 +45,10 @@ export function MarkdownPane({ uid, pageIndex, value, children, editable }: Mark
   const [baseValue, setBaseValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** What the last save replaced, so it can be put back in one write. */
-  const [written, setWritten] = useState<{ before: string; after: string } | null>(null);
+  const { entries, undo: undoEntry } = useEditHistory(uid);
+  /** This pane's entry on the session's history, while it is still there. */
+  const [entryId, setEntryId] = useState<number | null>(null);
+  const myEntry = entryId === null ? undefined : entries.find((entry) => entry.id === entryId);
 
   const startEditing = useCallback(async () => {
     if (uid === undefined) return;
@@ -65,11 +70,17 @@ export function MarkdownPane({ uid, pageIndex, value, children, editable }: Mark
     try {
       const outcome = await writeField({ uid, pageIndex, field: "markdown", value: text, baseValue });
       if (!outcome.ok) {
-        // Our own words come back as a key; anything else is shown as it came.
-        setError(outcome.code ? t(outcome.code as never, { defaultValue: outcome.error }) : outcome.error);
+        setError(writeErrorText(t, outcome));
         return;
       }
-      setWritten({ before: baseValue, after: text });
+      const entry = recordEdit({
+        uid,
+        pageIndex,
+        field: "markdown",
+        before: baseValue,
+        after: text,
+      });
+      setEntryId(entry.id);
       setEditing(false);
     } finally {
       setSaving(false);
@@ -77,26 +88,16 @@ export function MarkdownPane({ uid, pageIndex, value, children, editable }: Mark
   }, [uid, pageIndex, text, baseValue, t]);
 
   const undo = useCallback(async () => {
-    if (written === null || uid === undefined) return;
+    if (myEntry === undefined) return;
     setSaving(true);
     setError(null);
     try {
-      const outcome = await writeField({
-        uid,
-        pageIndex,
-        field: "markdown",
-        value: written.before,
-        baseValue: written.after,
-      });
-      if (!outcome.ok) {
-        setError(outcome.code ? t(outcome.code as never, { defaultValue: outcome.error }) : outcome.error);
-        return;
-      }
-      setWritten(null);
+      const outcome = await undoEntry(myEntry);
+      if (!outcome.ok) setError(writeErrorText(t, { error: outcome.error ?? "", code: outcome.code }));
     } finally {
       setSaving(false);
     }
-  }, [written, uid, pageIndex, t]);
+  }, [myEntry, undoEntry, t]);
 
   if (editing) {
     return (
@@ -158,13 +159,13 @@ export function MarkdownPane({ uid, pageIndex, value, children, editable }: Mark
     <div>
       {editable && (
         <div className="mb-2 flex items-center gap-2">
-          {written !== null && (
+          {myEntry !== undefined && (
             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
               <Check className="h-3 w-3" />
               {t("block.saved")}
             </span>
           )}
-          {written !== null && (
+          {myEntry !== undefined && (
             <button
               className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={() => void undo()}

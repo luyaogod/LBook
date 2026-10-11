@@ -10,6 +10,9 @@ import rehypeRaw from "rehype-raw";
 import { resolveAssetUrls } from "@shared/urls";
 import { useTranslation } from "react-i18next";
 import { readField, writeField } from "@/api/pdfs";
+import { recordEdit } from "@/lib/editHistory";
+import { useEditHistory } from "@/hooks/useEditHistory";
+import { writeErrorText } from "@/lib/writeError";
 
 /**
  * One OCR block, as plain output — and, in page-flip mode, as an editable field.
@@ -90,8 +93,16 @@ export function BlockCard({
   const [baseValue, setBaseValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** The value this card wrote, so a single-step undo can put the old one back. */
-  const [written, setWritten] = useState<{ before: string; after: string } | null>(null);
+  const { entries, undo: undoEntry } = useEditHistory(bookUid);
+  /**
+   * The entry this card put on the session's history, if it is still there.
+   *
+   * Not "the last edit", which is what an undo button usually means: the reader may have
+   * corrected something else since, or pressed Ctrl+Z, and this button must not undo a
+   * different field. When the entry is gone the button goes with it.
+   */
+  const [entryId, setEntryId] = useState<number | null>(null);
+  const myEntry = entryId === null ? undefined : entries.find((entry) => entry.id === entryId);
 
   const startEditing = useCallback(
     async (event?: React.MouseEvent) => {
@@ -126,12 +137,19 @@ export function BlockCard({
         baseValue,
       });
       if (!outcome.ok) {
-        // Our own messages arrive as a key (translatable); anything else is shown as
-        // it came, which is how a vendor's or the filesystem's wording survives.
-        setError(outcome.code ? t(outcome.code as never, { defaultValue: outcome.error }) : outcome.error);
+        setError(writeErrorText(t, outcome));
         return;
       }
-      setWritten({ before: baseValue, after: text });
+      // Only the difference is remembered: the two strings, not a page's bytes.
+      const entry = recordEdit({
+        uid: bookUid,
+        pageIndex,
+        field: "block_content",
+        blockIndex: block.block_index,
+        before: baseValue,
+        after: text,
+      });
+      setEntryId(entry.id);
       setEditing(false);
       // The page re-reads on its own: main announces the write and the data hooks
       // follow that event, so there is one refresh path rather than two.
@@ -141,26 +159,18 @@ export function BlockCard({
   }, [pageIndex, bookUid, block.block_index, text, baseValue, t]);
 
   const undo = useCallback(async () => {
-    if (written === null || pageIndex === undefined || bookUid === undefined) return;
+    if (myEntry === undefined) return;
     setSaving(true);
+    setError(null);
     try {
-      const outcome = await writeField({
-        uid: bookUid,
-        pageIndex,
-        field: "block_content",
-        blockIndex: block.block_index,
-        value: written.before,
-        baseValue: written.after,
-      });
-      if (!outcome.ok) {
-        setError(outcome.code ? t(outcome.code as never, { defaultValue: outcome.error }) : outcome.error);
-        return;
-      }
-      setWritten(null);
+      const outcome = await undoEntry(myEntry);
+      // A refusal leaves the entry in place: the file has moved on, so there is nothing
+      // to put back, and keeping it means the reader can see what happened.
+      if (!outcome.ok) setError(writeErrorText(t, { error: outcome.error ?? "", code: outcome.code }));
     } finally {
       setSaving(false);
     }
-  }, [written, pageIndex, bookUid, block.block_index, t]);
+  }, [myEntry, undoEntry, t]);
 
   if (editing) {
     return (
@@ -243,7 +253,7 @@ export function BlockCard({
     >
       <div className="mb-1 flex items-center gap-2">
         <BlockLabel label={block.block_label} colors={colors} />
-        {written !== null && (
+        {myEntry !== undefined && (
           <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
             {t("block.saved")}
           </span>
@@ -292,7 +302,7 @@ export function BlockCard({
         </button>
       )}
 
-      {written !== null && (
+      {myEntry !== undefined && (
         <button
           className="absolute right-8 bottom-1 inline-flex items-center gap-1 rounded-md bg-accent px-1.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"
           onClick={(event) => {

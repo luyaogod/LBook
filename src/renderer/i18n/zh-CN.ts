@@ -109,6 +109,11 @@ export const zhCN: Record<TranslationKeys, string> = {
   "block.undo": "撤销这次修改",
   "block.reverted": "已恢复",
   "sidebar.editThisPage": "改这一页",
+  "undo.action": "撤销上一次修改",
+  "undo.nothing": "这本书还没有改过任何地方",
+  "undo.block": "第 {{page}} 页的一段文字",
+  "undo.markdown": "第 {{page}} 页的 Markdown",
+  "undo.more": "还能再撤 {{more}} 处",
   "markdown.edit": "编辑这一页的 Markdown",
   "markdown.editing": "正在编辑：这一页的 Markdown",
   "markdown.sourceHint":

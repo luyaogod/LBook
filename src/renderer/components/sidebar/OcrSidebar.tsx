@@ -1,10 +1,13 @@
 import { BlockCard } from "./BlockCard";
 import { MarkdownPane } from "./MarkdownPane";
+import { describeEntry, useEditHistory } from "@/hooks/useEditHistory";
+import { snippetOf } from "@/lib/editHistory";
+import { writeErrorText } from "@/lib/writeError";
 import type { OcrBlock } from "@/types";
 import { PageNav } from "@/components/viewer/PageNav";
 import { SelectionPopup } from "@/components/translate/SelectionPopup";
 import { useFlowPages } from "@/hooks/useFlowPages";
-import { CheckCircle, Copy, Loader2, AlignLeft, FileText, Eye, EyeOff, ArrowLeftRight, ArrowDownUp, Maximize2, Minimize2, PanelRightClose, Pencil } from "lucide-react";
+import { CheckCircle, Copy, Loader2, AlignLeft, FileText, Eye, EyeOff, ArrowLeftRight, ArrowDownUp, Maximize2, Minimize2, PanelRightClose, Pencil, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -154,6 +157,16 @@ export function OcrSidebar({
   // Markdown is the default: it is the shape the text was reconstructed into,
   // and the one a proof-reader reads top to bottom.
   const [viewMode, setViewMode] = useState<"blocks" | "markdown">("markdown");
+  /**
+   * The session's corrections to this book, and the way to reverse the last one.
+   *
+   * This is the panel's, not the editors': an editor offers to undo *its own* save, and
+   * that button has to keep meaning its own. But after flipping a few pages the reader
+   * needs the other one — "put back what I just did", wherever it was.
+   */
+  const { entries: editHistory, undo: undoEdit } = useEditHistory(bookUid);
+  const [undoError, setUndoError] = useState<string | null>(null);
+  const lastEdit = editHistory.length > 0 ? (editHistory[editHistory.length - 1] ?? null) : null;
   const listRef = useRef<HTMLDivElement>(null);
   const prevPageNumRef = useRef(pageNum);
 
@@ -375,6 +388,45 @@ export function OcrSidebar({
   // instead — and the buttons must highlight whichever one is really on screen.
   const effectiveMode = viewMode === "markdown" && hasMarkdown ? "markdown" : "blocks";
 
+  const runUndo = useCallback(
+    async (entry: NonNullable<typeof lastEdit>) => {
+      const outcome = await undoEdit(entry);
+      // A refusal means the file moved on (edited outside the app, or the correction was
+      // already put back). Say so, and leave the entry there rather than pretending.
+      setUndoError(outcome.ok ? null : writeErrorText(t, { error: outcome.error ?? "", code: outcome.code }));
+    },
+    [undoEdit, t],
+  );
+
+  /**
+   * Ctrl+Z, as long as the reader is not typing.
+   *
+   * Inside a textarea Ctrl+Z belongs to the textarea — that is the browser's own undo of
+   * what is being typed, and taking it away would be a bug, not a feature. So a key press
+   * that reaches a field is left alone, and this only handles the "nothing is open, put
+   * back what I just did" case.
+   */
+  useEffect(() => {
+    const isTyping = (target: EventTarget | null): boolean => {
+      const element = target as HTMLElement | null
+      if (element === null) return false
+      const tag = element.tagName
+      return tag === "INPUT" || tag === "TEXTAREA" || element.isContentEditable
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "z" || event.shiftKey) return
+      if (!event.ctrlKey && !event.metaKey) return
+      if (isTyping(event.target)) return
+      if (lastEdit === null) return
+      event.preventDefault()
+      void runUndo(lastEdit)
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [lastEdit, runUndo]);
+
   /** Leaves flow mode on the page the reader pointed at, which is where editing lives. */
   const editPageInFlipMode = useCallback(
     (page: number) => {
@@ -479,7 +531,32 @@ export function OcrSidebar({
         >
           {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </Button>
+
+        {/* The last correction, whichever editor made it. Disabled — not hidden — when
+            there is nothing to undo, so the row does not move. */}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="h-7 w-7"
+          disabled={lastEdit === null}
+          onClick={() => lastEdit !== null && void runUndo(lastEdit)}
+          title={
+            lastEdit === null
+              ? t("undo.nothing")
+              : [
+                  t("undo.action"),
+                  describeEntry(lastEdit, t, snippetOf(lastEdit.after)),
+                  editHistory.length > 1 ? t("undo.more", { more: editHistory.length - 1 }) : "",
+                ]
+                  .filter((part) => part !== "")
+                  .join(" — ")
+          }
+        >
+          <Undo2 className="h-3.5 w-3.5" />
+        </Button>
       </div>
+
+      {undoError !== null && <p className="px-3 pb-1 text-[11px] text-destructive">{undoError}</p>}
 
       {/* Content */}
       <div ref={listRef} className="flex-1 overflow-y-auto p-3 space-y-2">

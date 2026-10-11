@@ -247,6 +247,8 @@ function validateRangeRequestCapabilities({ getResponseHeader, isHttp, rangeChun
 
 界面这一侧：块卡片 hover 出铅笔（或双击）→ **原地**变成编辑框；Markdown 视图右上角"编辑这一页的 Markdown"→ 同一个编辑器形态（`MarkdownPane.tsx`）。两者的状态机一样：`readField` 读出字段当前值当 `baseValue` → 编辑 → `Ctrl+Enter` 保存（`Esc` 取消、**失焦不保存**）→ 写成功后就地显示"已写入 ocr.json"并给一次"撤销这次修改"（写回 `before`，同样过乐观并发）。保存后主进程广播 `book:changed`，界面自己重读——**页码与滚动位置不动**。编辑只在翻页模式提供；连滚模式每页页脚给一个"改这一页"的入口（切回翻页并停在同页）。两个编辑器那点"已写入/可撤销"状态都按**页号**重新挂载，否则翻页后按钮会指向上一页。
 
+**撤销是会话内的一份历史**（`src/renderer/lib/editHistory.ts` + `hooks/useEditHistory.ts`）：每次保存只记**差异**——前后两个字符串，不带页字节、不复制文件——按 `uid` 分书存，上限 50 条（上限是为了让长会话有个界，不是指望谁手动撤 50 次）。撤销就是**再走一次写路径**：把 `before` 写回、把 `after` 当 `baseValue`，所以**外部改动会让撤销被拒**而不是悄悄覆盖；被拒的条目留在历史里，读者看得见发生了什么。界面给两个入口：编辑器上那个按钮撤**它自己那次**（记着 entry id：中途改了别处它仍撤自己那次，条目被别的撤销吃掉后按钮自行消失），栏头那个按钮与 `Ctrl+Z` 撤**最近一次**，不论出自哪个编辑器。`Ctrl+Z` 只在焦点不在输入框时接管——在文本框里它属于文本框自己的撤销，抢过来是 bug 不是功能。历史**不落盘**：重启之后文件可能已经被别的东西改过，一次"撤销"悄悄回退本会话没见过的改动，比没有撤销更糟。
+
 **Markdown 编辑器是 textarea，不是 Monaco**——这是实测之后的修订（A19 修订，见 `.agents/plan/00-decisions.md`）：Monaco 能跑、懒加载也成立（入口 chunk 不涨，2640KB 编辑器 + 296KB worker + 3KB markdown 定义各自独立），但 rolldown 会把 app 与 Monaco 共用的模块（它自己的 `__exportAll`）提进入口 chunk，于是 Monaco chunk 反过来 import 入口 chunk、vite 在加载它之前会**执行整个 app**：验它就得另起一份 vite 构建与一个 Electron 探针。对 3–13KB 的文本，这笔账不划算，而原则 4（编辑的就是源码）textarea 同样满足。
 
 字段区间由字节级状态机给出（`offsetIndex.ts` 那套再深一层），**不是**文本搜索"第 N 个 `block_content`"：块的**内容里**可能恰好出现这个字面量（HTML 片段、代码示例），搜索会改到别的字节。

@@ -120,6 +120,11 @@ export const en = {
   "block.undo": "Undo this edit",
   "block.reverted": "Put back",
   "sidebar.editThisPage": "Edit this page",
+  "undo.action": "Undo the last change",
+  "undo.nothing": "Nothing has been corrected in this book yet",
+  "undo.block": "a block on page {{page}}",
+  "undo.markdown": "the Markdown of page {{page}}",
+  "undo.more": "{{more}} more can be undone",
   "markdown.edit": "Edit this page's Markdown",
   "markdown.editing": "Editing this page's Markdown",
   "markdown.sourceHint":
