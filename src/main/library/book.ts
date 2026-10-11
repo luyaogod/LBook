@@ -1,10 +1,15 @@
 import fs from "node:fs"
 import path from "node:path"
-import { parseBookMeta, type BookMeta } from "../../shared/bookFile"
+import { BOOK_FILES, COVER_NAMES, LBOOK_DIR, parseBookMeta, type BookMeta } from "../../shared/bookFile"
 import { readSpan, scanPageSpans, type PageSpan } from "../lbook/offsetIndex"
 
 /**
  * One book folder, opened for reading.
+ *
+ * A book folder is `book.pdf` next to a `.lbook` directory holding `meta.json`,
+ * `ocr.json`, `toc.json` and the cover (see `LBOOK_DIR` in `src/shared/bookFile.ts`).
+ * Every path in this module is derived from that one convention, so there is exactly
+ * one place to look when asking "where did the OCR file go".
  *
  * `openBook` reads `meta.json` (a small file) and stops there: the OCR JSON is
  * indexed lazily, so opening a book costs one small read no matter how large the
@@ -49,8 +54,17 @@ export function fingerprintOf(file: string): FileFingerprint | null {
   }
 }
 
+/** True when the file is still the same file it was when it was read. */
+export function sameFingerprint(a: FileFingerprint | null, b: FileFingerprint | null): boolean {
+  if (a === null || b === null) return a === b
+  return a.mtimeMs === b.mtimeMs && a.size === b.size
+}
+
 export interface OpenBook {
+  /** The book folder: `book.pdf` and `.lbook/` live in here. */
   readonly dir: string
+  /** The metadata directory, `dir/.lbook`. */
+  readonly dataDir: string
   readonly meta: BookMeta
   /** Absolute path of the OCR JSON, already checked to exist. */
   readonly ocrPath: string
@@ -76,8 +90,15 @@ export interface OpenBook {
   readPage(pageNum: number): Promise<unknown>
 }
 
+/** `dir/.lbook` — the metadata directory of a book folder. */
+export function dataDirOf(dir: string): string {
+  return path.join(dir, LBOOK_DIR)
+}
+
 export async function openBook(dir: string, options: { chunkBytes?: number } = {}): Promise<OpenBook> {
-  const metaPath = path.join(dir, "meta.json")
+  const dataDir = dataDirOf(dir)
+  const metaPath = path.join(dataDir, BOOK_FILES.meta)
+
   let raw: unknown
   try {
     raw = JSON.parse(fs.readFileSync(metaPath, "utf8")) as unknown
@@ -89,12 +110,12 @@ export async function openBook(dir: string, options: { chunkBytes?: number } = {
   if (!parsed.ok) throw new Error(`${metaPath}: ${parsed.error}`)
   const meta = parsed.meta
 
-  const ocrPath = path.join(dir, meta.ocrFile)
+  const ocrPath = path.join(dataDir, meta.ocrFile)
   if (!fs.existsSync(ocrPath)) {
-    throw new Error(`${metaPath} points at ${meta.ocrFile}, which is not in the folder`)
+    throw new Error(`${metaPath} points at ${meta.ocrFile}, which is not in ${dataDir}`)
   }
 
-  const pdfPath = path.join(dir, "book.pdf")
+  const pdfPath = path.join(dir, BOOK_FILES.pdf)
 
   // The index grows on demand: `known` is what has been scanned so far, and
   // `complete` means the scan reached the end of the array (so an out-of-range
@@ -124,10 +145,12 @@ export async function openBook(dir: string, options: { chunkBytes?: number } = {
 
   return {
     dir,
+    dataDir,
     meta,
     ocrPath,
     pdfPath,
     hasPdf: fs.existsSync(pdfPath),
+
     fingerprints,
 
     isStale() {
@@ -159,15 +182,9 @@ export async function openBook(dir: string, options: { chunkBytes?: number } = {
   }
 }
 
-/** True when the file is still the same file it was when it was read. */
-export function sameFingerprint(a: FileFingerprint | null, b: FileFingerprint | null): boolean {
-  if (a === null || b === null) return a === b
-  return a.mtimeMs === b.mtimeMs && a.size === b.size
-}
-
 /** Raw `toc.json` text, or null when the book has no outline. */
 export function readTocText(dir: string): string | null {
-  const file = path.join(dir, "toc.json")
+  const file = path.join(dataDirOf(dir), BOOK_FILES.toc)
   try {
     return fs.readFileSync(file, "utf8")
   } catch {
@@ -175,11 +192,17 @@ export function readTocText(dir: string): string | null {
   }
 }
 
-/** Cover file in the book folder, or null. Served straight from disk by the protocol. */
+/** Cover file inside the metadata directory, or null. Served from disk by the protocol. */
 export function coverPath(dir: string): string | null {
-  for (const name of ["cover.jpg", "cover.jpeg", "cover.png", "cover.webp", "cover.gif"]) {
-    const file = path.join(dir, name)
+  const dataDir = dataDirOf(dir)
+  for (const name of COVER_NAMES) {
+    const file = path.join(dataDir, name)
     if (fs.existsSync(file)) return file
   }
   return null
+}
+
+/** The PDF at the top of the book folder. */
+export function pdfPathOf(dir: string): string {
+  return path.join(dir, BOOK_FILES.pdf)
 }

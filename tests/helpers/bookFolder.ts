@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { BOOK_FORMAT_VERSION, writeBookMeta, type BookMeta } from "../../src/shared/bookFile"
+import { BOOK_FORMAT_VERSION, LBOOK_DIR, writeBookMeta, type BookMeta } from "../../src/shared/bookFile"
 
 /** One page element, in PaddleOCR's own shape. */
 export function pageElement(n: number, extra: Record<string, unknown> = {}): unknown {
@@ -38,12 +38,23 @@ export interface BookFolderOptions {
   omitPdf?: boolean
   toc?: unknown
   cover?: { name: string; data: Buffer }
+  /**
+   * Write everything next to `book.pdf` instead of into `.lbook/`.
+   *
+   * That is the layout the app used before it had a metadata directory, and it is
+   * not read any more — but a folder somebody hands you may still look like this,
+   * so the code that adopts one has to be testable.
+   */
+  loose?: boolean
 }
 
 export interface BookFolder {
   dir: string
+  /** The `.lbook` directory holding the metadata (or the folder itself when loose). */
+  dataDir: string
   uid: string
   meta: BookMeta
+  metaPath: string
   ocrPath: string
   pdfPath: string
   /** The whole OCR document, as it sits on disk. */
@@ -51,8 +62,8 @@ export interface BookFolder {
 }
 
 /**
- * Writes a book folder the way the app expects to find one: `meta.json`,
- * `ocr.json`, `book.pdf`, optionally `toc.json` and a cover.
+ * Writes a book folder the way the app expects to find one: `book.pdf` and a
+ * `.lbook/` directory holding `meta.json`, `ocr.json` and the optional extras.
  *
  * Deliberately plain `fs` writes — the folder layout is the contract other tools
  * have to be able to produce by hand, so nothing here goes through app code.
@@ -60,7 +71,8 @@ export interface BookFolder {
 export function createBookFolder(options: BookFolderOptions = {}): BookFolder {
   const parent = options.parent ?? fs.mkdtempSync(path.join(os.tmpdir(), "lbook-book-"))
   const dir = path.join(parent, options.name ?? `book-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
+  const dataDir = options.loose ? dir : path.join(dir, LBOOK_DIR)
+  fs.mkdirSync(dataDir, { recursive: true })
 
   const uid = options.uid ?? "0123456789abcdef0123456789abcdef"
   const pageCount = options.pageCount ?? 3
@@ -79,7 +91,7 @@ export function createBookFolder(options: BookFolderOptions = {}): BookFolder {
     source: "test",
   }
 
-  const ocrPath = path.join(dir, meta.ocrFile)
+  const ocrPath = path.join(dataDir, meta.ocrFile)
   if (!options.omitOcr) {
     // Written the way PaddleOCR writes it: one document, not a page per file. The
     // scanner is given the real bytes so the offset index is exercised for real.
@@ -91,20 +103,21 @@ export function createBookFolder(options: BookFolderOptions = {}): BookFolder {
     fs.writeFileSync(pdfPath, Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(512, 0x41)]))
   }
 
+  const metaPath = path.join(dataDir, "meta.json")
   if (options.rawMeta !== undefined) {
-    fs.writeFileSync(path.join(dir, "meta.json"), options.rawMeta, "utf8")
+    fs.writeFileSync(metaPath, options.rawMeta, "utf8")
   } else if (!options.omitMeta) {
-    fs.writeFileSync(path.join(dir, "meta.json"), writeBookMeta(meta), "utf8")
+    fs.writeFileSync(metaPath, writeBookMeta(meta), "utf8")
   }
 
   if (options.toc !== undefined) {
-    fs.writeFileSync(path.join(dir, "toc.json"), JSON.stringify(options.toc), "utf8")
+    fs.writeFileSync(path.join(dataDir, "toc.json"), JSON.stringify(options.toc), "utf8")
   }
   if (options.cover) {
-    fs.writeFileSync(path.join(dir, options.cover.name), options.cover.data)
+    fs.writeFileSync(path.join(dataDir, options.cover.name), options.cover.data)
   }
 
-  return { dir, uid, meta, ocrPath, pdfPath, document }
+  return { dir, dataDir, uid, meta, metaPath, ocrPath, pdfPath, document }
 }
 
 /** A temp directory removed by the returned cleanup, for ledger/progress files. */

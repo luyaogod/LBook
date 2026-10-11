@@ -1,5 +1,6 @@
 import fs from "node:fs"
-import { fingerprintOf, sameFingerprint, type FileFingerprint } from "./book"
+import { BOOK_FILES } from "../../shared/bookFile"
+import { fingerprintOf, dataDirOf, sameFingerprint, type FileFingerprint } from "./book"
 
 /**
  * Watching the book folders a reader is working in.
@@ -10,14 +11,13 @@ import { fingerprintOf, sameFingerprint, type FileFingerprint } from "./book"
  * built as one accelerator with two fallbacks underneath it, because `fs.watch` on
  * Windows is not something to depend on:
  *
- *   1. `fs.watch` per book folder, debounced;
+ *   1. `fs.watch` on each book folder **and on its `.lbook` directory** (two
+ *      watchers, because a watch does not see into subdirectories: the PDF and the
+ *      cover live at different levels, and the ocr.json that matters most lives in
+ *      the metadata directory);
  *   2. the window-focus rescan the main process triggers (see `index.ts`);
  *   3. a 30-second poll, started **only** for folders whose watch failed to attach
  *      (a network share, a mapped drive, a folder that vanished mid-session).
- *
- * What a folder being "watched" means: a file *in that folder*. Subfolders are not
- * watched — the recursive flag is not supported everywhere — and a change down there
- * is what the poll and the focus rescan are for.
  *
  * The module is deliberately free of Electron: it reports changes, the caller
  * decides who to tell.
@@ -32,7 +32,7 @@ const POLL_MS = 30_000
 export interface BookChange {
   uid: string
   dir: string
-  /** Which of the two files this module tracks differ from what was recorded. */
+  /** Which of the files this module tracks differ from what was recorded. */
   changed: Array<"meta.json" | "ocr.json" | "other">
 }
 
@@ -54,7 +54,8 @@ export interface LibraryWatcher {
 interface WatchedBook {
   uid: string
   dir: string
-  watcher: fs.FSWatcher | null
+  /** One per level: the book folder, and its `.lbook` directory. */
+  watchers: fs.FSWatcher[]
   /** Fingerprints as of the last report, so a poll can tell "changed" from "same". */
   fingerprints: Record<string, FileFingerprint | null>
 }
@@ -81,19 +82,30 @@ export function createLibraryWatcher(input: LibraryWatcherInput = {}): LibraryWa
     for (const listener of listeners) listener(change)
   }
 
+  /** The two files whose edits the interface can act on, in the metadata folder. */
+  const trackedPaths = (dir: string): Record<string, string> => {
+    const dataDir = dataDirOf(dir)
+    return {
+      "meta.json": `${dataDir}/${BOOK_FILES.meta}`,
+      "ocr.json": `${dataDir}/ocr.json`,
+    }
+  }
+
   function tracksOf(book: WatchedBook): void {
+    const paths = trackedPaths(book.dir)
     book.fingerprints = {
-      "meta.json": fingerprintOf(`${book.dir}/meta.json`),
-      "ocr.json": fingerprintOf(`${book.dir}/ocr.json`),
+      "meta.json": fingerprintOf(paths["meta.json"]),
+      "ocr.json": fingerprintOf(paths["ocr.json"]),
       other: null,
     }
   }
 
   /** Which files differ from the recorded state; empty means "nothing we watch". */
   function differences(book: WatchedBook): Array<"meta.json" | "ocr.json" | "other"> {
+    const paths = trackedPaths(book.dir)
     const changed: Array<"meta.json" | "ocr.json" | "other"> = []
     for (const name of ["meta.json", "ocr.json"] as const) {
-      if (!sameFingerprint(book.fingerprints[name] ?? null, fingerprintOf(`${book.dir}/${name}`))) {
+      if (!sameFingerprint(book.fingerprints[name] ?? null, fingerprintOf(paths[name]))) {
         changed.push(name)
       }
     }
@@ -109,9 +121,9 @@ export function createLibraryWatcher(input: LibraryWatcherInput = {}): LibraryWa
       setTimeout(() => {
         pending.delete(book.uid)
         const changed = differences(book)
-        // A watched folder whose files we do *not* track (the PDF, a cover, a
-        // subfolder) still means "something here changed", which is worth telling
-        // the interface about — it may be the cover it renders.
+        // A watched folder whose files we do *not* track (the PDF, a cover, anything
+        // else) still means "something here changed", which is worth telling the
+        // interface about — it may be the cover it renders.
         if (changed.length === 0) changed.push("other")
         tracksOf(book)
         notify({ uid: book.uid, dir: book.dir, changed })
@@ -119,11 +131,31 @@ export function createLibraryWatcher(input: LibraryWatcherInput = {}): LibraryWa
     )
   }
 
+  /** Attaches one watch, or reports that this level could not be watched. */
+  function watchLevel(book: WatchedBook, target: string): boolean {
+    try {
+      const watcher = fs.watch(target, { persistent: false }, () => schedule(book))
+      watcher.on("error", (error) => {
+        // A watch that dies mid-session (the folder moved to a drive that fell off)
+        // falls back to the poll rather than reporting nothing.
+        warn(`[watch] stopped watching ${target}: ${error.message}`)
+        watcher.close()
+        book.watchers = book.watchers.filter((item) => item !== watcher)
+        startPolling()
+      })
+      book.watchers.push(watcher)
+      return true
+    } catch (error) {
+      warn(`[watch] cannot watch ${target}: ${(error as Error).message}`)
+      return false
+    }
+  }
+
   function startPolling(): void {
     if (pollTimer) return
     pollTimer = setInterval(() => {
       for (const book of books) {
-        if (book.watcher) continue // a real watch is already reporting this one
+        if (book.watchers.length > 0) continue // a real watch is already reporting this one
         const changed = differences(book)
         if (changed.length === 0) continue
         tracksOf(book)
@@ -134,12 +166,22 @@ export function createLibraryWatcher(input: LibraryWatcherInput = {}): LibraryWa
     pollTimer.unref?.()
   }
 
+  const unwatched = (): string[] => books.filter((book) => book.watchers.length === 0).map((book) => book.dir)
+
+  function closeAll(book: WatchedBook): void {
+    for (const watcher of book.watchers) watcher.close()
+    book.watchers = []
+    const timer = pending.get(book.uid)
+    if (timer) clearTimeout(timer)
+    pending.delete(book.uid)
+  }
+
   return {
     get degraded() {
-      return books.some((book) => book.watcher === null)
+      return unwatched().length > 0
     },
 
-    unwatched: () => books.filter((book) => book.watcher === null).map((book) => book.dir),
+    unwatched,
 
     onChange(listener) {
       listeners.push(listener)
@@ -147,54 +189,42 @@ export function createLibraryWatcher(input: LibraryWatcherInput = {}): LibraryWa
 
     sync(next) {
       // Close what is gone; keep what is still there, so an unchanged book does not
-      // lose its watcher on every ledger write.
+      // lose its watchers on every ledger write.
       const wanted = new Map(next.map((book) => [book.uid, book.dir]))
       for (const book of books) {
         if (wanted.get(book.uid) === book.dir) continue
-        book.watcher?.close()
-        const timer = pending.get(book.uid)
-        if (timer) clearTimeout(timer)
-        pending.delete(book.uid)
+        closeAll(book)
       }
 
       const kept = new Map(
-        books
-          .filter((book) => wanted.get(book.uid) === book.dir)
-          .map((book) => [book.uid, book] as const),
+        books.filter((book) => wanted.get(book.uid) === book.dir).map((book) => [book.uid, book] as const),
       )
 
       books = next.map(({ uid, dir }) => {
         const existing = kept.get(uid)
         if (existing) return existing
 
-        const book: WatchedBook = { uid, dir, watcher: null, fingerprints: {} }
+        const book: WatchedBook = { uid, dir, watchers: [], fingerprints: {} }
         tracksOf(book)
-        try {
-          const watcher = fs.watch(dir, { persistent: false }, () => schedule(book))
-          watcher.on("error", (error) => {
-            // A watch that dies mid-session (the folder was moved to a drive that
-            // fell off) falls back to the poll rather than reporting nothing.
-            warn(`[watch] stopped watching ${dir}: ${error.message}`)
-            watcher.close()
-            book.watcher = null
-            startPolling()
-          })
-          book.watcher = watcher
-        } catch (error) {
-          warn(`[watch] cannot watch ${dir}: ${(error as Error).message}`)
-        }
+
+        // A watch does not look into subdirectories, and the metadata the interface
+        // cares about lives one level down: `book.pdf` and the `.lbook` folder itself
+        // are the root's business, everything else is the directory's.
+        const rootOk = watchLevel(book, dir)
+        const dataOk = fs.existsSync(dataDirOf(dir)) ? watchLevel(book, dataDirOf(dir)) : false
+        if (!rootOk && !dataOk) startPolling()
         return book
       })
 
-      if (books.some((book) => book.watcher === null)) startPolling()
-      if (pollTimer && !books.some((book) => book.watcher === null)) {
+      if (unwatched().length > 0) startPolling()
+      if (pollTimer && unwatched().length === 0) {
         clearInterval(pollTimer)
         pollTimer = null
       }
     },
 
     dispose() {
-      for (const book of books) book.watcher?.close()
+      for (const book of books) closeAll(book)
       books = []
       if (pollTimer) clearInterval(pollTimer)
       pollTimer = null
@@ -203,3 +233,4 @@ export function createLibraryWatcher(input: LibraryWatcherInput = {}): LibraryWa
     },
   }
 }
+

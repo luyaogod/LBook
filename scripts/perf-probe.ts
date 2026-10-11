@@ -93,7 +93,7 @@ function booksFromLedger(): string[] {
       .map((book) => book.path ?? "")
       .filter((bookPath) => bookPath !== "")
       .map((bookPath) => (path.isAbsolute(bookPath) ? bookPath : path.resolve(root, bookPath)))
-      .filter((dir) => fs.existsSync(path.join(dir, "meta.json")))
+      .filter((dir) => fs.existsSync(path.join(dir, ".lbook", "meta.json")))
   } catch {
     return []
   }
@@ -141,7 +141,9 @@ interface Prepared {
 }
 
 function preparedFromDir(dir: string): Prepared {
-  const meta = JSON.parse(fs.readFileSync(path.join(dir, "meta.json"), "utf8")) as {
+  const meta = JSON.parse(
+    fs.readFileSync(path.join(dir, ".lbook", "meta.json"), "utf8"),
+  ) as {
     uid?: string
     title?: string
     ocrFile: string
@@ -151,7 +153,7 @@ function preparedFromDir(dir: string): Prepared {
     uid: meta.uid ?? null,
     title: meta.title ?? path.basename(dir),
     pdfFile: path.join(dir, "book.pdf"),
-    ocrFile: path.join(dir, meta.ocrFile),
+    ocrFile: path.join(dir, ".lbook", meta.ocrFile),
     synthetic: false,
   }
 }
@@ -180,10 +182,10 @@ function preparedFromOcr(ocrArg: string): Prepared {
   return { dir, uid: null, title: path.basename(ocrFile), pdfFile: "", ocrFile, synthetic: true }
 }
 
-/** Creates N book folders that hold only a meta.json, to price a library scan. */
+/** Creates N book folders that hold only a `.lbook/meta.json`, to price a library scan. */
 function padLibrary(count: number): number {
   for (let i = 0; i < count; i++) {
-    const dir = path.join(TEMP_ROOT, `padding-book-${i}`)
+    const dir = path.join(TEMP_ROOT, `padding-book-${i}`, ".lbook")
     fs.mkdirSync(dir, { recursive: true })
     fs.writeFileSync(
       path.join(dir, "meta.json"),
@@ -337,7 +339,9 @@ async function main(): Promise<void> {
     // and picking it to measure the JSON path would measure the wrong thing.
     const candidates = realBooks
       .map((dir) => {
-        const meta = JSON.parse(fs.readFileSync(path.join(dir, "meta.json"), "utf8")) as {
+        const meta = JSON.parse(
+          fs.readFileSync(path.join(dir, ".lbook", "meta.json"), "utf8"),
+        ) as {
           ocrFile: string
         }
         const ocrPath = path.join(dir, meta.ocrFile)
@@ -371,7 +375,7 @@ async function main(): Promise<void> {
   const scanOnce = (): number => {
     const t = process.hrtime.bigint()
     for (const dir of libraryDirs) {
-      const meta = path.join(dir, "meta.json")
+      const meta = path.join(dir, ".lbook", "meta.json")
       if (fs.existsSync(meta)) JSON.parse(fs.readFileSync(meta, "utf8"))
     }
     return ms(t, process.hrtime.bigint())
@@ -382,7 +386,7 @@ async function main(): Promise<void> {
   const { spans, ms: scanMs } = await scanOffsets(book.ocrFile)
   if (spans.length === 0) throw new Error("no layoutParsingResults in the OCR JSON")
   const t1 = process.hrtime.bigint()
-  const meta = JSON.parse(fs.readFileSync(path.join(book.dir, "meta.json"), "utf8")) as {
+  const meta = JSON.parse(fs.readFileSync(path.join(book.dir, ".lbook", "meta.json"), "utf8")) as {
     ocrFile: string
   }
   const metaMs = ms(t1, process.hrtime.bigint())

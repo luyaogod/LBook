@@ -1,22 +1,66 @@
 /**
  * The contract for a book folder's `meta.json`.
  *
- * `meta.json` is the only file we add to a book folder, and this is the only
- * module that decides its shape: parsing (used by the library listing, which
- * must never throw on a file the user hand-edited) and writing (used when a book
- * is created and when one is migrated).
+ * It now lives in the book's `.lbook` directory (see `LBOOK_DIR`), which is where
+ * every file the app owns goes; `book.pdf` stays next to that directory, visible,
+ * because it is the artifact a reader may want to open in something else.
  *
- * `ocrFile` is resolved *inside* the book folder and may not escape it. A
+ * This is the only module that decides the shape of that metadata: parsing (used by
+ * the library listing, which must never throw on a file the user hand-edited) and
+ * writing (used when a book is created or when a file is replaced).
+ *
+ * `ocrFile` is resolved *inside the `.lbook` directory* and may not escape it. A
  * meta.json pointing at `../../secrets.json` is a path-traversal request, not a
- * book, so it is a hard error. Everything else is allowed to be absent — the
- * caller turns that into a problem *on that book* rather than failing the whole
- * library.
+ * book, so it is a hard error. Everything else is allowed to be absent — the caller
+ * turns that into a problem *on that book* rather than failing the whole library.
  *
  * Zero dependencies and no I/O: it runs in the renderer's tests as happily as in
  * the main process.
  */
 
-export const BOOK_FORMAT_VERSION = 1
+export const BOOK_FORMAT_VERSION = 2
+
+/**
+ * The metadata directory inside a book folder.
+ *
+ * A book folder is one visible file plus one dot-directory:
+ *
+ * ```
+ * 经济法基础2024/
+ *   book.pdf            the scan itself, the one thing with no fixed name of ours
+ *   .lbook/             everything the app needs, out of the way
+ *     meta.json
+ *     ocr.json
+ *     toc.json
+ *     cover.png
+ * ```
+ *
+ * Same convention as Obsidian's `.obsidian` folder next to the user's notes: a
+ * leading dot, and **no Windows hidden attribute** — Obsidian does not set one
+ * either (checked on three vaults here: the attribute is plain `Directory`), the
+ * dot is the whole convention.
+ *
+ * `BOOK_FORMAT_VERSION` went from 1 to 2 when the metadata moved in here. Nothing
+ * reads a version-1 folder (this is a beta and the migration was one-way), but a
+ * `meta.json` claiming 1 is now a clear signal of a folder from before the move.
+ */
+export const LBOOK_DIR = ".lbook"
+
+/** Names the app owns, relative to a book folder. */
+export const BOOK_FILES = {
+  dir: LBOOK_DIR,
+  meta: "meta.json",
+  toc: "toc.json",
+  pdf: "book.pdf",
+} as const
+
+/**
+ * Cover file names, in the order they are looked for *inside the metadata folder*.
+ *
+ * Kept as a list rather than "cover" + any extension so a stray `cover.txt` is not
+ * served as an image, and so the order is deterministic when a book has two.
+ */
+export const COVER_NAMES = ["cover.jpg", "cover.jpeg", "cover.png", "cover.webp", "cover.gif"] as const
 
 export interface BookMeta {
   /** Bumped when the shape changes in a way older builds cannot read. */
@@ -28,7 +72,7 @@ export interface BookMeta {
   author?: string
   /** Pages as PaddleOCR reported them; cross-checked against the PDF. */
   pageCount: number
-  /** Bare file name of the OCR JSON inside this folder. */
+  /** Bare file name of the OCR JSON, **inside the `.lbook` folder**. */
   ocrFile: string
   createdAt?: string
   /** Free-form provenance, e.g. "paddleocr-vl / pp-structurev3". */
@@ -66,14 +110,13 @@ export function parseBookMeta(raw: unknown): BookMetaResult {
       error: `meta.json says formatVersion ${formatVersion}, but this build understands ${BOOK_FORMAT_VERSION}`,
     }
   }
-
   const uid = text(record.uid)
   if (uid === null) return { ok: false, error: "meta.json has no uid" }
 
   const ocrFile = text(record.ocrFile)
   if (ocrFile === null) return { ok: false, error: "meta.json has no ocrFile" }
   if (!isSafeBookFileName(ocrFile)) {
-    return { ok: false, error: `ocrFile must be a file name inside the book folder, got "${ocrFile}"` }
+    return { ok: false, error: `ocrFile must be a file name inside the .lbook folder, got "${ocrFile}"` }
   }
 
   const pageCount = record.pageCount

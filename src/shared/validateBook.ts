@@ -89,8 +89,16 @@ export type TocDigest =
 /** Everything the validator is allowed to look at. Collected by `library/inspect.ts`. */
 export interface BookDigest {
   dir: string
-  /** File names in the folder, from one `readdir`. */
+  /** File names inside the `.lbook` directory, from one `readdir`. */
   files: string[]
+  /**
+   * True when a `meta.json` sits next to `book.pdf` instead of inside `.lbook/`.
+   *
+   * Not a supported layout: the app converts a folder like that when it is added
+   * (see `adopt` in `library.ts`), so meeting one here means the reader has to be
+   * told what is wrong rather than handed "there is no meta.json".
+   */
+  looseMeta: boolean
   meta: MetaDigest
   ocr: OcrDigest
   toc: TocDigest
@@ -183,7 +191,14 @@ export function validateBook(digest: BookDigest): BookIssue[] {
   // ---- meta.json: the book's identity ------------------------------------
   let meta: ReturnType<typeof parseBookMeta> | null = null
   if (digest.meta.kind === "missing") {
-    error("meta.json", "there is no meta.json in this folder, so the app cannot tell what book it is")
+    if (digest.looseMeta) {
+      error(
+        "meta.json",
+        "this folder has meta.json next to book.pdf instead of inside .lbook/: add the folder again and the app will move it in",
+      )
+    } else {
+      error("meta.json", "there is no .lbook/meta.json in this folder, so the app cannot tell what book it is")
+    }
   } else if (digest.meta.kind === "unparseable") {
     error("meta.json", `meta.json is not valid JSON: ${digest.meta.error}`)
   } else {
@@ -197,7 +212,7 @@ export function validateBook(digest: BookDigest): BookIssue[] {
   // ---- the OCR file -------------------------------------------------------
   const ocrName = meta?.ok ? meta.meta.ocrFile : "ocr.json"
   if (digest.ocr.kind === "missing") {
-    error("ocr.json", `${ocrName} is not in this folder`)
+    error("ocr.json", `${ocrName} is not in the .lbook folder`)
   } else if (digest.ocr.kind === "unreadable") {
     error("ocr.json", `${ocrName} could not be read: ${digest.ocr.error}`)
   } else {
@@ -244,7 +259,7 @@ export function validateBook(digest: BookDigest): BookIssue[] {
     if (!digest.files.includes(meta.meta.ocrFile)) {
       // Reported by the OCR checks above as well; this line names the file the
       // meta.json itself asked for, which is the part the reader can act on.
-      error("meta.json", `meta.json points at ${meta.meta.ocrFile}, which is not in this folder`)
+      error("meta.json", `meta.json points at ${meta.meta.ocrFile}, which is not in the .lbook folder`)
     }
 
     if (digest.ocr.kind === "facts" && digest.ocr.facts.complete) {

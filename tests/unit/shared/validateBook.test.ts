@@ -31,7 +31,8 @@ function metaText(overrides: Record<string, unknown> = {}): unknown {
 function digest(overrides: Partial<BookDigest> = {}): BookDigest {
   return {
     dir: "/books/test",
-    files: ["meta.json", "ocr.json", "book.pdf"],
+    files: ["meta.json", "ocr.json", "toc.json", "cover.png"],
+    looseMeta: false,
     meta: { kind: "parsed", raw: metaText() },
     ocr: {
       kind: "facts",
@@ -61,7 +62,14 @@ describe("meta.json", () => {
     const issues = validateBook(digest({ meta: { kind: "missing" }, files: [] }))
     expect(worstLevel(issues)).toBe("error")
     expect(issues[0].file).toBe("meta.json")
-    expect(issues[0].message).toMatch(/no meta\.json/)
+    expect(issues[0].message).toMatch(/no \.lbook\/meta\.json/)
+  })
+
+  it("names the old layout when meta.json is loose next to the PDF", () => {
+    // Not a supported layout, and "there is no .lbook/meta.json" would send the
+    // reader looking for a file that is sitting right in front of them.
+    const issues = validateBook(digest({ meta: { kind: "missing" }, looseMeta: true }))
+    expect(issues[0].message).toMatch(/next to book\.pdf instead of inside \.lbook\//)
   })
 
   it("reports a JSON syntax error with the parser's own message", () => {
@@ -138,7 +146,7 @@ describe("ocr.json", () => {
   })
 
   it("reports an unreadable file and a missing one differently", () => {
-    expect(validateBook(digest({ ocr: { kind: "missing" } }))[0].message).toMatch(/is not in this folder/)
+    expect(validateBook(digest({ ocr: { kind: "missing" } }))[0].message).toMatch(/is not in the .lbook folder/)
     expect(validateBook(digest({ ocr: { kind: "unreadable", error: "EACCES" } }))[0].message).toMatch(
       /could not be read: EACCES/,
     )

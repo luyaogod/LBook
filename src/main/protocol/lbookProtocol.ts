@@ -2,6 +2,7 @@ import { protocol } from "electron"
 import { promises as fsp } from "node:fs"
 import fs from "node:fs"
 import path from "node:path"
+import { LBOOK_DIR } from "../../shared/bookFile"
 import type { AppContext } from "../context"
 import { coverPath } from "../library/book"
 
@@ -25,8 +26,9 @@ function mimeFor(fileName: string): string {
  *   lbook://cover/<uid>            the book's cover file
  *   lbook://asset/<uid>/<name>     an image an OCR block points at
  *
- * Both resolve *inside that book's folder*, and a name that escapes it is
- * refused: the uid says which folder, and the path says what to read from it.
+ * Both resolve **inside that book's `.lbook` directory**, and a name that escapes it
+ * is refused: the uid says which book, and the name says what to read out of its
+ * metadata folder.
  *
  * The PDF deliberately does not go through here. pdf.js only issues range
  * requests against http(s) URLs, so book bytes travel over IPC instead — see
@@ -55,10 +57,10 @@ export function registerLbookProtocol(context: AppContext): void {
         const name = segments.slice(1).map(decodeURIComponent).join("/")
         if (name === "") return notFound()
 
-        const root = path.resolve(doc.dir)
+        const root = path.resolve(doc.dir, LBOOK_DIR)
         const file = path.resolve(root, name)
         // A relative reference inside an OCR block is data, not a path the user
-        // chose; anything that climbs out of the book folder is refused.
+        // chose; anything that climbs out of the metadata folder is refused.
         if (file !== root && !file.startsWith(root + path.sep)) return notFound()
         if (!fs.existsSync(file)) return notFound()
 

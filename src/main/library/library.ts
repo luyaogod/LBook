@@ -2,7 +2,15 @@ import fs from "node:fs"
 import { promises as fsp } from "node:fs"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
-import { BOOK_FORMAT_VERSION, writeBookMeta, parseBookMeta } from "../../shared/bookFile"
+import {
+  BOOK_FILES,
+  BOOK_FORMAT_VERSION,
+  COVER_NAMES,
+  LBOOK_DIR,
+  parseBookMeta,
+  writeBookMeta,
+  type BookMeta,
+} from "../../shared/bookFile"
 import type { OpenBookOutcome } from "../../shared/ipc"
 import type { BookToc, OcrPage, PdfDocument, ReadingProgress } from "../../shared/types"
 import { parseToc } from "../../shared/toc"
@@ -10,7 +18,7 @@ import { coverUrl } from "../../shared/urls"
 import { toOcrPage } from "../lbook/ocr"
 import { scanPageSpans } from "../lbook/offsetIndex"
 import type { ProgressStore } from "../progress"
-import { coverPath, openBook, readTocText, type OpenBook } from "./book"
+import { coverPath, dataDirOf, openBook, readTocText, type OpenBook } from "./book"
 import type { LedgerStore } from "./ledger"
 import type { BookChange, LibraryWatcher } from "./watch"
 import type { BookFileKind } from "../../shared/ipc"
@@ -132,7 +140,7 @@ export function createLibrary(input: LibraryInput): Library {
 
     if (!fs.existsSync(book.ocrPath)) {
       books.delete(uid)
-      throw new Error(`${meta.ocrFile} is missing from this folder`)
+      throw new Error(`${meta.ocrFile} is missing from ${LBOOK_DIR}/`)
     }
 
     let fileSize = 0
@@ -177,60 +185,102 @@ export function createLibrary(input: LibraryInput): Library {
   }
 
   /**
-   * Turns a folder into a book.
+   * Brings a folder into the one layout this build reads: `.lbook/` next to the PDF.
    *
-   * A folder that already has a `meta.json` is taken as-is. A folder without one
-   * is *adopted*: PaddleOCR's own output is `book.pdf` plus a JSON next to it, and
-   * writing that `meta.json` is **creating** the book rather than editing it — the
-   * one write the app does, and only when the user asks for a folder to be added.
-   * Nothing else in the folder is touched, ever (A5).
+   * Three cases, in order:
+   *
+   * 1. `dir/.lbook/meta.json` exists — it is already a book, taken as-is.
+   * 2. Loose metadata (`meta.json`, `ocr.json`, `toc.json`, a cover) sits next to
+   *    `book.pdf`: those files are **moved** into a new `.lbook/`, and a `meta.json`
+   *    is written if the loose one is missing. This is the "point at a folder somebody
+   *    handed me" path, and it is also how a folder from before the `.lbook` layout
+   *    becomes a book again — the app does not read the old layout, it converts it.
+   * 3. Neither: refused, with what is missing.
+   *
+   * An identity found in a loose `meta.json` is kept, so a reader's place in a book
+   * survives being re-added. Everything else is derived (name from the folder, page
+   * count from the OCR file).
    */
-  async function adopt(dir: string): Promise<{ uid: string; adopted: boolean }> {
-    const metaPath = path.join(dir, "meta.json")
+  async function adopt(dir: string): Promise<{ uid: string; adopted: boolean; moved: string[] }> {
+    const dataDir = dataDirOf(dir)
+    const metaPath = path.join(dataDir, BOOK_FILES.meta)
+
     if (fs.existsSync(metaPath)) {
       const parsed = parseBookMeta(JSON.parse(fs.readFileSync(metaPath, "utf8")) as unknown)
-      if (!parsed.ok) throw new Error(`meta.json: ${parsed.error}`)
-      return { uid: parsed.meta.uid, adopted: false }
+      if (!parsed.ok) throw new Error(`${LBOOK_DIR}/${BOOK_FILES.meta}: ${parsed.error}`)
+      return { uid: parsed.meta.uid, adopted: false, moved: [] }
     }
 
-    const pdfPath = path.join(dir, "book.pdf")
+    const pdfPath = path.join(dir, BOOK_FILES.pdf)
     if (!fs.existsSync(pdfPath)) {
-      throw new Error("this folder has no meta.json and no book.pdf, so it is not a book")
+      throw new Error(`this folder has no book.pdf and no ${LBOOK_DIR}/ folder, so it is not a book`)
     }
 
-    const candidates = fs
-      .readdirSync(dir)
-      .filter((name) => name.toLowerCase().endsWith(".json") && name !== "meta.json")
-    const ocrFile = candidates.includes("ocr.json") ? "ocr.json" : candidates[0]
+    const loose = fs.readdirSync(dir, { withFileTypes: true })
+    const looseJson = loose
+      .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".json"))
+      .map((entry) => entry.name)
+    const ocrFile = looseJson.includes("ocr.json")
+      ? "ocr.json"
+      : looseJson.find((name) => name !== BOOK_FILES.meta && name !== BOOK_FILES.toc)
+
     if (!ocrFile) {
-      throw new Error("this folder has no OCR JSON next to book.pdf, so it is not a book yet")
+      throw new Error(
+        `this folder has no ${LBOOK_DIR}/ folder and no OCR JSON next to book.pdf, so it is not a book yet`,
+      )
     }
 
-    const ocrPath = path.join(dir, ocrFile)
-    // The page count is the length of the OCR array, which takes one streaming
-    // scan of the file. It is the number the reading progress is checked against,
-    // so it is worth the ~30ms once, at the moment the user adds the book.
-    const scanned = await scanPageSpans(ocrPath)
+    // The page count is the length of the OCR array, which takes one streaming scan
+    // of the file. It is the number reading progress is checked against, so it is
+    // worth the ~30ms once, at the moment the user adds the book.
+    const scanned = await scanPageSpans(path.join(dir, ocrFile))
     if (scanned.spans.length === 0) {
       throw new Error(`${ocrFile} has no pages: it does not look like PaddleOCR output`)
     }
 
-    const uid = randomUUID().replace(/-/g, "")
-    const title = path.basename(dir)
+    // What the folder already says about itself, if anything: a `meta.json` from the
+    // old layout is worth reading for its uid, so progress stays attached.
+    const inherited = readLooseMeta(dir)
+
+    const uid = inherited?.uid ?? randomUUID().replace(/-/g, "")
+    const title = inherited?.title || path.basename(dir)
+
+    fs.mkdirSync(dataDir, { recursive: true })
+    const moved: string[] = []
+    for (const name of [...looseJson, ...COVER_NAMES]) {
+      const from = path.join(dir, name)
+      if (!fs.existsSync(from) || !fs.statSync(from).isFile()) continue
+      fs.renameSync(from, path.join(dataDir, name))
+      moved.push(name)
+    }
+
     fs.writeFileSync(
       metaPath,
       writeBookMeta({
         formatVersion: BOOK_FORMAT_VERSION,
         uid,
         title,
+        ...(inherited?.author ? { author: inherited.author } : {}),
         pageCount: scanned.spans.length,
         ocrFile,
-        createdAt: now(),
+        createdAt: inherited?.createdAt ?? now(),
         source: `adopted folder (${ocrFile})`,
       }),
       "utf8",
     )
-    return { uid, adopted: true }
+    return { uid, adopted: true, moved }
+  }
+
+  /** A loose `meta.json` next to the PDF, read for its identity only. */
+  function readLooseMeta(dir: string): BookMeta | null {
+    try {
+      const parsed = parseBookMeta(
+        JSON.parse(fs.readFileSync(path.join(dir, BOOK_FILES.meta), "utf8")) as unknown,
+      )
+      return parsed.ok ? parsed.meta : null
+    } catch {
+      return null
+    }
   }
 
   syncWatchers()
@@ -344,7 +394,7 @@ export function createLibrary(input: LibraryInput): Library {
       if (kind === "pdf") return fs.existsSync(book.pdfPath) ? book.pdfPath : null
       if (kind === "cover") return coverPath(book.dir)
 
-      const file = path.join(book.dir, kind === "meta" ? "meta.json" : "toc.json")
+      const file = path.join(book.dataDir, kind === "meta" ? BOOK_FILES.meta : BOOK_FILES.toc)
       return fs.existsSync(file) ? file : null
     },
 

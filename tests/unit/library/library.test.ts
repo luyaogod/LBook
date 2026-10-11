@@ -79,11 +79,11 @@ describe("opening a folder", () => {
   it("registers a book folder that already has a meta.json, writing nothing", async () => {
     const { library, rootDir } = makeLibrary()
     const folder = createBookFolder({ parent: rootDir, title: "Existing" })
-    const metaBefore = fs.readFileSync(path.join(folder.dir, "meta.json"), "utf8")
+    const metaBefore = fs.readFileSync(folder.metaPath, "utf8")
 
     const outcome = await library.open(folder.dir)
     expect(outcome).toMatchObject({ ok: true, adopted: false, alreadyKnown: false })
-    expect(fs.readFileSync(path.join(folder.dir, "meta.json"), "utf8")).toBe(metaBefore)
+    expect(fs.readFileSync(folder.metaPath, "utf8")).toBe(metaBefore)
   })
 
   it("says so when the folder is already in the library", async () => {
@@ -95,16 +95,27 @@ describe("opening a folder", () => {
     expect(again).toMatchObject({ ok: true, alreadyKnown: true })
   })
 
-  it("adopts raw PaddleOCR output by writing the one meta.json", async () => {
-    // This is the only write the app performs, and only because the user asked for
-    // this folder to become a book: pageCount comes from the OCR array itself.
+  it("adopts a folder of raw PaddleOCR output by moving it into .lbook/", async () => {
+    // What "open a folder somebody handed me" does: `book.pdf` plus a PaddleOCR JSON
+    // and maybe a cover, all loose. The metadata is moved into a new `.lbook/` and a
+    // `meta.json` is written — pageCount comes from the OCR array itself.
     const { library, rootDir } = makeLibrary()
-    const folder = createBookFolder({ parent: rootDir, omitMeta: true, pageCount: 6 })
+    const folder = createBookFolder({
+      parent: rootDir,
+      omitMeta: true,
+      pageCount: 6,
+      loose: true,
+      cover: { name: "cover.png", data: Buffer.from("png") },
+    })
 
     const outcome = await library.open(folder.dir)
     expect(outcome).toMatchObject({ ok: true, adopted: true })
 
-    const meta = JSON.parse(fs.readFileSync(path.join(folder.dir, "meta.json"), "utf8")) as {
+    // Written by the adoption, so it lands in the metadata folder rather than where
+    // the fixture put its loose files.
+    const meta = JSON.parse(
+      fs.readFileSync(path.join(folder.dir, ".lbook", "meta.json"), "utf8"),
+    ) as {
       uid: string
       pageCount: number
       ocrFile: string
@@ -114,6 +125,29 @@ describe("opening a folder", () => {
     expect(meta.ocrFile).toBe("ocr.json")
     expect(meta.title).toBe(path.basename(folder.dir))
     expect(meta.uid).toMatch(/^[0-9a-f]{32}$/)
+
+    // The loose files moved rather than being copied, and the PDF stayed put.
+    expect(fs.existsSync(path.join(folder.dir, ".lbook", "ocr.json"))).toBe(true)
+    expect(fs.existsSync(path.join(folder.dir, ".lbook", "cover.png"))).toBe(true)
+    expect(fs.existsSync(path.join(folder.dir, "ocr.json"))).toBe(false)
+    expect(fs.existsSync(folder.pdfPath)).toBe(true)
+  })
+
+  it("keeps the identity of a folder that already carries one", async () => {
+    // A folder from before the `.lbook` layout still says who it is: keeping the uid
+    // is what keeps the reader's place in the book.
+    const { library, rootDir } = makeLibrary()
+    const folder = createBookFolder({
+      parent: rootDir,
+      uid: "keepthisuid0000keepthisuid0000",
+      title: "Kept",
+      loose: true,
+    })
+
+    const outcome = await library.open(folder.dir)
+    expect(outcome.ok).toBe(true)
+    expect((await library.list())[0].uid).toBe("keepthisuid0000keepthisuid0000")
+    expect((await library.list())[0].title).toBe("Kept")
   })
 
   it("refuses a folder that is not a book, and says what is missing", async () => {
@@ -124,8 +158,9 @@ describe("opening a folder", () => {
     const outcome = await library.open(empty)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) throw new Error("expected a refusal")
-    expect(outcome.error).toMatch(/no meta\.json and no book\.pdf/)
+    expect(outcome.error).toMatch(/no book\.pdf and no \.lbook\//)
     expect(fs.existsSync(path.join(empty, "meta.json"))).toBe(false)
+    expect(fs.existsSync(path.join(empty, ".lbook"))).toBe(false)
   })
 
   it("refuses a file, and a folder that does not exist", async () => {
@@ -203,7 +238,7 @@ describe("reading a book", () => {
     const { library, rootDir } = makeLibrary()
     const folder = createBookFolder({ parent: rootDir, omitMeta: false })
     await library.open(folder.dir)
-    fs.writeFileSync(path.join(folder.dir, "toc.json"), "{ oops")
+    fs.writeFileSync(path.join(folder.dataDir, "toc.json"), "{ oops")
 
     await expect(library.getToc(folder.uid)).rejects.toThrow(/toc\.json is invalid/)
   })
@@ -224,12 +259,12 @@ describe("external edits", () => {
     expect((await library.list())[0].title).toBe("Before")
 
     // What editing the file in another program looks like: same path, new contents.
-    const meta = JSON.parse(fs.readFileSync(path.join(folder.dir, "meta.json"), "utf8")) as Record<
+    const meta = JSON.parse(fs.readFileSync(folder.metaPath, "utf8")) as Record<
       string,
       unknown
     >
     meta.title = "After"
-    fs.writeFileSync(path.join(folder.dir, "meta.json"), `${JSON.stringify(meta, null, 2)}\n`)
+    fs.writeFileSync(folder.metaPath, `${JSON.stringify(meta, null, 2)}\n`)
 
     expect((await library.list())[0].title).toBe("After")
   })
@@ -272,7 +307,7 @@ describe("external edits", () => {
     await library.open(folder.dir)
     expect((await library.list())[0].problem).toBeNull()
 
-    fs.writeFileSync(path.join(folder.dir, "meta.json"), "{ broken")
+    fs.writeFileSync(folder.metaPath, "{ broken")
 
     const [doc] = await library.list()
     expect(doc.problem).toMatch(/meta\.json/)
@@ -307,7 +342,7 @@ describe("removing a book", () => {
     expect(library.remove(folder.uid)).toBe(true)
 
     // The promise the UI makes: the app forgets, the disk is untouched.
-    expect(fs.existsSync(path.join(folder.dir, "meta.json"))).toBe(true)
+    expect(fs.existsSync(folder.metaPath)).toBe(true)
     expect(fs.existsSync(folder.pdfPath)).toBe(true)
     expect(fs.existsSync(folder.ocrPath)).toBe(true)
 

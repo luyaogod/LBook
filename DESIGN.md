@@ -158,13 +158,19 @@ function validateRangeRequestCapabilities({ getResponseHeader, isHttp, rangeChun
 ### 5.2 书文件夹的布局
 
 ```
-meta.json    身份(uid)、标题、页数、ocrFile —— 应用**唯一**可能创建的文件
-ocr.json     PaddleOCR-VL 原始输出，逐字节保持原样（A7）
-book.pdf     扫描件本身
-toc.json     可选：目录树
-cover.jpg    可选：封面（cover.jpg / .png / .webp / .gif）
-imgs/…       可选：OCR 内容里引用的图片
+经纪法基础2024/
+  book.pdf          扫描件本身——文件夹里唯一的"可见"文件
+  .lbook/           应用要的一切，收在一处（A16）
+    meta.json       身份(uid)、标题、页数、ocrFile
+    ocr.json        PaddleOCR-VL 原始输出，逐字节保持原样（A7）
+    toc.json        可选：目录树
+    cover.png       可选：封面（cover.jpg / .jpeg / .png / .webp / .gif）
+    imgs/…          可选：OCR 内容里引用的图片
 ```
+
+命名与 Obsidian 的 `.obsidian` 同一套约定：点开头，**不设 Windows 隐藏属性**。实测（本机 3 个 vault 的 `.obsidian`）属性都只是 `Directory`，Obsidian 官方帮助也只是让 Windows 用户自己去 View → Show → Hidden items 打开——它的论坛上还有一条 feature request 正是要求加这个属性而未被采纳。既然要"像 Obsidian 一样管"，就一样：靠点前缀，不调 `attrib`。
+
+> **同名不同物的历史遗留**：旧的 `.lbook` 是一个 **ZIP 文件**（第 6 节），那个格式已经彻底删除（连迁移代码都没有了）。现在的 `.lbook` 是一个**目录**。两者只共用名字，读文档时看到 `.lbook` 先看它是"包"还是"目录"。
 
 `meta.json` 的契约在 `src/shared/bookFile.ts`，三条设计决定：
 
@@ -174,9 +180,19 @@ imgs/…       可选：OCR 内容里引用的图片
 
 **身份是 `uid`，不是路径、不是行号。** 文件夹改名、换盘、整库搬走，阅读进度与封面 URL（`lbook://cover/<uid>`）都跟着走。IPC 里的 `bookId` 就是它。
 
-### 5.3 应用对书的内容只读（A5）
+`meta.json` 的 `ocrFile` 现在指**`.lbook/` 目录内**的文件名，所以它连这个目录都跳不出去；`formatVersion` 从 1 提到 2 就是这次搬家的标记（本阶段不做任何向后兼容，见 A16）。
 
-没有 `dirty`、没有 Ctrl+S、没有"未保存"提示、没有回写路径。用户要改 OCR 文本就在自己的编辑器里改 `ocr.json`，要改目录就编辑 `toc.json`。唯一的写操作是 5.2 里那个 `meta.json`，而且只在用户明确要求"把这个文件夹加成书"、而该文件夹又没有 `meta.json` 时发生（页数取自 OCR 数组的实际长度）。
+### 5.3 应用什么时候写盘（A5 / A17）
+
+**不在阅读路径上写。** 没有 `dirty`、没有 Ctrl+S、没有"未保存"提示：翻页、改字号、划词翻译都不碰书。用户要改 OCR 文本、改目录、换封面，在自己的编辑器里改即可，改完切回应用就看到了（5.6）。
+
+会写的情况只有三种，都是**用户明确要求**的：
+
+1. **把一个文件夹加成书**（5.2 的 `meta.json`）：文件夹里没有 `.lbook/` 时创建它，把散落的 `meta.json`/`ocr.json`/`toc.json`/封面**移动**进去，并按需写一个 `meta.json`（页数取自 OCR 数组的实际长度）。
+2. **新建一本书**（A17）：选 PDF + OCR JSON（可选封面、目录）→ 校验 → 在用户选定的位置建文件夹 → 拷贝文件 → 写 `meta.json`。
+3. **维护一本书**：显式替换 `ocr.json` / 封面 / `toc.json` / `book.pdf`，或改标题。
+
+三种都不做内容级编辑：应用从不改**你写的**那些字节（OCR 文本、目录），它只在你重新选了一份文件时整文件替换，或者创建缺失的元数据。这就是 A5 剩下的部分——**读的时候只读**。
 
 ### 5.4 一页怎么读：一个 8–40MB 的 JSON，按字节偏移随机访问
 
@@ -212,7 +228,8 @@ imgs/…       可选：OCR 内容里引用的图片
 
 `src/shared/validateBook.ts` 是规则与文案的唯一来源（零依赖、不做 I/O、**永不抛异常**——校验器自己崩掉就等于书库崩掉）。它吃一份 `BookDigest`，吐出 `BookIssue[]`（`{ level, file, message, offset?, jsonPath? }`）：
 
-- **列表**只用便宜的那半边：`meta.json` 能不能读、`ocr.json`/book.pdf 在不在。一行 `problem` 文案，一个徽标。
+- **列表**只用便宜的那半边：`.lbook/meta.json` 能不能读、`.lbook/ocr.json`/`book.pdf` 在不在。一行 `problem` 文案，一个徽标。
+- 如果 `meta.json` 躺在 `book.pdf` 旁边（搬家前的布局），消息会直接说出这一点，而不是让读者去找一个就在眼前、位置不对的文件——这不是兼容，是把话说清楚（A16）。
 - **Check 按钮**才跑深度检查（`src/main/library/inspect.ts`）：扫一遍索引、逐页解析、再整份 `JSON.parse` 一次——最大那本约 100ms。逐页比对能抓到"某一页被改坏"，而整份解析能抓到**逐页读法看不见的那种坏**：页与页之间少一个逗号，每一页单独看都合法，但别的工具会拒绝这个文件。
 
 两个 level 的分工是有意的：`error` = 这本书读不了（或读不全），`warn` = 能读，但里面有东西不对。坏书在列表里仍然列出来（B8），点开能读多少读多少。

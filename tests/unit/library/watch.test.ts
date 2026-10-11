@@ -3,6 +3,7 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { createLibraryWatcher, type BookChange } from "../../../src/main/library/watch"
+import { LBOOK_DIR } from "../../../src/shared/bookFile"
 
 let root: string | undefined
 const watchers: Array<{ dispose(): void }> = []
@@ -21,9 +22,11 @@ function tempDir(): string {
 /** A folder with the two files a book has. */
 function bookFolder(name: string, uid: string): { uid: string; dir: string } {
   const dir = path.join(tempDir(), name)
-  fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(path.join(dir, "meta.json"), JSON.stringify({ uid }))
-  fs.writeFileSync(path.join(dir, "ocr.json"), JSON.stringify({ layoutParsingResults: [{}] }))
+  // The layout the app reads: book.pdf at the top, metadata in .lbook/.
+  const dataDir = path.join(dir, LBOOK_DIR)
+  fs.mkdirSync(dataDir, { recursive: true })
+  fs.writeFileSync(path.join(dataDir, "meta.json"), JSON.stringify({ uid }))
+  fs.writeFileSync(path.join(dataDir, "ocr.json"), JSON.stringify({ layoutParsingResults: [{}] }))
   return { uid, dir }
 }
 
@@ -55,7 +58,7 @@ describe("watching book folders", () => {
     const { instance, changes } = watcher()
     instance.sync([book])
 
-    fs.writeFileSync(path.join(book.dir, "ocr.json"), JSON.stringify({ layoutParsingResults: [{}], n: 1 }))
+    fs.writeFileSync(path.join(book.dir, LBOOK_DIR, "ocr.json"), JSON.stringify({ layoutParsingResults: [{}], n: 1 }))
 
     expect(await waitFor(() => changes.length > 0)).toBe(true)
     expect(changes[0]).toMatchObject({ uid: "uid-a", dir: book.dir })
@@ -68,7 +71,7 @@ describe("watching book folders", () => {
     instance.sync([book])
 
     for (let i = 0; i < 5; i++) {
-      fs.writeFileSync(path.join(book.dir, "ocr.json"), `{"layoutParsingResults":[],"n":${i}}`)
+      fs.writeFileSync(path.join(book.dir, LBOOK_DIR, "ocr.json"), `{"layoutParsingResults":[],"n":${i}}`)
       await new Promise((resolve) => setTimeout(resolve, 5))
     }
 
@@ -85,8 +88,8 @@ describe("watching book folders", () => {
     instance.sync([first, second])
     instance.sync([second])
 
-    fs.writeFileSync(path.join(first.dir, "ocr.json"), JSON.stringify({ layoutParsingResults: [{}], n: 9 }))
-    fs.writeFileSync(path.join(second.dir, "ocr.json"), JSON.stringify({ layoutParsingResults: [{}], n: 9 }))
+    fs.writeFileSync(path.join(first.dir, LBOOK_DIR, "ocr.json"), JSON.stringify({ layoutParsingResults: [{}], n: 9 }))
+    fs.writeFileSync(path.join(second.dir, LBOOK_DIR, "ocr.json"), JSON.stringify({ layoutParsingResults: [{}], n: 9 }))
 
     expect(await waitFor(() => changes.length > 0)).toBe(true)
     await new Promise((resolve) => setTimeout(resolve, 120))
@@ -104,9 +107,9 @@ describe("watching book folders", () => {
     expect(instance.unwatched()).toEqual([missing.dir])
 
     // The poll notices the folder appearing where a watch never could have.
-    fs.mkdirSync(missing.dir, { recursive: true })
-    fs.writeFileSync(path.join(missing.dir, "meta.json"), "{}")
-    fs.writeFileSync(path.join(missing.dir, "ocr.json"), "{}")
+    fs.mkdirSync(path.join(missing.dir, LBOOK_DIR), { recursive: true })
+    fs.writeFileSync(path.join(missing.dir, LBOOK_DIR, "meta.json"), "{}")
+    fs.writeFileSync(path.join(missing.dir, LBOOK_DIR, "ocr.json"), "{}")
 
     expect(await waitFor(() => changes.length > 0, 3000)).toBe(true)
     expect(changes[0].uid).toBe("uid-e")
@@ -118,7 +121,7 @@ describe("watching book folders", () => {
     instance.sync([book])
     instance.dispose()
 
-    fs.writeFileSync(path.join(book.dir, "ocr.json"), JSON.stringify({ layoutParsingResults: [{}], n: 2 }))
+    fs.writeFileSync(path.join(book.dir, LBOOK_DIR, "ocr.json"), JSON.stringify({ layoutParsingResults: [{}], n: 2 }))
     await new Promise((resolve) => setTimeout(resolve, 150))
     expect(changes).toEqual([])
   })
@@ -130,7 +133,7 @@ describe("watching book folders", () => {
     const { instance, changes } = watcher()
     instance.sync([book])
 
-    fs.writeFileSync(path.join(book.dir, "cover.jpg"), "not really a jpeg")
+    fs.writeFileSync(path.join(book.dir, LBOOK_DIR, "cover.jpg"), "not really a jpeg")
 
     expect(await waitFor(() => changes.length > 0)).toBe(true)
     expect(changes[0].changed).toEqual(["other"])

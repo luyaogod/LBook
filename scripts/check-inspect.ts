@@ -24,7 +24,7 @@ import { scanPageSpans } from "../src/main/lbook/offsetIndex"
  */
 const SOURCE = path.resolve(process.argv[2] ?? ".")
 
-if (!fs.existsSync(path.join(SOURCE, "meta.json"))) {
+if (!fs.existsSync(path.join(SOURCE, ".lbook", "meta.json"))) {
   console.error("usage: npm run check:inspect -- <book folder>")
   console.error("(it copies the folder to a temp directory first; your files are not touched)")
   process.exit(1)
@@ -35,13 +35,15 @@ async function main(): Promise<void> {
   fs.rmSync(work, { recursive: true, force: true })
   fs.mkdirSync(work, { recursive: true })
 
-  const meta = fs.readFileSync(path.join(SOURCE, "meta.json"), "utf8")
+  const dataDir = path.join(SOURCE, ".lbook")
+  const meta = fs.readFileSync(path.join(dataDir, "meta.json"), "utf8")
   const ocrName = (JSON.parse(meta) as { ocrFile?: string }).ocrFile ?? "ocr.json"
-  const ocr = fs.readFileSync(path.join(SOURCE, ocrName))
+  const ocr = fs.readFileSync(path.join(dataDir, ocrName))
   fs.writeFileSync(path.join(work, "book.pdf"), "%PDF-1.7\n")
-  fs.writeFileSync(path.join(work, "meta.json"), meta)
+  fs.mkdirSync(path.join(work, ".lbook"), { recursive: true })
+  fs.writeFileSync(path.join(work, ".lbook", "meta.json"), meta)
 
-  const spans = (await scanPageSpans(path.join(SOURCE, ocrName))).spans
+  const spans = (await scanPageSpans(path.join(dataDir, ocrName))).spans
   const page300 = spans[299]
   const page301 = spans[300]
   console.log(`real file: ${spans.length} pages\n`)
@@ -90,7 +92,7 @@ function removeByte(buffer: Buffer, at: number): Buffer {
 }
 
 function writeBroken(data: Buffer): void {
-  fs.writeFileSync(path.join(work, "ocr.json"), data)
+  fs.writeFileSync(path.join(work, ".lbook", "ocr.json"), data)
 }
 
 function report(issues: Awaited<ReturnType<typeof inspectBook>>): void {

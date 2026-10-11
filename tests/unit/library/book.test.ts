@@ -3,7 +3,7 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { openBook, coverPath, readTocText } from "../../../src/main/library/book"
-import { BOOK_FORMAT_VERSION, writeBookMeta, type BookMeta } from "../../../src/shared/bookFile"
+import { BOOK_FORMAT_VERSION, LBOOK_DIR, writeBookMeta, type BookMeta } from "../../../src/shared/bookFile"
 
 let dir: string | undefined
 
@@ -25,14 +25,17 @@ function page(n: number): unknown {
 
 interface BookFolder {
   dir: string
+  /** The `.lbook` directory inside it. */
+  dataDir: string
   pages: unknown[]
 }
 
-/** Builds a book folder the way migration would: meta.json, ocr.json, book.pdf. */
+/** Builds a book folder the way the app writes one: book.pdf plus a .lbook directory. */
 function bookFolder(options: { pages?: unknown[]; meta?: Partial<BookMeta>; omit?: Array<"ocr" | "pdf" | "meta"> } = {}): BookFolder {
   dir ??= fs.mkdtempSync(path.join(os.tmpdir(), "lbook-book-"))
   const folder = path.join(dir, `book-${String(Math.random()).slice(2)}`)
-  fs.mkdirSync(folder, { recursive: true })
+  const dataDir = path.join(folder, LBOOK_DIR)
+  fs.mkdirSync(dataDir, { recursive: true })
 
   const pages = options.pages ?? [page(1), page(2), page(3)]
   const ocrFile = "ocr.json"
@@ -46,13 +49,19 @@ function bookFolder(options: { pages?: unknown[]; meta?: Partial<BookMeta>; omit
   }
 
   const omit = options.omit ?? []
-  if (!omit.includes("meta")) fs.writeFileSync(path.join(folder, "meta.json"), writeBookMeta(meta), "utf8")
+  if (!omit.includes("meta")) {
+    fs.writeFileSync(path.join(dataDir, "meta.json"), writeBookMeta(meta), "utf8")
+  }
   if (!omit.includes("ocr")) {
-    fs.writeFileSync(path.join(folder, ocrFile), JSON.stringify({ layoutParsingResults: pages }, null, 2), "utf8")
+    fs.writeFileSync(
+      path.join(dataDir, ocrFile),
+      JSON.stringify({ layoutParsingResults: pages }, null, 2),
+      "utf8",
+    )
   }
   if (!omit.includes("pdf")) fs.writeFileSync(path.join(folder, "book.pdf"), "%PDF-1.4\n%fake\n", "utf8")
 
-  return { dir: folder, pages }
+  return { dir: folder, dataDir, pages }
 }
 
 describe("openBook", () => {
@@ -102,12 +111,12 @@ describe("openBook", () => {
     await expect(openBook(bookFolder({ omit: ["meta"] }).dir)).rejects.toThrow(/cannot read/)
 
     const broken = bookFolder()
-    fs.writeFileSync(path.join(broken.dir, "meta.json"), "{ not json", "utf8")
+    fs.writeFileSync(path.join(broken.dataDir, "meta.json"), "{ not json", "utf8")
     await expect(openBook(broken.dir)).rejects.toThrow(/cannot read/)
 
     const noUid = bookFolder()
     fs.writeFileSync(
-      path.join(noUid.dir, "meta.json"),
+      path.join(noUid.dataDir, "meta.json"),
       JSON.stringify({ formatVersion: 1, pageCount: 3, ocrFile: "ocr.json" }),
       "utf8",
     )
@@ -115,7 +124,7 @@ describe("openBook", () => {
   })
 
   it("refuses a meta.json whose ocrFile is missing or points outside the folder", async () => {
-    await expect(openBook(bookFolder({ omit: ["ocr"] }).dir)).rejects.toThrow(/not in the folder/)
+    await expect(openBook(bookFolder({ omit: ["ocr"] }).dir)).rejects.toThrow(/not in .*\.lbook/)
 
     // Path traversal: meta.json is user-writable data and must not be able to
     // send the reader outside the book folder.
@@ -124,7 +133,7 @@ describe("openBook", () => {
 
     const outside = bookFolder()
     fs.writeFileSync(
-      path.join(outside.dir, "meta.json"),
+      path.join(outside.dataDir, "meta.json"),
       JSON.stringify({ formatVersion: 1, uid: "u", pageCount: 3, ocrFile: "../../secret.json" }),
       "utf8",
     )
@@ -136,7 +145,9 @@ describe("book folder extras", () => {
   it("finds a cover by any of the usual names, and nothing when there is none", () => {
     const book = bookFolder()
     expect(coverPath(book.dir)).toBeNull()
-    const cover = path.join(book.dir, "cover.png")
+    // The cover belongs to the book, so it lives in the metadata folder rather than
+    // on top of the PDF.
+    const cover = path.join(book.dataDir, "cover.png")
     fs.writeFileSync(cover, "png", "utf8")
     expect(coverPath(book.dir)).toBe(cover)
   })
@@ -144,7 +155,7 @@ describe("book folder extras", () => {
   it("returns raw toc.json text, or null when the book has no outline", () => {
     const book = bookFolder()
     expect(readTocText(book.dir)).toBeNull()
-    fs.writeFileSync(path.join(book.dir, "toc.json"), '[{"title":"Ch 1","page":1}]', "utf8")
+    fs.writeFileSync(path.join(book.dataDir, "toc.json"), '[{"title":"Ch 1","page":1}]', "utf8")
     expect(readTocText(book.dir)).toContain("Ch 1")
   })
 })

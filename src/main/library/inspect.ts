@@ -1,7 +1,15 @@
 import fs from "node:fs"
 import path from "node:path"
-import { checkOcrPage, validateBook, type BookDigest, type BookIssue, type OcrFinding } from "../../shared/validateBook"
+import {
+  checkOcrPage,
+  validateBook,
+  type BookDigest,
+  type BookIssue,
+  type OcrFinding,
+} from "../../shared/validateBook"
+import { BOOK_FILES, LBOOK_DIR } from "../../shared/bookFile"
 import { readSpan, scanPageSpans } from "../lbook/offsetIndex"
+import { dataDirOf } from "./book"
 
 /**
  * Reads a book folder and runs the validation rules over it.
@@ -33,15 +41,21 @@ export async function inspectBook(dir: string, options: InspectOptions = {}): Pr
 
 /** The cheap half: everything the validator can know without parsing any page. */
 export async function readDigest(dir: string, deep: boolean): Promise<BookDigest> {
+  const dataDir = dataDirOf(dir)
   let files: string[] = []
   try {
-    files = fs.readdirSync(dir)
+    files = fs.readdirSync(dataDir)
   } catch {
     // A folder that is not there reads as a folder with nothing in it, which the
     // validator reports as "no meta.json".
   }
 
-  const metaPath = path.join(dir, "meta.json")
+  // A folder from before the `.lbook` layout is worth naming as such instead of
+  // leaving the reader with "there is no .lbook/meta.json": the files are right
+  // there, one level up.
+  const looseMeta = fs.existsSync(path.join(dir, BOOK_FILES.meta))
+
+  const metaPath = path.join(dataDir, BOOK_FILES.meta)
   const metaText = readText(metaPath)
   let meta: BookDigest["meta"]
   if (metaText === null) {
@@ -64,25 +78,26 @@ export async function readDigest(dir: string, deep: boolean): Promise<BookDigest
       ocrName = named
     }
   }
-  const ocrPath = path.join(dir, ocrName)
+  const ocrPath = path.join(dataDir, ocrName)
 
   const ocr: BookDigest["ocr"] = await readOcr(ocrPath, deep)
 
-  const tocPath = path.join(dir, "toc.json")
-  const tocText = fs.existsSync(tocPath) ? readText(tocPath) : null
-  const toc: BookDigest["toc"] =
-    !fs.existsSync(tocPath)
-      ? { kind: "missing" }
-      : tocText === null
-        ? { kind: "unreadable", error: "the file could not be read" }
-        : { kind: "text", text: tocText }
+  const tocPath = path.join(dataDir, BOOK_FILES.toc)
+  const hasToc = fs.existsSync(tocPath)
+  const tocText = hasToc ? readText(tocPath) : null
+  const toc: BookDigest["toc"] = !hasToc
+    ? { kind: "missing" }
+    : tocText === null
+      ? { kind: "unreadable", error: "the file could not be read" }
+      : { kind: "text", text: tocText }
 
-  const pdfPath = path.join(dir, "book.pdf")
+  const pdfPath = path.join(dir, BOOK_FILES.pdf)
   const hasPdf = fs.existsSync(pdfPath)
 
   return {
     dir,
     files,
+    looseMeta,
     meta,
     ocr,
     toc,
@@ -90,6 +105,9 @@ export async function readDigest(dir: string, deep: boolean): Promise<BookDigest
     pdfHeader: hasPdf ? readHeader(pdfPath, 8) : null,
   }
 }
+
+/** Kept in a variable so the two readers below cannot drift on the wording. */
+export const dataDirName = LBOOK_DIR
 
 async function readOcr(ocrPath: string, deep: boolean): Promise<BookDigest["ocr"]> {
   if (!fs.existsSync(ocrPath)) return { kind: "missing" }
