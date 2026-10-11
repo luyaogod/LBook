@@ -1,4 +1,5 @@
 import fs from "node:fs"
+import { promises as fsp } from "node:fs"
 import path from "node:path"
 import { BOOK_FILES, COVER_NAMES, LBOOK_DIR, parseBookMeta, type BookMeta } from "../../shared/bookFile"
 import { readSpan, scanPageSpans, type PageSpan } from "../lbook/offsetIndex"
@@ -88,6 +89,15 @@ export interface OpenBook {
   /** Pages actually present in the OCR JSON (compare with `meta.pageCount`). */
   pageCount(): Promise<number>
   readPage(pageNum: number): Promise<unknown>
+  /**
+   * One page element's absolute byte range **and its bytes**.
+   *
+   * This is what an edit needs: the range says where in the file the element lives,
+   * and the bytes are what the field locator walks (`fieldRange.ts`). Reading the
+   * range rather than the whole file is the same reason the reader never parses a
+   * 7.9MB document to show one page.
+   */
+  pageRange(pageNum: number): Promise<{ start: number; end: number; bytes: Buffer }>
 }
 
 /** `dir/.lbook` — the metadata directory of a book folder. */
@@ -178,6 +188,29 @@ export async function openBook(dir: string, options: { chunkBytes?: number } = {
         throw new Error(`page ${pageNum} is not in this book (${known.length} pages)`)
       }
       return readSpan(ocrPath, known[pageNum - 1])
+    },
+
+    async pageRange(pageNum) {
+      if (!Number.isInteger(pageNum) || pageNum < 1) {
+        throw new Error(`page numbers start at 1, got ${pageNum}`)
+      }
+      await ensure(pageNum)
+      if (pageNum > known.length) {
+        throw new Error(`page ${pageNum} is not in this book (${known.length} pages)`)
+      }
+
+      const span = known[pageNum - 1]
+      const handle = await fsp.open(ocrPath, "r")
+      try {
+        const bytes = Buffer.alloc(span.end - span.start)
+        const { bytesRead } = await handle.read(bytes, 0, bytes.length, span.start)
+        if (bytesRead !== bytes.length) {
+          throw new Error(`short read of page ${pageNum}: wanted ${bytes.length}, got ${bytesRead}`)
+        }
+        return { start: span.start, end: span.end, bytes }
+      } finally {
+        await handle.close()
+      }
     },
   }
 }

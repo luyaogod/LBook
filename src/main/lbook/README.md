@@ -11,11 +11,12 @@
 | 文件 | 说明 |
 |---|---|
 | `offsetIndex.ts` | **按页随机访问**：流式扫出 `layoutParsingResults[]` 每个元素的字节区间（`scanPageSpans`），再按偏移读出并解析单页（`readSpanAt` / `readSpan`）。内存与文件大小无关（实测与取舍见 `PLAN.md` 4.2） |
+| `fieldRange.ts` | **字段的字节区间**：在一页元素的字节里定位 `parsing_res_list[i].block_content` 与 `markdown.text` 的**值**范围（`[start, end)`，含引号）。用字节级状态机而不是"搜第 N 个 `block_content`"——块的**内容里**可能恰好出现那个字面量（HTML 片段、代码示例），搜索会改到别的字节 |
 | `ocr.ts` | 把**一个页元素**映射成渲染层形状：`prunedResult.parsing_res_list` → `OcrBlock[]`、`markdown.text` → `markdown_text`、`prunedResult.width/height` → 页尺寸（缺失时按 bbox 推）。全部纯函数 |
 
 ## 对外接口
 
-`PageSpan`、`ScanResult`、`scanPageSpans()`、`readSpanAt()`、`readSpan()`；`toOcrPage()`、`toOcrBlock()`、`toOcrBlocks()`、`pageSizeOf()`。
+`PageSpan`、`ScanResult`、`scanPageSpans()`、`readSpanAt()`、`readSpan()`；`valueRangeOf()`、`objectMembers()`、`arrayElements()`、`arrayLength()`、`decodeString()`、`encodeString()`、`ByteRange`、`PathStep`；`toOcrPage()`、`toOcrBlock()`、`toOcrBlocks()`、`pageSizeOf()`。
 
 ## 依赖方向
 

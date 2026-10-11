@@ -50,6 +50,8 @@ export const LBOOK_DIR = ".lbook"
 export const BOOK_FILES = {
   dir: LBOOK_DIR,
   meta: "meta.json",
+  /** The conventional name. Which file is really used is whatever meta.json says. */
+  ocr: "ocr.json",
   toc: "toc.json",
   pdf: "book.pdf",
 } as const

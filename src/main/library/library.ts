@@ -45,6 +45,13 @@ export interface Library {
   list(): Promise<PdfDocument[]>
   get(uid: string): Promise<PdfDocument | null>
   getPage(uid: string, pageNum: number): Promise<OcrPage | null>
+  /**
+   * A page element's byte range and bytes, for editing.
+   *
+   * Page numbers here are what the reader sees (1-based); the JSON array the file is
+   * made of is 0-based (A8), and the conversion is this method's caller's business.
+   */
+  pageRange(uid: string, pageNum: number): Promise<{ start: number; end: number; bytes: Buffer }>
   /** Reads `[begin, end]` — **inclusive**, matching what the PDF transport sends. */
   readPdfRange(uid: string, begin: number, end: number): Promise<Buffer>
   getToc(uid: string): Promise<BookToc | null>
@@ -340,6 +347,11 @@ export function createLibrary(input: LibraryInput): Library {
       const book = await bookFor(uid)
       const element = await pageAt(book, pageNum)
       return element === null ? null : toOcrPage(element, pageNum, uid)
+    },
+
+    async pageRange(uid, pageNum) {
+      const book = await bookFor(uid)
+      return book.pageRange(pageNum)
     },
 
     async readPdfRange(uid, begin, end) {
