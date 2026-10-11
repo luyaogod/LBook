@@ -13,6 +13,8 @@ import { readField, writeField } from "@/api/pdfs";
 import { recordEdit } from "@/lib/editHistory";
 import { useEditHistory } from "@/hooks/useEditHistory";
 import { writeErrorText } from "@/lib/writeError";
+import { SourceEditorField } from "./SourceEditorField";
+
 
 /**
  * One OCR block, as plain output — and, in page-flip mode, as an editable field.
@@ -185,26 +187,15 @@ export function BlockCard({
           <span className="text-[11px] text-muted-foreground">{t("block.sourceHint")}</span>
         </div>
 
-        <textarea
-          className="w-full resize-y rounded border border-border bg-background p-2 font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-ring"
-          // The reading size, so the text does not change size when an editor opens —
-          // but monospaced, because what is being edited is markup.
-          style={{ fontSize: "var(--reading-font-size, 14px)" }}
-          rows={Math.min(24, Math.max(3, text.split("\n").length + 1))}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-              event.preventDefault();
-              void save();
-            } else if (event.key === "Escape") {
-              event.preventDefault();
-              // Esc leaves the file alone even though nothing was written yet: the
-              // editor holds a copy, and the file is only touched by a save.
-              setEditing(false);
-            }
-          }}
-          autoFocus
+        {/* A CodeMirror field, on the source as it is in the file: Markdown for a text
+            block, HTML for a table (the table's content *is* HTML). Same keys as before —
+            Mod-Enter saves, Esc closes, nothing is written without a save. */}
+        <SourceEditorField
+          value={baseValue}
+          language={isTableBlock(block) ? "html" : "markdown"}
+          onValueChange={setText}
+          onSave={() => void save()}
+          onCancel={() => setEditing(false)}
         />
 
         <div className="mt-2 flex items-center gap-2">

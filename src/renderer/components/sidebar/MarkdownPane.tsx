@@ -5,6 +5,8 @@ import { readField, writeField } from "@/api/pdfs";
 import { recordEdit } from "@/lib/editHistory";
 import { useEditHistory } from "@/hooks/useEditHistory";
 import { writeErrorText } from "@/lib/writeError";
+import { SourceEditorField } from "./SourceEditorField";
+
 
 /**
  * This page's Markdown, and the way to correct it.
@@ -108,26 +110,14 @@ export function MarkdownPane({ uid, pageIndex, value, children, editable }: Mark
           <span className="text-[11px] text-muted-foreground">{t("markdown.sourceHint")}</span>
         </div>
 
-        <textarea
-          className="w-full resize-y rounded border border-primary bg-background p-2 font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-ring"
-          // The reading size, so the text does not change size when the editor opens —
-          // monospaced, because what is being edited is markup.
-          style={{ fontSize: "var(--reading-font-size, 14px)" }}
-          rows={Math.min(40, Math.max(6, text.split("\n").length + 1))}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-              event.preventDefault();
-              void save();
-            } else if (event.key === "Escape") {
-              event.preventDefault();
-              // The file has not been touched: the editor holds a copy, and only a save
-              // writes. Esc therefore costs nothing.
-              setEditing(false);
-            }
-          }}
-          autoFocus
+        {/* CodeMirror, opened on the text exactly as it is in the file. Mod-Enter saves and
+            Esc closes — the keys the plain textarea had, and the only ones that write. */}
+        <SourceEditorField
+          value={baseValue}
+          language="markdown"
+          onValueChange={setText}
+          onSave={() => void save()}
+          onCancel={() => setEditing(false)}
         />
 
         <div className="mt-2 flex items-center gap-2">

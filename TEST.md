@@ -224,7 +224,10 @@ npm run typecheck && npm run lint && npm run check:docs && npm run check:i18n &&
 - 同时用别的编辑器打开 `ocr.json`，在另一处改一个字保存 → 回到应用再改**同一段** → 应被拒绝并提示"这段文字在编辑器打开后变过"；改**别的**段则应当成功（前面那处改动只是把偏移移动了）
 - 保存后用 `git diff`（若书文件夹在 git 里）或比对哈希：**只有那一段字节变了**，同页的块坐标、别的页、缩进全部原样
 - 改块后 Markdown 视图**不变**（A18），反之亦然——这是设计，不是 bug
-- Markdown 视图（翻页模式）右上角"编辑这一页的 Markdown"→ 编辑框里是 `markdown.text` 的**源码**，标题写明在改哪一份
+- Markdown 视图（翻页模式）右上角"编辑这一页的 Markdown"→ 编辑框里是 `markdown.text` 的**源码**（CodeMirror：有行号、Markdown 语法上色），标题写明在改哪一份
+- 编辑器里 `Mod-Enter` 保存、`Esc` 关闭；**点别处不保存**；在编辑器里按 `Ctrl+Z` 撤的是**正在打的字**（编辑器自己的撤销），不是上一次落盘的修改
+- 表格块进编辑态时，里面是 **HTML 源码**并按 HTML 上色（文本块按 Markdown）
+- 编辑长 Markdown 时滚动条出现在编辑器内部（最高 60vh），页面本身不跳
 - 改完 `Ctrl+Enter` → 视图立刻是新内容，而**块视图不变**（A18）；`Esc` 取消、点别处不保存
 - "撤销这次修改"（两个编辑器都有）：把这次改动撤回，文件回到改动前（哈希一致）；按钮只管**自己那次**——中间改过别处，它仍然撤自己那次
 - 栏头那个撤销按钮 + `Ctrl+Z`：连改三处（换页、换编辑器都行）→ 连按三次 `Ctrl+Z`，**倒着**依次回到原样；按钮的悬浮提示应说清下一次要撤的是哪一页的哪一处（带一句话开头）
@@ -249,7 +252,9 @@ npm run typecheck && npm run lint && npm run check:docs && npm run check:i18n &&
 | React 组件渲染 | 需要 jsdom 或 Electron 环境，收益低于成本；UI 正确性靠第 6 节手工冒烟 |
 | Electron 主进程启动 | 需要真实 Electron 进程；`main/index.ts` 被刻意写得很薄，逻辑都在可测模块里 |
 | `electron-updater` 的真实更新流程 | 需要已发布的 Release；靠发版后的手工验证 |
-| `lbook://` 协议处理 | 需要 Electron 的 `protocol` 模块；它只做"uid → 书文件夹 → 文件"这一步，取文件与路径校验的逻辑已被 `library/` 与 `bookFile` 的单测覆盖 |
+| 编辑器（CodeMirror）的渲染与交互 | 需要 DOM/Electron。**能装起来**这件事由 `npm run check:editor` 在真实 Electron + `app://` + 生产 CSP 下验证（六项断言 + CSP 与 console 必须为空）；具体手感（上色、行号、撤销粒度）靠第 6 节手工清单 |
+| `lbook://` 协议处理 |
+ 需要 Electron 的 `protocol` 模块；它只做"uid → 书文件夹 → 文件"这一步，取文件与路径校验的逻辑已被 `library/` 与 `bookFile` 的单测覆盖 |
 | 并发写同一个台账 | 单用户桌面应用，未做多实例互斥（见 `DESIGN.md` 已知限制）。书本身不受影响：应用从不写书 |
 | `.lbook` 迁移的端到端跑批 | 用一次性的真实数据验证（`--dry-run` + 逐本核对），比在单元测试里造大包更可信；小包的幂等与保真已有 `tests/unit/migrate/` 覆盖 |
 

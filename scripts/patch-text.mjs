@@ -31,6 +31,11 @@
  * was and the run exits non-zero. A half-applied document is worse than an unapplied one,
  * and a patch that quietly does nothing is worse than both.
  *
+ * **Line endings are matched, not assumed.** This tree mixes them: a file git checked out
+ * on Windows has CRLF, a file written by a script has LF. Comparing one against the other
+ * finds nothing at all, which is this tool's worst failure mode — so each file's own ending
+ * is detected, and the patch text is converted to match before it is looked for.
+ *
  *   node scripts/patch-text.mjs <job-file>
  */
 import fs from "node:fs"
@@ -56,7 +61,7 @@ export function parseJobs(text) {
     buffer = []
   }
 
-  for (const line of text.split("\n")) {
+  for (const line of text.split(/\r?\n/)) {
     const marker = line.trim()
 
     if (marker === FILE) {
@@ -98,13 +103,18 @@ export function parseJobs(text) {
 
 export function applyJobs(path, jobs) {
   const source = fs.readFileSync(path, "utf8")
-  const missing = jobs.filter(([from]) => !source.includes(from)).map(([from]) => from)
+  const eol = source.includes("\r\n") ? "\r\n" : "\n"
+  // Job text arrives with LF; the file may use CRLF. Convert rather than compare.
+  const adapt = (text) => (eol === "\n" ? text : text.replace(/\r?\n/g, eol))
+
+  const missing = jobs.filter(([from]) => !source.includes(adapt(from))).map(([from]) => from)
   if (missing.length > 0) return { applied: 0, missing }
 
   let out = source
   for (const [from, to] of jobs) {
-    const at = out.indexOf(from)
-    out = out.slice(0, at) + to + out.slice(at + from.length)
+    const needle = adapt(from)
+    const at = out.indexOf(needle)
+    out = out.slice(0, at) + adapt(to) + out.slice(at + needle.length)
   }
   fs.writeFileSync(path, out)
   return { applied: jobs.length, missing: [] }

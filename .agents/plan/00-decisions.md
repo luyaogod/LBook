@@ -50,9 +50,25 @@
 | # | 决定 | 说明 |
 |---|---|---|
 | **A18** | **改块不会同步改 Markdown，反之亦然**；界面必须写明编辑对象 | A10 的自然结论：两份读法是同一页的两种独立读法。同步要复刻 PaddleOCR 的拼接规则，已经否过。代价是两边可能不一致——所以编辑器标题写“块 3 的内容”/“这一页的 Markdown” |
-| **A19** | ~~Markdown 编辑直接用 Monaco~~ → **实测后改为也用 textarea**（2026-10-11 晚） | 原判据是"长文本，行号/查找/高亮值得那 ~2MB 与 worker"。真做一遍才知道代价不止一块 bundle，见下面的 **A19 修订** |
+| **A19** | ~~Monaco~~ → ~~textarea~~ → **CodeMirror 6**（2026-10-11 两次修订） | Monaco 被实测否掉（见 A19 第一次修订），textarea 是当晚的过渡，最终按"跟 Obsidian"选 **CodeMirror 6**：小 4 倍以上、不需要 worker、入口 chunk 不变，见下面的 **A19 二次修订** |
 
-**A19 修订（2026-10-11，实测后推翻）**：Monaco 确实能在 `app://` 与生产 CSP 下跑，懒加载也成立——入口 chunk 1353KB **一点没涨**，Monaco 2640KB、worker 296KB、markdown 定义 3KB 各自是独立的懒块。但代价是三样，而它要换来的只是 3–13KB 的页级 Markdown：
+**A19 二次修订（2026-10-11 深夜：换成 CodeMirror 6）**：用户后来给了原则"**Obsidian 怎么做，我就怎么做**"，于是编辑器的选型也按那条重查了一遍——**Obsidian 官方文档自己写着**："Obsidian uses CodeMirror 6 (CM6) to power the Markdown editor"（`docs.obsidian.md/Plugins/Editor/Editor+extensions`；HN 上 Obsidian 开发者也说过新版 Live Preview 与源码模式都由 CM6 驱动）。所以"跟 Obsidian"在这里的答案既不是 Monaco 也不是 textarea，而是 **CodeMirror 6**。实测（`npm run check:editor`，在真实 Electron + `app://` + 生产 CSP 下）：
+
+| | Monaco（当时的实测） | **CodeMirror 6** |
+|---|---|---|
+| 懒加载总量 | 2640KB + **worker 296KB** | **约 570KB**（六个独立懒块，最大的 201KB） |
+| worker | 需要（`worker-src`、同源 URL 都得对） | **不需要**（CM6 不用 worker、不用 `new Function`） |
+| 独立验证的代价 | 因为 rolldown 的共用模块提升，探针必须单独一份构建 | 同样单独一份构建，但**没有 worker 那一路要验** |
+| 入口 chunk | 不变 | **不变**（A/B 对照：接线前后都是 1365KB，入口里 CM6 标记 0 次命中） |
+| 我们的界面文案 | —— | **零新增**（没开 `@codemirror/search`，所以没有它自带的英文面板） |
+
+`check:editor` 六项全过：装得上、样式生效（`style-src` 允许 inline 是关键）、行号在、**markdown 语言支持确实是懒块且真的到了**（高亮 span 出现）、值能读回、HTML 语言也能载入（表格块的源码就是 HTML）。它同时收集 `securitypolicyviolation` 与 `console.error`——两者都为空才算过。
+
+界面这一侧：页面 Markdown 与块源码**共用一个挂载组件**（`SourceEditorField.tsx`），键位与 textarea 时代完全一致（`Mod-Enter` 保存、`Esc` 关闭、失焦不保存），行尾、光标、选择与撤销都在编辑器内部，而**全局 `Ctrl+Z`（撤上一次落盘修改）仍然避让 contenteditable** ✓ 所以"在编辑器里按 Ctrl+Z 撤的是打字，不是文件"这条规则没变。
+
+**没做**：查找面板（`@codemirror/search`）。要加的话它的面板文案（Find / Replace / next…）得用 `EditorState.phrases` 换成我们的中文——那是**下一步的可选项**，不是遗漏。
+
+**A19 第一次修订（2026-10-11，实测后推翻 Monaco）**：Monaco 确实能在 `app://` 与生产 CSP 下跑，懒加载也成立——入口 chunk 1353KB **一点没涨**，Monaco 2640KB、worker 296KB、markdown 定义 3KB 各自是独立的懒块。但代价是三样，而它要换来的只是 3–13KB 的页级 Markdown：
 
 1. **一块 2.6MB 的懒 chunk**（进安装包），外加一条 worker 路径要维护；
 2. **rolldown 会把"app 与 Monaco 都用到的模块"提进入口 chunk**——这里是它自己的 `__exportAll` 辅助函数。于是 Monaco chunk 反过来 `import` 入口 chunk，vite 会在执行 Monaco 之前**预载并执行整个 app**。在应用里无害（入口早跑过了），但任何想单独验证 Monaco 的页面都会被它拖起整个界面；要验就必须给探针**单独一份 vite 构建**；

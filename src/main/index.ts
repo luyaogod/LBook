@@ -1,45 +1,13 @@
-import { app, BrowserWindow, Menu, nativeTheme, net, protocol, session } from "electron"
+import { app, BrowserWindow, Menu, nativeTheme } from "electron"
 import path from "node:path"
-import { pathToFileURL } from "node:url"
 import { BOOK_CHANGED_EVENT, WINDOW_MAXIMIZED_EVENT } from "../shared/ipc"
 import { createAppContext, type AppContext } from "./context"
 import { registerIpcHandlers } from "./ipc/register"
+import { applyContentSecurityPolicy, registerBundleProtocol, registerShellSchemes } from "./bundleHost"
 import { registerLbookProtocol } from "./protocol/lbookProtocol"
 import { applyNativeTheme, paintWindow, windowColors } from "./theme"
 import { createUpdater } from "./updater"
 
-/**
- * Schemes must be registered before app.whenReady().
- *
- * `app://bundle/...` serves the built renderer. We cannot load it over `file://`:
- * that origin is opaque, so `new Worker(file://...)` is rejected and pdf.js
- * silently falls back to parsing PDFs on the main thread.
- *
- * `lbook://` serves package entries the DOM loads by URL (`<img src>`).
- */
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: "app",
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      stream: true,
-      corsEnabled: true,
-      codeCache: true,
-    },
-  },
-  {
-    scheme: "lbook",
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      stream: true,
-      corsEnabled: true,
-    },
-  },
-])
 
 // LBOOK_USE_BUNDLE=1 exercises the production app:// path without packaging.
 const isDev = !app.isPackaged && process.env.LBOOK_USE_BUNDLE !== "1"
@@ -48,62 +16,7 @@ const DEV_SERVER_URL = process.env.LBOOK_DEV_SERVER_URL ?? "http://localhost:517
 // out/main/index.cjs -> out/renderer
 const RENDERER_DIR = path.join(__dirname, "..", "renderer")
 
-const PRODUCTION_CSP = [
-  "default-src 'none'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self' data:",
-  "img-src 'self' data: lbook:",
-  // Speech comes back from the main process as bytes and is played from a Blob
-  // URL; without this line `default-src 'none'` blocks it and the audio element
-  // only reports the useless "no supported source was found".
-  "media-src 'self' blob:",
-  "connect-src 'self' lbook:",
-  "worker-src 'self'",
-].join("; ")
-
 let context: AppContext | null = null
-
-function registerAppProtocol(): void {
-  protocol.handle("app", async (request) => {
-    const { host, pathname } = new URL(request.url)
-    if (host !== "bundle") {
-      return new Response("Not found", { status: 404 })
-    }
-
-    const relative = pathname === "/" ? "/index.html" : pathname
-    const absolute = path.join(RENDERER_DIR, path.normalize(relative))
-
-    // Guard against path traversal escaping the bundle directory.
-    if (absolute !== RENDERER_DIR && !absolute.startsWith(RENDERER_DIR + path.sep)) {
-      return new Response("Forbidden", { status: 403 })
-    }
-
-    try {
-      return await net.fetch(pathToFileURL(absolute).toString())
-    } catch {
-      return new Response("Not found", { status: 404 })
-    }
-  })
-}
-
-/**
- * Production-only. `script-src` deliberately excludes 'unsafe-inline' and
- * `img-src` excludes remote hosts: OCR block content is rendered through
- * rehype-raw and dangerouslySetInnerHTML, so `<img src=x onerror=...>` is a
- * live XSS path that the CSP must close.
- */
-function applyContentSecurityPolicy(): void {
-  if (isDev) return
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        "Content-Security-Policy": [PRODUCTION_CSP],
-      },
-    })
-  })
-}
 
 async function createWindow(): Promise<void> {
   // The renderer's theme is decided before this point (see applyNativeTheme), so
@@ -165,8 +78,8 @@ app.whenReady().then(async () => {
   // is dropped rather than hidden.
   Menu.setApplicationMenu(null)
 
-  registerAppProtocol()
-  applyContentSecurityPolicy()
+  registerBundleProtocol(RENDERER_DIR)
+  if (!isDev) applyContentSecurityPolicy()
 
   const appContext = createAppContext({
     userDataDir: app.getPath("userData"),
@@ -187,7 +100,9 @@ app.whenReady().then(async () => {
       for (const win of BrowserWindow.getAllWindows()) paintWindow(win, theme)
     },
   })
+  registerShellSchemes()
   registerLbookProtocol(appContext)
+
 
   // The OS switched light/dark while we are following it.
   nativeTheme.on("updated", () => {

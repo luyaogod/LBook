@@ -103,7 +103,25 @@ describe("patch-text", () => {
 
   })
 
+  it("matches a CRLF file, and keeps its line endings", () => {
+    // The failure this covers is silent: a job file written by a heredoc has LF, a file git
+    // checked out on Windows has CRLF, and a plain `includes` between the two finds nothing —
+    // so the patch "applies" nothing and nobody notices until a document is missing text.
+    const f = fixture({}, "")
+    const target = path.join(f.dir, "crlf.md")
+    fs.writeFileSync(target, "alpha\r\nbeta\r\n", "utf8")
+    fs.writeFileSync(
+      path.join(f.dir, "job.txt"),
+      ["@=FILE=", "crlf.md", "@=OLD=", "alpha", "@=NEW=", "ALPHA", "@=OLD=", "beta", "@=NEW=", "BETA"].join("\n"),
+      "utf8",
+    )
+
+    expect(run(f.dir).ok).toBe(true)
+    expect(fs.readFileSync(target, "utf8")).toBe("ALPHA\r\nBETA\r\n")
+  })
+
   it("leaves a file alone when an anchor is missing, and says so", () => {
+
     const original = "alpha\nbeta\n"
     const f = fixture(
       { "doc.md": original },

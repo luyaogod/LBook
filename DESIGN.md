@@ -256,7 +256,7 @@ function validateRangeRequestCapabilities({ getResponseHeader, isHttp, rangeChun
 
 **撤销是会话内的一份历史**（`src/renderer/lib/editHistory.ts` + `hooks/useEditHistory.ts`）：每次保存只记**差异**——前后两个字符串，不带页字节、不复制文件——按 `uid` 分书存，上限 50 条（上限是为了让长会话有个界，不是指望谁手动撤 50 次）。撤销就是**再走一次写路径**：把 `before` 写回、把 `after` 当 `baseValue`，所以**外部改动会让撤销被拒**而不是悄悄覆盖；被拒的条目留在历史里，读者看得见发生了什么。界面给两个入口：编辑器上那个按钮撤**它自己那次**（记着 entry id：中途改了别处它仍撤自己那次，条目被别的撤销吃掉后按钮自行消失），栏头那个按钮与 `Ctrl+Z` 撤**最近一次**，不论出自哪个编辑器。`Ctrl+Z` 只在焦点不在输入框时接管——在文本框里它属于文本框自己的撤销，抢过来是 bug 不是功能。历史**不落盘**：重启之后文件可能已经被别的东西改过，一次"撤销"悄悄回退本会话没见过的改动，比没有撤销更糟。
 
-**Markdown 编辑器是 textarea，不是 Monaco**——这是实测之后的修订（A19 修订，见 `.agents/plan/00-decisions.md`）：Monaco 能跑、懒加载也成立（入口 chunk 不涨，2640KB 编辑器 + 296KB worker + 3KB markdown 定义各自独立），但 rolldown 会把 app 与 Monaco 共用的模块（它自己的 `__exportAll`）提进入口 chunk，于是 Monaco chunk 反过来 import 入口 chunk、vite 在加载它之前会**执行整个 app**：验它就得另起一份 vite 构建与一个 Electron 探针。对 3–13KB 的文本，这笔账不划算，而原则 4（编辑的就是源码）textarea 同样满足。
+**编辑器是 CodeMirror 6**（`src/renderer/lib/sourceEditor.ts` + `components/sidebar/SourceEditorField.tsx`），懒加载。这是"跟 Obsidian 的做法"这条决定的直接结果——Obsidian 官方文档写明它的 Markdown 编辑器由 CM6 驱动——也是三个候选里最小的那个：Monaco 要 2640KB + 一个 296KB 的 worker（还因为 rolldown 的共用模块提升而必须为验证另起一份构建），CM6 是约 570KB、**不需要 worker**、入口 chunk 一个字节不涨（A/B 对照）。高亮、行号、撤销都在编辑器内部；键位与 textarea 时代完全一致（`Mod-Enter` 保存、`Esc` 关闭、失焦不保存），块里的表格按 HTML 上色（表格内容本来就是 HTML）。**查找面板还没开**（要开就得用 `EditorState.phrases` 把 CM6 自带的英文面板换成中文，是下一步的可选项）。工程上的验证是 `npm run check:editor`：真实 Electron + `app://` + 生产 CSP 下六项断言，且 `securitypolicyviolation` 与 `console.error` 都必须为空。
 
 字段区间由字节级状态机给出（`offsetIndex.ts` 那套再深一层），**不是**文本搜索"第 N 个 `block_content`"：块的**内容里**可能恰好出现这个字面量（HTML 片段、代码示例），搜索会改到别的字节。
 

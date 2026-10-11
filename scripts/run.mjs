@@ -2,6 +2,7 @@
  * Runs one of the TypeScript maintenance scripts in this folder.
  *
  *   node scripts/run.mjs <script-name> [args...]
+ *   node scripts/run.mjs --electron <script-name> [args...]
  *
  * The scripts import the same modules the main process does, so they are
  * bundled to CJS with the native/Electron modules left external.
@@ -12,7 +13,11 @@ import { fileURLToPath } from "node:url"
 import { build } from "esbuild"
 
 const root = fileURLToPath(new URL("..", import.meta.url))
-const [name, ...rest] = process.argv.slice(2)
+const argv = process.argv.slice(2)
+// Some checks need a real Electron window (the app:// protocol, the CSP, a renderer);
+// those are built the same way and run with the Electron binary instead of node.
+const useElectron = argv[0] === "--electron"
+const [name, ...rest] = useElectron ? argv.slice(1) : argv
 
 if (!name) {
   console.error("usage: node scripts/run.mjs <script-name> [args...]")
@@ -35,5 +40,9 @@ await build({
   external: ["electron", "electron-updater"],
 })
 
-const result = spawnSync(process.execPath, [outfile, ...rest], { stdio: "inherit", cwd: root })
+const electronPath = useElectron ? (await import("electron")).default : null
+const result = spawnSync(electronPath ?? process.execPath, [outfile, ...rest], {
+  stdio: "inherit",
+  cwd: root,
+})
 process.exit(result.status ?? 0)
