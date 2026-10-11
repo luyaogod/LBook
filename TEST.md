@@ -43,6 +43,7 @@ npx vitest --coverage                     # 带覆盖率（覆盖 src/main 与 s
 | `tests/unit/tencent/sign.test.ts` | **TC3-HMAC-SHA256 与官方文档算例逐项相等**（规范请求串、待签名字符串、Authorization、UTC 日期、region/STS 头的有无）——签名错一个换行，服务端只会回一句签名校验失败；TTS 错误码 → 可执行提示 |
 | `tests/unit/translate/service.test.ts` | 供应商解析与未知 id 回退；`auto` 本地判语种；**命中缓存不再调用**（同句第二次 `cached:true` 且供应商只被调一次）；源=目标短路（**一次都不调**）；空选直接拒绝；**设置载荷带出已存凭据**（供设置页预填与复制）与**清空字段 = 移除该键**；缺凭据抛 `ProviderConfigError` 且**不发请求**；朗读按「语言+文本」缓存、不同语言不串、厂商没有语音能力时报错、超长文本在发请求前就被拦下 |
 | `tests/unit/translate/detect.test.ts` | 本地语种判断：纯英文/纯中文、英文里夹中文词、中文里夹标识符、无字母数字时返回 null |
+| `tests/unit/migrate/lbookToFolder.test.ts` | 一次性迁移：uid 与字节保真（PDF sha256 对得上包内自报值、`ocr.json` 逐字节）、`toc.json`/封面搬齐、页数以 OCR 文件为准、四种失败都不留半个文件夹、**幂等**（台账里有就跳过；台账丢了也能靠文件夹里的 `meta.json` 认出自己）、同名落到 `-2`、dry run 只出计划 |
 | `tests/unit/renderer/assetUrl.test.ts` | `imgs/x.jpg` → `lbook://asset/<uid>/imgs/x.jpg`；绝对 URL 与协议相对 URL 不动；不误伤正文文本 |
 
 ### 一道硬闸
@@ -59,11 +60,12 @@ npx vitest --coverage                     # 带覆盖率（覆盖 src/main 与 s
 |---|---|
 | 重建保真 | `dev-data/Oxford Picture Dictionary 3 ed.ocr.json`（294 页）与旧库 |
 
-第二批（Phase 1 的一次性迁移）在 `tests/unit/migrate/`（**待建**，T8）：
+第二批是 Phase 1 的一次性迁移，在 `tests/unit/migrate/lbookToFolder.test.ts`（用 `tests/helpers/lbookPackage.ts` 造的、与真库同构的小包）：
 
-- 用 `tests/helpers/lbookPackage.ts` 造一个小包跑一遍迁移，断言：`book.pdf` 字节相同、`ocr.json` 字节相同、页数相同、进度相同、台账多一条。
-- **再跑一次什么都不做**（幂等）。
-- 真实那 5 本走 `npm run migrate:folders -- --dry-run`，逐本核对 PDF sha256、`ocr.json` 逐字节、页数、进度；原始 `.lbook` 必须原地不动。
+- 断言：`book.pdf` 字节相同且 sha256 等于包内自报值、`ocr.json` **逐字节**相同、页数取自 OCR 文件、`toc.json`/封面搬齐。
+- 失败路径：PDF 哈希对不上 / 没有 `ocr.json` / OCR 没有页 / 根本不是包 —— **都不留半个文件夹**。
+- **再跑一次什么都不做**（幂等）：有台账时按 uid 跳过，没台账时按文件夹里的 `meta.json` 认出自己；同名不同 uid 则落到 `-2`。
+- 真实那 5 本：`npm run migrate:folders`（dry run）→ `--apply` → 用独立脚本读包复核（PDF sha256、`ocr.json` 逐字节、页数、进度、原包哈希不变）。**2026-10-11 已跑过，61 项复核全过。**
 
 ---
 

@@ -11,6 +11,7 @@
 | `config/` | 配置读写与容错（含 `locale` 的取值校验） |
 | `lbook/` | OCR JSON 的字节偏移索引与页映射 |
 | `library/` | 台账、读一本书、登记一个文件夹、进度 |
+| `migrate/` | 一次性迁移：`.lbook` → 书文件夹（字节保真、幂等、失败不留半个文件夹） |
 | `progress/` | 阅读进度文件的读写与容错 |
 | `renderer/` | 渲染层可纯函数化的部分（资源 URL 重写） |
 | `shared/` | `src/shared/` 纯函数的契约（`meta.json`、台账、目录树） |
@@ -30,5 +31,5 @@
 ## 相关文档
 
 - 父级：[../README.md](../README.md)
-- 子目录：[lbook/README.md](./lbook/README.md)、[library/README.md](./library/README.md)、[progress/README.md](./progress/README.md)、[shared/README.md](./shared/README.md)、[tencent/README.md](./tencent/README.md)、[translate/README.md](./translate/README.md)
+- 子目录：[lbook/README.md](./lbook/README.md)、[library/README.md](./library/README.md)、[migrate/README.md](./migrate/README.md)、[progress/README.md](./progress/README.md)、[shared/README.md](./shared/README.md)、[tencent/README.md](./tencent/README.md)、[translate/README.md](./translate/README.md)
 - 相关：[../../TEST.md](../../TEST.md)

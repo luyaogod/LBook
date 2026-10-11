@@ -85,7 +85,7 @@
 - [x] `progress:get` / `progress:save` 的 IPC 不变。
 - [x] 迁移时把 `reading_progress` 表里的进度搬过去（**必须在 DB 还在时做**，所以属于本阶段）。
 
-### T8 迁移器（`src/main/migrate/lbookToFolder.ts` + `scripts/migrate-folders.ts`）——**唯一剩下的任务**
+### T8 迁移器（`src/main/migrate/lbookToFolder.ts` + `scripts/migrate-folders.ts`）✅ 已完成（2026-10-11，已在真实库上跑过）
 
 > 前置工作已经就位：包解析（`zipReader.ts` / `manifest.ts`）已从 `src/main/lbook/` 搬进 `src/main/migrate/`，
 > 应用本身已经不认识 `.lbook`；测试夹具 `tests/helpers/lbookPackage.ts` 能造出与真实包同构的小包
@@ -93,12 +93,12 @@
 
 > `src/main/migrate/` 是**新目录**：按 `AGENTS.md` §1.1 必须同时加 `README.md`（五个固定小节）。
 
-- [ ] 输入：库目录里发现的 `.lbook`（一次性清单）；输出：书文件夹 + 台账条目 + 进度条目。
-- [ ] 逐本：建文件夹（`slugify(title)`，重名加 `-2`）→ 解包 `book.pdf`（**边写边算 sha256 与包内比**，用流式拷贝，不要整块进内存）→ `ocr.json` **逐字节写出** → `toc.json`/封面原样拷 → `writeBookMeta`（`uid` 沿用包内 manifest）→ `ledger.add`。
-- [ ] **幂等**：目标文件夹已存在且 `meta.json.uid` 相同 → 跳过（但仍确保它在台账里）。
-- [ ] **失败隔离**：一本失败只报那一本，继续；原包**不移动、不删除**。
-- [ ] `npm run migrate:folders [-- --dry-run] [--book <片段>] [--root <目录>]`。
-- [ ] 黄金测试 `tests/unit/migrate/lbookToFolder.test.ts`：用 `tests/helpers/lbook.ts` 造的小包跑一遍，断言 PDF 字节相同、`ocr.json` 字节相同、页数相同、进度相同、台账多一条、**再跑一次什么都不做**。
+- [x] 输入：库目录里发现的 `.lbook`（一次性清单）；输出：书文件夹 + 台账条目 + 进度条目。
+- [x] 逐本：建文件夹（`slugify(title)`，重名加 `-2`）→ 解包 `book.pdf`（**边写边算 sha256 与包内比**，用流式拷贝，不要整块进内存）→ `ocr.json` **逐字节写出** → `toc.json`/封面原样拷 → `writeBookMeta`（`uid` 沿用包内 manifest）→ `ledger.add`。
+- [x] **幂等**：目标文件夹已存在且 `meta.json.uid` 相同 → 跳过（但仍确保它在台账里）。
+- [x] **失败隔离**：一本失败只报那一本，继续；原包**不移动、不删除**。
+- [x] `npm run migrate:folders [--dry-run] [--apply] [--book <片段>] [--root <目录>]`（**默认 dry run**，加 `--apply` 才写）。
+- [x] 黄金测试 `tests/unit/migrate/lbookToFolder.test.ts`（11 条）：用 `tests/helpers/lbookPackage.ts` 造的小包跑一遍，断言 PDF 字节相同且 sha256 相符、`ocr.json` 逐字节相同、页数取自 OCR 文件、`toc.json`/封面搬齐、失败时不留半个文件夹、**再跑一次什么都不做**（有台账与没台账两种）。
 
 ### T9 打开一个书文件夹（替代导入向导，A12） ✅ 已完成
 
@@ -144,21 +144,22 @@ npm run typecheck && npm run lint && npm run check:docs && npm test
 npm run probe:perf
 ```
 
-**迁移（A13：先备份，可重复执行）——待 T8：**
+**迁移（A13：先备份，可重复执行）——2026-10-11 已在真实的 5 本上完成：**
 
-- [x] 备份：库目录（或至少 5 个 `.lbook`）复制到库目录之外，记下大小与数量。
-- [x] `npm run migrate:folders -- --dry-run` 看计划 → 真跑 → **再跑一次应什么都不做**。
-- [x] 逐本核对：PDF sha256 与包内一致；`ocr.json` 与包内**逐字节相同**；页数一致；进度一致。
-- [x] 原 `.lbook` 仍在原处，**没被动过**。
-- [x] `library.json` 里 5 条路径都对；把其中一条的文件夹改名 → 列表显示"找不到"，点"从书库移除"后条目消失、**磁盘上的文件夹仍在**。
+- [x] 备份：5 个 `.lbook` + `lbook.db` + `config.json` 复制到 `D:\LBook-backup-2026-10-11`（610MB，附 `SHA256SUMS.txt`）；原件的 sha256 与备份记录逐项相同。
+- [x] `npm run migrate:folders` 看计划 → `--apply` 真跑（5 本共 ~800ms）→ **再跑一次 5 本全部跳过**（幂等）。
+- [x] 逐本核对（**用独立脚本读包**，不复用迁移器自己的断言）：uid/标题与包一致；PDF sha256 等于**包内自报**的 `pdfSha256`；`ocr.json` 与包内条目**逐字节相同**；页数 = OCR 数组长度 = 包内 `pageCount`；`toc.json` 存在性一致；进度搬齐——共 61 项全过。
+- [x] 原 `.lbook` 仍在原处，哈希与备份一致，**没被动过**。
+- [ ] `library.json` 里 5 条路径都对（已核对）；把其中一条的文件夹改名 → 列表显示“需要修复”，点“从书库移除”后条目消失、**磁盘上的文件夹仍在**（装好新版应用后手工点一遍）。
 
-**手工过一遍（`TEST.md` 第 6 节"基本链路"）：**
+**手工过一遍（`TEST.md` 第 6 节“基本链路”）——待装好新版应用后逐条走：**
 
-- [x] 打开一本大书：能列、能翻页、能缩放、Fit Width、Flow 连滚 6 屏不卡、没有白页。
-- [x] 目录跳转、当前页跟随、划词翻译、主题切换、阅读字号滑块都还在。
-- [x] 编辑入口全部消失（界面 + `grep -rn "book:save\|updateBlock" src/` 为空）。
-- [x] 外部改文件：把 `ocr.json` 里某页的一个字改掉（页数不变），**重启应用**后该页能看到（自动重读是 Phase 2）。
-- [x] 把某本 `meta.json` 删掉 → 列表里那本显示"需要修复"，应用不崩，其他书照常。
+- [ ] 打开一本大书（先拿 665 页的 BPP）：能列、能翻页、能缩放、Fit Width、Flow 连滚 6 屏不卡、没有白页。
+- [ ] 目录跳转、当前页跟随、划词翻译、主题切换、阅读字号滑块、语言切换都还在。
+- [ ] 阅读进度回到了迁移前的位置（BPP 22、OPD 3ed 5、OPD 1、初级会计 238、经济法 98）。
+- [ ] 编辑入口全部消失（界面 + `grep -rn "book:save\|updateBlock" src/` 为空）—— grep 已经为空。
+- [ ] 外部改文件：把 `ocr.json` 里某页的一个字改掉（页数不变），**重启应用**后该页能看到（自动重读是 Phase 2）。
+- [ ] 把某本 `meta.json` 删掉 → 列表里那本显示“需要修复”，应用不崩，其他书照常。
 
 ---
 

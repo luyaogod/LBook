@@ -1,14 +1,23 @@
 import fs from "node:fs"
 import path from "node:path"
+import { createHash } from "node:crypto"
 import yazl from "yazl"
 import {
   ENTRY_MANIFEST,
   ENTRY_OCR,
   ENTRY_PDF,
+  ENTRY_TOC,
   LBOOK_FORMAT,
   LBOOK_FORMAT_VERSION,
   packageFileName,
 } from "../../src/main/migrate/manifest"
+
+/** Pages in the fixture's OCR document, as a real package's manifest would count them. */
+function ocrPageCount(ocr: unknown | null): number {
+  if (ocr === null || typeof ocr !== "object") return 1
+  const results = (ocr as { layoutParsingResults?: unknown }).layoutParsingResults
+  return Array.isArray(results) && results.length > 0 ? results.length : 1
+}
 
 /**
  * A minimal but real PDF header, so `%PDF-` assertions are meaningful.
@@ -33,6 +42,8 @@ export interface BuildBookOptions {
   /** Replace manifest.json with arbitrary bytes/text. */
   rawManifest?: string
   cover?: { name: string; data: Buffer } | null
+  /** Written as the package's toc.json entry. */
+  toc?: unknown | null
   extra?: Array<{ name: string; data: Buffer }>
   manifestOverrides?: Record<string, unknown>
 }
@@ -55,6 +66,7 @@ export async function buildLbook(options: BuildBookOptions): Promise<BuiltBook> 
     omitManifest = false,
     rawManifest,
     cover = null,
+    toc = null,
     extra = [],
     manifestOverrides = {},
   } = options
@@ -68,9 +80,14 @@ export async function buildLbook(options: BuildBookOptions): Promise<BuiltBook> 
     title,
     author: null,
     createdAt: new Date(Date.UTC(2026, 0, 1)).toISOString(),
-    pageCount: 1,
+    // The manifest of a real package describes the pages its OCR file holds, so
+    // the fixture derives it too; a test that wants a lying manifest overrides it.
+    pageCount: ocrPageCount(ocr),
     pdfSize: pdf.length,
-    pdfSha256: "0".repeat(64),
+    // Hash the bytes the fixture actually contains: the migration verifies its copy
+    // against this, so a manifest that lies about its own PDF has to be a tests
+    // deliberate choice rather than the fixtures default.
+    pdfSha256: createHash("sha256").update(pdf).digest("hex"),
     hasOcr: ocr !== null,
     cover: cover ? { name: cover.name, mime: "image/jpeg" } : null,
     generator: "test",
@@ -93,6 +110,9 @@ export async function buildLbook(options: BuildBookOptions): Promise<BuiltBook> 
     }
     if (ocr !== null) {
       zip.addBuffer(Buffer.from(JSON.stringify(ocr), "utf8"), ENTRY_OCR)
+    }
+    if (toc !== null) {
+      zip.addBuffer(Buffer.from(JSON.stringify(toc), "utf8"), ENTRY_TOC)
     }
     if (cover) {
       zip.addBuffer(cover.data, cover.name)

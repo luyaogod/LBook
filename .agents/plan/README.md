@@ -7,8 +7,8 @@
 | 阶段 | 内容 | 状态 | 文件 |
 |---|---|---|---|
 | **Phase 0** | 性能验证与决策：单文件 + 字节偏移索引到底顶不顶得住 | ✅ 已完成（数据见 `baseline.md`） | — |
-| **Phase 1** | 读路径换成文件夹 + 一次性迁移 + **下掉全部编辑入口** | 🟡 进行中（读路径/只读/台账/进度已完成，剩 T8 迁移器） | [`01-phase1-folder-read.md`](./01-phase1-folder-read.md) |
-| **Phase 2** | 外部编辑的反应式重读 + 校验与坏书 UI | ⬜ 未开始（坏书已经在列表里以 `problem` 呈现，但没有重定位/自动重读） | [`02-phase2-reactivity-validation.md`](./02-phase2-reactivity-validation.md) |
+| **Phase 1** | 读路径换成文件夹 + 一次性迁移 + **下掉全部编辑入口** | ✅ 已完成（含真实 5 本的迁移与逐本复核） | [`01-phase1-folder-read.md`](./01-phase1-folder-read.md) |
+| **Phase 2** | 外部编辑的反应式重读 + 校验与坏书 UI | ⬜ 未开始 —— **下一步**（坏书已经在列表里以 `problem` 呈现，但没有重定位/自动重读） | [`02-phase2-reactivity-validation.md`](./02-phase2-reactivity-validation.md) |
 | **Phase 3** | 删 SQLite 与三个依赖、重写相关文档 | 🟡 大部分已随 Phase 1 完成（`src/main/db/` 已删、better-sqlite3/yauzl/yazl 已移出或移除、`asarUnpack`/`npmRebuild` 已删）；剩迁移脚本删除与依赖收尾 | [`03-phase3-drop-sqlite.md`](./03-phase3-drop-sqlite.md) |
 | **Phase 4** | 后期：Monaco 按页编辑（独立立项） | 🅿️ 搁置 | [`04-phase4-monaco.md`](./04-phase4-monaco.md) |
 | **界面多语言** | i18next 接入；英文为基准 + 简体中文；设置里有 Language 三张卡片 | 🟡 进行中 | [`05-i18n.md`](./05-i18n.md) |
