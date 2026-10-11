@@ -133,6 +133,14 @@ export const en = {
   // Messages this app writes itself. A vendor's error text is not translated (I6);
   // these are ours, and they arrive from main as a key with English as the fallback.
   "message.edit.bookGone": "This book is no longer in the library.",
+  "message.relocate.folderGone": "That folder does not exist.",
+  "message.relocate.notAFolder": "That is a file, not a folder.",
+  "message.relocate.notABook":
+    "That folder has no .lbook/meta.json, so it is not one of this library's book folders.",
+  "message.relocate.badMeta": "That folder's .lbook/meta.json could not be read.",
+  "message.relocate.otherBook": "That folder holds a different book ({{name}}).",
+  "message.relocate.missingOcr":
+    "That folder is this book, but {{name}} is missing from its .lbook folder.",
   "message.edit.noPage": "That page is not in this book.",
   "message.edit.noBlock": "That block is no longer on this page.",
   "message.edit.noMarkdown": "This page has no markdown text.",
@@ -145,6 +153,8 @@ export const en = {
     "That edit changed the page count, which correcting content must not do.",
 
   // ---- one book's row -----------------------------------------------------
+  "book.locate": "Locate…",
+  "book.located": "“{{name}}” now points at the folder you chose",
   "book.needsRepair": "Needs repair",
   "book.check": "Check this book's files",
   "book.openFolder": "Open this folder",

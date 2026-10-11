@@ -11,7 +11,7 @@ import {
   writeBookMeta,
   type BookMeta,
 } from "../../shared/bookFile"
-import type { OpenBookOutcome } from "../../shared/ipc"
+import type { OpenBookOutcome, WriteOutcome } from "../../shared/ipc"
 import type { BookToc, OcrPage, PdfDocument, ReadingProgress } from "../../shared/types"
 import { parseToc } from "../../shared/toc"
 import { coverUrl } from "../../shared/urls"
@@ -57,6 +57,17 @@ export interface Library {
   getToc(uid: string): Promise<BookToc | null>
   open(dir: string): Promise<OpenBookOutcome>
   /**
+   * Points an existing book at the folder it lives in now.
+   *
+   * This is the whole of "the folder was moved": Obsidian's answer for a vault moved
+   * outside the app is to open that folder as a vault again, and to offer no separate
+   * repair dialog — so this is what the "Locate…" button does, with one addition that
+   * matters: the folder has to say it is **this** book (`.lbook/meta.json` carries the
+   * uid), and a folder that says otherwise is refused. Without that check, picking the
+   * wrong folder would silently swap one book for another.
+   */
+  relocate(uid: string, dir: string): Promise<WriteOutcome<PdfDocument>>
+  /**
    * Registers a folder the app has just created, or brought into the `.lbook` layout.
    *
    * Separate from `open` because `open` asks the user for a folder and this one is
@@ -94,6 +105,23 @@ export interface Library {
   }
   dispose(): void
 }
+
+/**
+ * Messages this module writes itself, as translation keys.
+ *
+ * `bookGone` is shared with the editors: "this book is no longer in the library" has one
+ * meaning wherever it is said. The rest are this feature's.
+ */
+const MSG = {
+  bookGone: "message.edit.bookGone",
+  folderGone: "message.relocate.folderGone",
+  notAFolder: "message.relocate.notAFolder",
+  notABook: "message.relocate.notABook",
+  badMeta: "message.relocate.badMeta",
+  otherBook: "message.relocate.otherBook",
+  missingOcr: "message.relocate.missingOcr",
+} as const
+
 
 export interface LibraryInput {
   ledger: LedgerStore
@@ -398,10 +426,20 @@ export function createLibrary(input: LibraryInput): Library {
         }
 
         const { uid, adopted, moved } = await adopt(target)
-        const added = ledger.add(target, uid)
+        const { outcome } = ledger.add(target, uid)
+        // A folder that moved is still the same book: the entry follows it (see `add`).
+        // The cached book has to go, because it holds the directory it was opened from.
+        if (outcome === "repointed") books.delete(uid)
         const doc = await describe(uid, target)
         syncWatchers()
-        return { ok: true, doc, alreadyKnown: added === null, adopted, moved }
+        return {
+          ok: true,
+          doc,
+          alreadyKnown: outcome !== "added",
+          repointed: outcome === "repointed",
+          adopted,
+          moved,
+        }
       } catch (error) {
         return { ok: false, error: error instanceof Error ? error.message : String(error) }
       }
@@ -414,6 +452,75 @@ export function createLibrary(input: LibraryInput): Library {
       // replaced can: dropping the entry is what makes the next read parse them again.
       books.delete(uid)
       return describe(uid, dir)
+    },
+
+    async relocate(uid, dir) {
+      const known = ledger.list().some((ref) => ref.uid === uid)
+      if (!known) {
+        return { ok: false, error: "this book is no longer in the library", code: MSG.bookGone }
+      }
+
+      const target = path.resolve(dir)
+      if (!fs.existsSync(target)) {
+        return { ok: false, error: "that folder does not exist", code: MSG.folderGone }
+      }
+      if (!fs.statSync(target).isDirectory()) {
+        return { ok: false, error: "that is a file, not a folder", code: MSG.notAFolder }
+      }
+
+      const metaPath = path.join(dataDirOf(target), BOOK_FILES.meta)
+      if (!fs.existsSync(metaPath)) {
+        return {
+          ok: false,
+          error: `that folder has no ${LBOOK_DIR}/${BOOK_FILES.meta}, so it is not a book folder`,
+          code: MSG.notABook,
+        }
+      }
+
+      const parsed = parseBookMeta(JSON.parse(fs.readFileSync(metaPath, "utf8")) as unknown)
+      if (!parsed.ok) {
+        return { ok: false, error: `${LBOOK_DIR}/${BOOK_FILES.meta}: ${parsed.error}`, code: MSG.badMeta }
+      }
+      if (parsed.meta.uid !== uid) {
+        return {
+          ok: false,
+          error: `that folder holds a different book (${parsed.meta.title})`,
+          code: MSG.otherBook,
+          detail: parsed.meta.title,
+        }
+      }
+
+      // The file `meta.json` names has to be there, because that is how a folder ends up
+      // "the right book but not usable": half-copied, or moved without its `.lbook/`.
+      const ocrPath = path.join(dataDirOf(target), parsed.meta.ocrFile)
+      if (!fs.existsSync(ocrPath)) {
+        return {
+          ok: false,
+          error: `${parsed.meta.ocrFile} is missing from ${LBOOK_DIR}/`,
+          code: MSG.missingOcr,
+          detail: parsed.meta.ocrFile,
+        }
+      }
+
+      // **Read the folder before writing anything.** The ledger is the app's only piece of
+      // state, and pointing it at a folder that cannot be opened is worse than the broken
+      // path it replaces. (This order was wrong at first, and running the check against the
+      // real library showed it: the ledger had been rewritten, and the read-back then
+      // failed — leaving the book pointing somewhere unreadable.)
+      let book: OpenBook
+      try {
+        book = await openBook(target)
+      } catch (error) {
+        // Not one of the cases above, so it is the folder itself: report it as it came.
+        return { ok: false, error: error instanceof Error ? error.message : String(error) }
+      }
+
+      ledger.add(target, uid)
+      // `openBook` did the work already, so the cache gets it instead of re-reading — and
+      // the entry that was cached before holds the *old* directory.
+      books.set(uid, book)
+      syncWatchers()
+      return { ok: true, value: await describe(uid, target) }
     },
 
     async resolveFile(uid, kind) {

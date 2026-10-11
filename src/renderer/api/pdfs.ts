@@ -133,6 +133,16 @@ export async function pickFile(kind: FileKind): Promise<string | null> {
 }
 
 /** Opens the OS folder picker; null when the reader closed it. */
+/**
+ * Points an already-listed book at the folder it lives in now.
+ *
+ * The folder has to be that book: main compares the uid inside its `.lbook/meta.json`
+ * and refuses anything else, so a mis-click cannot swap one book for another.
+ */
+export function locateBook(uid: string, dir: string): Promise<WriteOutcome<PdfDocument>> {
+  return window.api.library.locate(uid, dir)
+}
+
 export function pickFolder(defaultPath?: string): Promise<string | null> {
   return window.api.dialog.pickFolder(defaultPath)
 }

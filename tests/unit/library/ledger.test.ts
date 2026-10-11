@@ -58,14 +58,16 @@ describe("ledger", () => {
     const f = fixture()
     const store = f.store({ now: () => "2026-10-11T00:00:00.000Z" })
 
-    const inRef = store.add(f.inside("BPP Financial Accounting"), "uid-bpp")
-    const outRef = store.add(f.outside("Oxford"), "uid-ox")
+    const added = store.add(f.inside("BPP Financial Accounting"), "uid-bpp")
+    const other = store.add(f.outside("Oxford"), "uid-ox")
 
-    expect(inRef?.path).toBe("BPP Financial Accounting")
-    expect(outRef?.path).toBe(f.outside("Oxford"))
+    expect(added.outcome).toBe("added")
+    expect(other.outcome).toBe("added")
+    expect(added.ref.path).toBe("BPP Financial Accounting")
+    expect(other.ref.path).toBe(f.outside("Oxford"))
     // Either way the folder comes back as an absolute directory.
-    expect(store.resolve(inRef!)).toBe(f.inside("BPP Financial Accounting"))
-    expect(store.resolve(outRef!)).toBe(f.outside("Oxford"))
+    expect(store.resolve(added.ref)).toBe(f.inside("BPP Financial Accounting"))
+    expect(store.resolve(other.ref)).toBe(f.outside("Oxford"))
     expect(store.list()).toHaveLength(2)
   })
 
@@ -78,15 +80,48 @@ describe("ledger", () => {
     expect(moved.resolve(moved.list()[0])).toBe(path.join(path.dirname(f.root), "Renamed Library", "BPP"))
   })
 
-  it("does not list the same book twice", () => {
+  it("lists a book once, wherever its folder is now", () => {
+    // The rule the app inherited from Obsidian's vault list: a book's identity is the
+    // uid inside its own .lbook/, and the ledger records **where it currently is**.
+    // Opening a folder that carries a known uid re-points that entry — which is what
+    // "open folder as vault" does for a vault that was moved outside the app.
     const f = fixture()
     const store = f.store()
     const folder = f.inside("BPP")
-    expect(store.add(folder, "uid-bpp")).not.toBeNull()
-    expect(store.add(folder, "uid-bpp"), "same folder, same uid").toBeNull()
-    expect(store.add(folder, "uid-other"), "same folder, new uid").toBeNull()
-    expect(store.add(f.outside("copy"), "uid-bpp"), "same uid elsewhere").toBeNull()
+
+    expect(store.add(folder, "uid-bpp").outcome).toBe("added")
+    expect(store.add(folder, "uid-bpp"), "same folder, same uid").toMatchObject({ outcome: "known" })
+
+    // Same book, a new folder: the entry follows instead of a second row appearing.
+    const moved = store.add(f.inside("BPP (moved)"), "uid-bpp")
+    expect(moved.outcome).toBe("repointed")
     expect(store.list()).toHaveLength(1)
+    expect(store.resolve(store.list()[0]!)).toBe(f.inside("BPP (moved)"))
+    // A book that joined the library keeps its place in the order and its added date.
+    expect(moved.ref.addedAt).toBe(store.list()[0]?.addedAt)
+
+    // The folder is now a different book (its meta.json was replaced): the folder wins,
+    // because the uid is what progress, the cover and every read are keyed by.
+    const relabelled = store.add(f.inside("BPP (moved)"), "uid-other")
+    expect(relabelled.outcome).toBe("repointed")
+    expect(store.list()).toHaveLength(1)
+    expect(store.list()[0]?.uid).toBe("uid-other")
+  })
+
+  it("re-points across the default location boundary, keeping one spelling each", () => {
+    const f = fixture()
+    const store = f.store()
+    store.add(f.inside("BPP"), "uid-bpp")
+
+    // Moved out of the library folder: recorded absolute, because a relative path would
+    // no longer resolve.
+    store.add(f.outside("BPP"), "uid-bpp")
+    expect(store.list()[0]?.path).toBe(f.outside("BPP"))
+    expect(store.resolve(store.list()[0]!)).toBe(f.outside("BPP"))
+
+    // And back in: stored relative again, so the whole library can still be renamed (B7).
+    store.add(f.inside("BPP"), "uid-bpp")
+    expect(store.list()[0]?.path).toBe("BPP")
   })
 
   it("forgets an entry without touching the folder", () => {
@@ -96,7 +131,7 @@ describe("ledger", () => {
     const store = f.store()
     const folder = f.inside("BPP")
     fs.writeFileSync(path.join(folder, "book.pdf"), "%PDF-1.4", "utf8")
-    const ref = store.add(folder, "uid-bpp")!
+    const ref = store.add(folder, "uid-bpp").ref
 
     expect(store.remove(ref)).toBe(true)
     expect(store.list()).toEqual([])

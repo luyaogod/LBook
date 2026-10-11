@@ -30,6 +30,7 @@ export const IPC = {
   /** Runs the validation rules over one book and returns what is wrong with it. */
   libraryInspect: "library:inspect",
   /** Old `.lbook` packages still sitting in the default location. */
+  libraryLocate: "library:locate",
   libraryLeftovers: "library:leftovers",
   /** Opens the default new-book location itself, for the migration hint. */
   libraryOpenLibraryDir: "library:openLibraryDir",
@@ -201,6 +202,8 @@ export type OpenBookOutcome =
       ok: true
       doc: PdfDocument
       alreadyKnown: boolean
+      /** The folder had moved and the entry now points at the new place. */
+      repointed: boolean
       adopted: boolean
       /** Files this call moved into `.lbook/`, for a one-line report to the reader. */
       moved: string[]
@@ -260,7 +263,16 @@ export type CreateBookPreview =
  */
 export type WriteOutcome<T> =
   | { ok: true; value: T }
-  | { ok: false; error: string; code?: string }
+  | {
+      ok: false
+      error: string
+      code?: string
+      /**
+       * A value our own message may name, so the translated sentence can be as specific
+       * as the English one — "that folder holds a different book (**Oxford**)".
+       */
+      detail?: string
+    }
 
 /** Which of a book's files is being replaced. */
 export type ReplaceRole = "ocr" | "cover" | "toc" | "pdf" | "title"
@@ -285,6 +297,8 @@ export interface IpcMap {
   [IPC.libraryOpenPath]: { req: { uid: string; kind: BookFileKind }; res: void }
   [IPC.libraryShowInFolder]: { req: { uid: string; kind: BookFileKind }; res: void }
   [IPC.libraryInspect]: { req: { uid: string; deep?: boolean }; res: BookIssue[] }
+  /** Points an already-listed book at the folder it lives in now. */
+  [IPC.libraryLocate]: { req: { uid: string; dir: string }; res: WriteOutcome<PdfDocument> }
   [IPC.libraryLeftovers]: { req: void; res: LeftoverPackages }
   [IPC.libraryOpenLibraryDir]: { req: void; res: void }
   [IPC.libraryRefresh]: { req: void; res: void }
@@ -403,6 +417,8 @@ export interface LbookApi {
     createBook(input: CreateBookInput): Promise<WriteOutcome<PdfDocument>>
     /** Re-reads the folders; the window calls this when it regains focus. */
     refresh(): Promise<void>
+    /** Points an already-listed book at the folder it lives in now. */
+    locate(uid: string, dir: string): Promise<WriteOutcome<PdfDocument>>
   }
   book: {
     getPage(uid: string, pageNum: number): Promise<OcrPage | null>

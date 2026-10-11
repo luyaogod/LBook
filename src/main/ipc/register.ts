@@ -176,6 +176,15 @@ export function registerIpcHandlers(
    * no zip reader and no SQLite any more. So what the interface can honestly offer is
    * the list, the folder, and the command.
    */
+  ipcMain.handle(IPC.libraryLocate, async (_event, { uid, dir }) => {
+    const outcome = await context.library.relocate(uid, dir)
+    // The list is what changed, so the window re-reads it; a book that was open in
+    // another window is now a different directory, so that window re-reads too.
+    broadcastLibraryChanged()
+    if (outcome.ok) broadcastBookChanged({ uid, dir: "", changed: [] })
+    return outcome
+  })
+
   ipcMain.handle(IPC.libraryLeftovers, async () => {
     const dir = context.libraryDir()
     try {

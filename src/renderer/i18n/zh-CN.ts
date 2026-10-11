@@ -122,6 +122,12 @@ export const zhCN: Record<TranslationKeys, string> = {
 
   // 应用自己写的提示（厂商报错不翻译，I6）。主进程发来的是 key，英文原文作回落。
   "message.edit.bookGone": "这本书已经不在书库里了。",
+  "message.relocate.folderGone": "那个文件夹不存在。",
+  "message.relocate.notAFolder": "那是一个文件，不是文件夹。",
+  "message.relocate.notABook": "那个文件夹里没有 .lbook/meta.json，不是书库里的书文件夹。",
+  "message.relocate.badMeta": "那个文件夹里的 .lbook/meta.json 读不了。",
+  "message.relocate.otherBook": "那个文件夹里是另一本书（{{name}}）。",
+  "message.relocate.missingOcr": "那个文件夹确实是这本书，但它的 .lbook 里缺 {{name}}。",
   "message.edit.noPage": "这本书里没有这一页。",
   "message.edit.noBlock": "这一页上已经没有这个块了。",
   "message.edit.noMarkdown": "这一页没有 Markdown 文本。",
@@ -131,6 +137,8 @@ export const zhCN: Record<TranslationKeys, string> = {
   "message.edit.pageCount": "这次改动改变了页数，而内容修正不该改变页数。",
 
   // ---- one book's row -----------------------------------------------------
+  "book.locate": "定位…",
+  "book.located": "“{{name}}”已指向你选的文件夹",
   "book.needsRepair": "需要修复",
   "book.check": "检查这本书的文件",
   "book.openFolder": "打开这个文件夹",

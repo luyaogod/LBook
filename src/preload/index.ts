@@ -25,6 +25,7 @@ const api: LbookApi = {
     previewBook: (input) => ipcRenderer.invoke(IPC.libraryPreviewBook, input),
     createBook: (input) => ipcRenderer.invoke(IPC.libraryCreateBook, input),
     refresh: () => ipcRenderer.invoke(IPC.libraryRefresh),
+    locate: (uid, dir) => ipcRenderer.invoke(IPC.libraryLocate, { uid, dir }),
   },
 
   book: {

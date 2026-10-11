@@ -17,7 +17,7 @@
 
 ## 对外接口
 
-`fetchBooks()`、`fetchBook()`、`openBookFolder()`、`removeBook()`、`revealBook()`、`fetchPdfPage()`、`fetchBookToc()`；`fetchReadingProgress()`、`saveReadingProgress()`。
+`fetchBooks()`、`fetchBook()`、`openBookFolder()`、`removeBook()`、`locateBook()`、`revealBook()`、`fetchPdfPage()`、`fetchBookToc()`；`fetchReadingProgress()`、`saveReadingProgress()`。
 
 ## 依赖方向
 

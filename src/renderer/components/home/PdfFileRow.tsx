@@ -28,6 +28,14 @@ interface PdfFileRowProps {
   onEdit: (pdf: PdfDocument) => void;
   /** Forgets the book. The folder and its files are not touched (A11). */
   onRemove: (uid: string) => void;
+  /**
+   * Finds a book the app cannot open, by pointing at the folder it lives in now.
+   *
+   * The Obsidian answer for a vault that moved outside the app — open the folder as a
+   * vault again — which is what makes a path recorded in a ledger the recovery:
+   * nothing has to be repaired, the folder just has to be found.
+   */
+  onLocate: (pdf: PdfDocument) => void;
 }
 
 function formatFileSize(bytes: number): string {
@@ -78,7 +86,7 @@ function kindOf(issue: BookIssue): BookFileKind {
  * in the app where reading the whole OCR file is worth 300ms, so it is behind a
  * button rather than part of the listing.
  */
-export function PdfFileRow({ pdf, onOpen, onOpenPath, onEdit, onRemove }: PdfFileRowProps) {
+export function PdfFileRow({ pdf, onOpen, onOpenPath, onEdit, onRemove, onLocate }: PdfFileRowProps) {
   const { t, i18n } = useTranslation();
   const broken = pdf.problem !== null;
   const [issues, setIssues] = useState<BookIssue[] | null>(null);
@@ -148,8 +156,22 @@ export function PdfFileRow({ pdf, onOpen, onOpenPath, onEdit, onRemove }: PdfFil
             )}
           </div>
           {broken && (
-            <p className="mt-1 text-xs text-muted-foreground truncate" title={pdf.problem ?? ""}>
-              {pdf.problem}
+            <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="min-w-0 truncate" title={pdf.problem ?? ""}>
+                {pdf.problem}
+              </span>
+              {/* The reason and the way out on one line. This is Obsidian's "open folder
+                  as vault" applied to a book folder that moved: point at where it is now,
+                  and main checks the folder really is this book before anything changes. */}
+              <button
+                className="shrink-0 underline underline-offset-2 hover:text-foreground"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onLocate(pdf);
+                }}
+              >
+                {t("book.locate")}
+              </button>
             </p>
           )}
         </div>

@@ -11,10 +11,14 @@
  * editors would otherwise each reimplement it.
  */
 export function writeErrorText(
-  t: (key: never, options: { defaultValue: string }) => string,
-  failure: { error: string; code?: string },
+  t: (key: never, options: Record<string, unknown>) => string,
+  failure: { error: string; code?: string; detail?: string },
 ): string {
-  return failure.code === undefined
-    ? failure.error
-    : t(failure.code as never, { defaultValue: failure.error })
+  if (failure.code === undefined) return failure.error
+  // `detail` is what a message may name; `{{name}}` is how the dictionaries spell it, so
+  // the caller does not have to know which sentence arrived.
+  return t(failure.code as never, {
+    defaultValue: failure.error,
+    ...(failure.detail === undefined ? {} : { name: failure.detail }),
+  })
 }

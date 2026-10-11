@@ -379,3 +379,135 @@ describe("books outside the default location", () => {
     }
   })
 })
+
+describe("a book folder that moved", () => {
+  /** Moves a book folder somewhere else on disk, the way a reader would in Explorer. */
+  function moveFolder(from: string, to: string): void {
+    fs.mkdirSync(path.dirname(to), { recursive: true })
+    fs.renameSync(from, to)
+  }
+
+  it("re-points the entry when the new folder is opened (Obsidian's open-folder-as-vault)", async () => {
+    // The recovery Obsidian documents for a vault moved outside the app: open that folder
+    // as a vault again. It works here because the folder carries its own identity — the uid
+    // in `.lbook/meta.json` — so the ledger can follow the folder rather than gain a row.
+    const { library, rootDir } = makeLibrary()
+    const folder = createBookFolder({ parent: rootDir, title: "Laws" })
+    await library.open(folder.dir)
+
+    const moved = path.join(rootDir, "Laws Renamed")
+    moveFolder(folder.dir, moved)
+
+    const outcome = await library.open(moved)
+    expect(outcome).toMatchObject({ ok: true, alreadyKnown: true, repointed: true })
+
+    const [doc] = await library.list()
+    expect(doc.uid).toBe(folder.uid)
+    expect(doc.dir).toBe(moved)
+    expect(doc.problem).toBeNull()
+  })
+
+  it("re-points on purpose, and refuses a folder holding a different book", async () => {
+    const { library, rootDir } = makeLibrary()
+    const folder = createBookFolder({ parent: rootDir, title: "Laws", uid: "uid-laws" })
+    await library.open(folder.dir)
+
+    const other = createBookFolder({ parent: rootDir, title: "Chemistry", uid: "uid-chem" })
+    await library.open(other.dir)
+
+    const refused = await library.relocate("uid-laws", other.dir)
+    expect(refused.ok).toBe(false)
+    // The message names the book that is actually there, so a mis-click says what it hit.
+    expect(refused).toMatchObject({ code: "message.relocate.otherBook", detail: "Chemistry" })
+    // And nothing moved: the ledger still points both books where they were.
+    const docs = await library.list()
+    expect(docs.map((doc) => doc.dir).sort()).toEqual([folder.dir, other.dir].sort())
+
+    const moved = path.join(rootDir, "Laws (1)")
+    moveFolder(folder.dir, moved)
+    const outcome = await library.relocate("uid-laws", moved)
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.value.dir).toBe(moved)
+    expect(outcome.value.uid).toBe("uid-laws")
+  })
+
+  it("reads the moved book from where it is now, cache and all", async () => {
+    const { library, rootDir } = makeLibrary()
+    const folder = createBookFolder({ parent: rootDir, title: "Laws", pageCount: 4 })
+    await library.open(folder.dir)
+    // Read a page first: the cached book holds the directory it was opened from, and a
+    // stale cache would keep serving the old path after the folder moves.
+    expect((await library.getPage(folder.uid, 2))?.page_num).toBe(2)
+
+    const moved = path.join(rootDir, "Laws moved")
+    moveFolder(folder.dir, moved)
+    expect((await library.relocate(folder.uid, moved)).ok).toBe(true)
+
+    expect((await library.get(folder.uid))?.dir).toBe(moved)
+    expect((await library.getPage(folder.uid, 3))?.blocks[0].block_content).toBe("page 3")
+    expect((await library.pageRange(folder.uid, 1)).bytes.length).toBeGreaterThan(0)
+  })
+
+  it("reads the folder before it writes, so a bad one leaves the ledger alone", async () => {
+    // The bug this covers was found by running the check against the real library: the
+    // ledger was rewritten first and the read-back then failed, so the book ended up
+    // pointing at a folder that could not be opened — worse than the broken path it had.
+    const { library, rootDir } = makeLibrary()
+    const folder = createBookFolder({ parent: rootDir, title: "Laws" })
+    await library.open(folder.dir)
+
+    // The right book (its meta.json carries the uid), but half of it is missing.
+    const half = path.join(rootDir, "Laws (half copied)")
+    fs.mkdirSync(path.join(half, ".lbook"), { recursive: true })
+    fs.copyFileSync(folder.metaPath, path.join(half, ".lbook", "meta.json"))
+
+    const refused = await library.relocate(folder.uid, half)
+    expect(refused).toMatchObject({ ok: false, code: "message.relocate.missingOcr" })
+
+    const [doc] = await library.list()
+    expect(doc.dir).toBe(folder.dir)
+    expect(doc.problem).toBeNull()
+    expect((await library.getPage(folder.uid, 1))?.blocks[0].block_content).toBe("page 1")
+  })
+
+  it("refuses a folder that is not a book folder, and one that is not in the library", async () => {
+
+    const { library, rootDir } = makeLibrary()
+    const folder = createBookFolder({ parent: rootDir, title: "Laws" })
+    await library.open(folder.dir)
+
+    // Raw PaddleOCR output the app has never adopted: it has no `.lbook/` to read an
+    // identity from, and adopting it here would be a different operation entirely.
+    const raw = createTempRoot()
+    try {
+      const loose = createBookFolder({ parent: raw.dir, title: "Raw", loose: true })
+      expect(await library.relocate(folder.uid, loose.dir)).toMatchObject({
+        ok: false,
+        code: "message.relocate.notABook",
+      })
+    } finally {
+      raw.cleanup()
+    }
+
+    expect(await library.relocate("uid-not-here", folder.dir)).toMatchObject({
+      ok: false,
+      code: "message.edit.bookGone",
+    })
+
+    expect(await library.relocate(folder.uid, path.join(rootDir, "nope"))).toMatchObject({
+      ok: false,
+      code: "message.relocate.folderGone",
+    })
+    // A file is not a folder, however plausible the path looks.
+    expect(await library.relocate(folder.uid, folder.pdfPath)).toMatchObject({
+      ok: false,
+      code: "message.relocate.notAFolder",
+    })
+
+    // Four refusals, and the library is exactly as it was.
+    const [doc] = await library.list()
+    expect(doc.dir).toBe(folder.dir)
+    expect(doc.problem).toBeNull()
+  })
+})

@@ -15,6 +15,7 @@
     "check:edit": "node scripts/run.mjs check-edit",
     "check:i18n": "node scripts/check-i18n.mjs",
     "check:inspect": "node scripts/run.mjs check-inspect",
+    "check:locate": "node scripts/run.mjs check-locate",
     "dev": "node scripts/dev.mjs",
     "dev:renderer": "vite",
     "lint": "oxlint",

@@ -65,6 +65,29 @@
 
 编辑的三条原则（用户 2026-10-11 定，写进 `04-phase4-content-edit.md`）：**坐标不改**（OCR 的产物，只写 `block_content` 与 `markdown.text` 两个字符串字段）、**只在翻页模式**（页是文件的单位）、**一次一个字段**。
 
+### A21（2026-10-11 第四轮：书库模型就按 Obsidian 的 vault 来做）
+
+用户的指令是**"Obsidian 怎么做，我就怎么做"**。查了官方文档（`Manage vaults`、`How Obsidian stores data`、`Configuration folder`）之后逐条对齐：
+
+| Obsidian | 我们的对应 | 状态 |
+|---|---|---|
+| vault 就是一个文件夹（含子文件夹），里面的笔记是普通文件 | 一本书就是一个文件夹，里面是 PaddleOCR 原样的文件 | ✅ 已是（Phase 1） |
+| 每个 vault 自带一个 `.obsidian/` 配置文件夹，放在 vault 根下 | 每本书自带 `.lbook/`，放在书文件夹根下 | ✅ 已是（`1a6f91f`） |
+| vault 的**身份**是它自己带的配置，不是一个数据库 id | 书的身份是 `.lbook/meta.json` 里的 `uid` | ✅ 已是 |
+| 全局配置 `%APPDATA%\obsidian\obsidian.json` 只记 `vaults: { id → { path, ts, open } }`——**现在在哪** | `library.json` 记 `{ path, uid, addedAt }` | ✅ 同构 |
+| **Remove vault：只从列表里移除**，磁盘一个字节不动 | "删除" = 从台账去掉一条（A11） | ✅ 已一致 |
+| **vault 文件夹被搬走**：官方修法是 "Open folder as vault" 再指到新位置（`Manage vaults` 的 *Move vault to a different folder*），列表条目跟着走 | **原来没做到**：`ledger.add()` 遇到已有 uid 直接返回 null、**不更新路径**，所以走"添加 → 已有文件夹 → 选新位置"也修不好 | ✅ **本轮补上**：`add()` 返回 `added`/`known`/`repointed`，同一 uid 换位置就**改写那一条的 path**；`library.relocate(uid, dir)` + 行上的"定位…" |
+| vault 重命名 = 重命名文件夹（"the name of a vault and the underlying folder are the same"） | 书名在 `meta.json` 的 `title` 里，**和文件夹名可以不同** | ⚠️ 未对齐，见 B14 |
+| 应用自己提供 "Move vault"（挪文件夹） | 没做：用户自己在资源管理器里搬，再用"定位…"告诉应用 | ⚠️ 故意不做，见下 |
+| 外部改文件名 → 链接断掉（要靠插件补救） | 我们的"链接"是 `uid`，与路径无关，所以**搬动/改名不会丢进度** | ✅ 比 Obsidian 结实 |
+
+**定位的安全性**：不能"选哪个文件夹就认哪个"。`relocate` 要求那个文件夹里的 `.lbook/meta.json` **uid 与要定位的书一致**，否则拒绝并在提示里点名"那里是另一本书（书名）"。这条 Obsidian 没有（它的列表本来就可以随便指），我们需要它是因为一个库里有多本书，选错就等于把两本书对调。
+
+**故意不跟的两条**（不是漏掉，是判断）：
+
+1. **不做应用内的"移动文件夹"**。Obsidian 只在系统允许时提供它，其余情况仍要用户自己搬——而搬这件事用户在自己熟悉的资源管理器里做更快，代价是搬完告诉应用一声（"定位…"）。少写一条会跨盘失败的复制/删除路径，也少一次"搬一半断电"的风险。
+2. **改名仍只改 `meta.json` 的 `title`**（`EditBookDialog`），不动文件夹名。书文件夹名是**用户文件系统里的东西**，可能已被他们的备份/同步/脚本依赖；Obsidian 之所以"改名即改文件夹"，是因为它没有元数据文件可改。要不要跟，记在 B14。
+
 ### 按建议默认执行（低风险，随时可改）
 
 | # | 默认 | 理由 |

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { BookFileKind } from "@shared/ipc";
-import { fetchBooks, fetchLeftoverPackages, openBookPath, openLibraryDir as openLibraryDirInShell, removeBook } from "@/api/pdfs";
+import { fetchBooks, fetchLeftoverPackages, locateBook, openBookPath, openLibraryDir as openLibraryDirInShell, pickFolder, removeBook } from "@/api/pdfs";
+import { writeErrorText } from "@/lib/writeError";
 import type { PdfDocument } from "@/types";
 import { PdfFileRow } from "./PdfFileRow";
 import { Search, ArrowUpDown, ChevronLeft, ChevronRight, Loader2, AlertTriangle, BookOpen, FolderPlus, RefreshCw, TriangleAlert } from "lucide-react";
@@ -36,6 +37,8 @@ export function HomePage({ onOpenBook, onAddBook, onEditBook, notice = null, ref
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [localRefresh, setLocalRefresh] = useState(0);
+  /** What the last "locate" attempt said: where the book is now, or why it was refused. */
+  const [locateMessage, setLocateMessage] = useState<string | null>(null);
   const [leftovers, setLeftovers] = useState<{ dir: string; files: string[] } | null>(null);
   const [leftoversHidden, setLeftoversHidden] = useState(false);
 
@@ -130,6 +133,28 @@ export function HomePage({ onOpenBook, onAddBook, onEditBook, notice = null, ref
     void removeBook(uid).then(() => setLocalRefresh((n) => n + 1));
   }, [pdfs, t]);
 
+  /**
+   * Points a book the app cannot find at the folder it lives in now.
+   *
+   * Main refuses a folder that holds a different book, so this reports either way and
+   * never has to guess: a success says where it is now, a refusal says why.
+   */
+  const handleLocate = useCallback(
+    (pdf: PdfDocument) => {
+      void pickFolder().then(async (dir) => {
+        if (dir === null) return;
+        const outcome = await locateBook(pdf.uid, dir);
+        setLocateMessage(
+          outcome.ok
+            ? t("book.located", { name: outcome.value.title })
+            : writeErrorText(t, outcome),
+        );
+        if (outcome.ok) setLocalRefresh((n) => n + 1);
+      });
+    },
+    [t],
+  );
+
   const handleReveal = useCallback((uid: string, kind: BookFileKind = "folder") => {
     void openBookPath(uid, kind);
   }, []);
@@ -207,6 +232,9 @@ export function HomePage({ onOpenBook, onAddBook, onEditBook, notice = null, ref
       {notice !== null && (
         <p className="mx-auto w-full max-w-4xl px-8 pt-4 text-xs text-muted-foreground">{notice}</p>
       )}
+      {locateMessage !== null && (
+        <p className="mx-auto w-full max-w-4xl px-8 pt-4 text-xs text-muted-foreground">{locateMessage}</p>
+      )}
       {/* Search bar */}
       <div className="p-6 pb-4 bg-background shrink-0">
         <div className="max-w-4xl mx-auto relative">
@@ -266,6 +294,7 @@ export function HomePage({ onOpenBook, onAddBook, onEditBook, notice = null, ref
                   onOpenPath={handleReveal}
                   onRemove={handleRemove}
                   onEdit={onEditBook}
+                  onLocate={handleLocate}
                 />
               ))
             )}

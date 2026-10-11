@@ -155,6 +155,10 @@ function validateRangeRequestCapabilities({ getResponseHeader, isHttp, rangeChun
 
 台账就是 Obsidian 的 vault 列表：`{ version, books: [{ path, uid, addedAt }] }`。路径在默认位置之内时存**相对路径**（整个库搬家不断链），之外存绝对路径；`resolve()` 两种情况都给出绝对目录。**"删除" = 从台账里去掉一条，永不碰磁盘**——这是 A11 的对外承诺，界面上必须写明。
 
+**书的身份是 `uid`，路径只是"现在在哪"**（A21）。所以 `add()` 有三种结果而不是两种：同一 uid 出现在另一个文件夹时**改写那一条的 path**（`repointed`），行数不变、`addedAt` 不变；同一个文件夹换了 uid 时以**文件夹自己的 uid 为准**（`meta.json` 被人换过），因为进度、封面、每次读取都按 uid 索引。一个 uid 或一条路径**永远只对应一行**。
+
+文件夹被搬走（改名、换盘、放回原处）时，用户的做法与 Obsidian 一致：**指出它在哪**。行上的"定位…"（`library.relocate(uid, dir)`）读那个文件夹的 `.lbook/meta.json`，uid 对得上才改写台账；对不上就拒绝并点名"那里是另一本书"——一个库里有多本书，这一步不能省，否则选错就是把两本书对调。`open()` 走同一条路：把一个已登记的书文件夹再打开一次，就等于把它指到新位置。
+
 ### 5.2 书文件夹的布局
 
 ```
@@ -256,7 +260,7 @@ function validateRangeRequestCapabilities({ getResponseHeader, isHttp, rangeChun
 ### 5.9 进度、坏书与"书不见了"
 
 - `progress.json` 是 `{ "<uid>": { lastPageNum, updatedAt } }`，原子写；坏文件降级为空（丢的是"读到哪"，绝不该让人打不开应用）。上限校验用 `meta.pageCount`，因为它在每次翻页后都会跑，不能为此扫一遍 15MB 的 JSON。
-- 台账里的路径失效（文件夹被移走、改名，或 `meta.json`/`ocr.json` 被删）时，那本**仍然列出来**，带 `problem` 文案与"需要修复"徽标（B8）。静默消失会让用户以为书被删了。重新定位（手选新路径）留到 Phase 2。
+- 台账里的路径失效（文件夹被移走、改名，或 `meta.json`/`ocr.json` 被删）时，那本**仍然列出来**，带 `problem` 文案与"需要修复"徽标（B8）。静默消失会让用户以为书被删了。**修法就在行上**：原因那句话旁边一个"定位…"，选文件夹即可（uid 对不上会被拒绝，并说清那里是哪本书）。
 
 ---
 
