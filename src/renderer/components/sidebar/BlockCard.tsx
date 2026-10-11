@@ -189,9 +189,11 @@ export function BlockCard({
         {/* A CodeMirror field, on the source as it is in the file: Markdown for a text
             block, HTML for a table (the table's content *is* HTML). Capped rather than
             filling: a card lives in a scrolling column, and one card must not swallow it.
-            Keys on the buttons, no line of explanation (they were being ignored anyway). */}
+            **No border of its own** — the card is already outlined while editing, and a box
+            inside a box is just two lines to look at. Keys on the buttons, no captions. */}
         <SourceEditorField
-          className="max-h-96 rounded border border-primary"
+          className="max-h-96"
+
           value={baseValue}
           language={isTableBlock(block) ? "html" : "markdown"}
           onValueChange={setText}

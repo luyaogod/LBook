@@ -229,6 +229,16 @@ async function main(): Promise<void> {
     ok: outer.scrollHeight <= outer.clientHeight + 1,
     detail: `${outer.scrollHeight}px of content in ${outer.clientHeight}px`,
   })
+  // Windows hides overlay scrollbars until you scroll, so a document longer than its box
+  // looks like a document that cannot scroll — the reader reported exactly that. The theme
+  // asks for a thin, always-drawn one; this asserts the rule arrived.
+  const scrollbarWidth = scroller === null ? "" : getComputedStyle(scroller).scrollbarWidth
+  checks.push({
+    what: "the scrollbar is drawn, not left to the platform's overlay",
+    ok: scrollbarWidth === "thin",
+    detail: `scrollbar-width: ${scrollbarWidth === "" ? "(not supported here)" : scrollbarWidth}`,
+  })
+
   longEditor.destroy()
   outer.remove()
 

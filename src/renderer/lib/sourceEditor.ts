@@ -69,7 +69,24 @@ async function themeFor(dark: boolean) {
         padding: "6px 0",
       },
       // The Markdown pane can be narrow: wrapping matters more than seeing column 120.
-      ".cm-scroller": { overflow: "auto", fontFamily: "inherit", lineHeight: "1.6" },
+      ".cm-scroller": {
+        overflow: "auto",
+        fontFamily: "inherit",
+        lineHeight: "1.6",
+        // **A scrollbar nobody can see is a scrollbar the reader thinks is missing.** Windows
+        // (and Chromium generally) draws overlay scrollbars that fade out when you are not
+        // scrolling, so a document longer than its box looks like a document that cannot
+        // scroll. These two lines ask for a thin one that is always drawn, and the
+        // pseudo-elements below cover the engines that still ignore the standard property.
+        scrollbarWidth: "thin",
+        scrollbarColor: dark ? "#5b6270 transparent" : "#b8bdc7 transparent",
+      },
+      ".cm-scroller::-webkit-scrollbar": { width: "10px", height: "10px" },
+      ".cm-scroller::-webkit-scrollbar-track": { background: "transparent" },
+      ".cm-scroller::-webkit-scrollbar-thumb": {
+        backgroundColor: dark ? "#5b6270" : "#b8bdc7",
+        borderRadius: "5px",
+      },
       ".cm-gutters": {
         backgroundColor: "transparent",
         color: dark ? "#8b8b8b" : "#9ca3af",
