@@ -1,12 +1,15 @@
 import { useRef, useEffect, useCallback } from "react";
-import { usePdfDocumentProxy } from "@/hooks/usePdfDocumentProxy";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 import { useTranslation } from "react-i18next";
 import { PdfPageUnit } from "./PdfPageUnit";
 import type { OcrBlock } from "@/types";
 import { Loader2 } from "lucide-react";
 
 interface PdfViewerProps {
-  bookId: string;
+  /** The document, owned by `App` so that switching views does not re-open the PDF. */
+  pdfDoc: PDFDocumentProxy | null;
+  pdfLoading: boolean;
+  pdfError: string | null;
   pageNum: number;
   scale: number;
   blocks: OcrBlock[];
@@ -22,7 +25,9 @@ interface PdfViewerProps {
 }
 
 export function PdfViewer({
-  bookId,
+  pdfDoc,
+  pdfLoading: loading,
+  pdfError: error,
   pageNum,
   scale,
   blocks,
@@ -41,7 +46,7 @@ export function PdfViewer({
   const onWheelZoomRef = useRef(onWheelZoom);
   onWheelZoomRef.current = onWheelZoom;
 
-  const { pdfDoc, loading, error } = usePdfDocumentProxy(bookId);
+
 
   /**
    * Warm the neighbours so the next flip has nothing to parse.

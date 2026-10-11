@@ -8,7 +8,7 @@
 
 | 文件 | 说明 |
 |---|---|
-| `usePdfDocumentProxy.ts` | **最关键的 hook**：用 `IpcRangeTransport`（继承 `PDFDataRangeTransport`）经 IPC 分块取数，并加载 pdf.js worker |
+| `usePdfDocumentProxy.ts` | **最关键的 hook**：用 `IpcRangeTransport`（继承 `PDFDataRangeTransport`）经 IPC 分块取数，并加载 pdf.js worker。**它的宿主必须是永不卸载的组件**（现在只有 `App.tsx` 一处调用，`tests/unit/renderer/pdfDocumentOwner.test.ts` 盯着这条）：它的清理会 `loadingTask.destroy()` + `pdfDoc.cleanup()`，所以一旦放进被条件渲染的 viewer 里，**每次切换视图（翻页↔连滚、侧栏占满↔还原）都会重新取字节、重新解析整本 PDF**——用户看到的就是"一切换就刷新"。也刻意不依赖 `t`（用 i18n 实例），否则**切语言**也会重建文档 |
 | `useBook.ts` | 取一本已注册书的元数据（`library:get`） |
 | `usePdfPage.ts` | 取单页 OCR 数据 |
 | `useFlowPages.ts` | Flow 模式的页面缓存与相邻页预取 |

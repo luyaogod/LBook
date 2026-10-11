@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from "react";
-import { usePdfDocumentProxy } from "@/hooks/usePdfDocumentProxy";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 import { useFlowPages } from "@/hooks/useFlowPages";
 import { useTranslation } from "react-i18next";
 import { PdfPageUnit } from "./PdfPageUnit";
@@ -21,6 +21,10 @@ const PAINTED_PAGE_LIMIT = 6;
 
 interface FlowViewerProps {
   bookId: string;
+  /** The document, owned by `App` so that switching views does not re-open the PDF. */
+  pdfDoc: PDFDocumentProxy | null;
+  pdfLoading: boolean;
+  pdfError: string | null;
   scale: number;
   overlayOpaque: boolean;
   highlightedBlockId: number | null;
@@ -43,7 +47,11 @@ function filterBlocks(allBlocks: OcrBlock[]): OcrBlock[] {
 
 export function FlowViewer({
   bookId,
+  pdfDoc,
+  pdfLoading,
+  pdfError,
   scale,
+
   overlayOpaque,
   highlightedBlockId,
   onBlockHover,
@@ -111,7 +119,7 @@ export function FlowViewer({
     intersectingPages: new Set<number>(),
   });
 
-  const { pdfDoc, loading: pdfLoading, error: pdfError } = usePdfDocumentProxy(bookId);
+
   const { getPage, prefetch, version } = useFlowPages(bookId);
   const totalPages = pdfDoc?.numPages ?? 0;
 

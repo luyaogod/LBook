@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
-import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
+
 // `?url` gives a URL Vite actually emitted, resolved against document.baseURI.
 // `import.meta.url` is not reliable inside a bundled ESM served over app://.
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -58,18 +59,36 @@ class IpcRangeTransport extends pdfjsLib.PDFDataRangeTransport {
   }
 }
 
-export function usePdfDocumentProxy(bookId: string): {
+/**
+ * **This hook belongs to whatever stays mounted, which is why `App` owns it.**
+ *
+ * It was called inside `PdfViewer` and `FlowViewer`, and both of those live inside
+ * conditionals — the page area disappears while the OCR panel is expanded, and the flip and
+ * scroll views are alternatives. So every one of those switches unmounted the viewer, and
+ * the cleanup below destroyed the pdf.js document (`loadingTask.destroy()` +
+ * `pdfDoc.cleanup()`): flipping to continuous scroll, or expanding the panel, threw away the
+ * parsed document and fetched and parsed it again, which the reader saw as the app
+ * "refreshing". One document per book, loaded once, is what this was always supposed to do
+ * (`DESIGN.md` 12) — that needs an owner that does not unmount.
+ */
+export function usePdfDocumentProxy(bookId: string | null): {
   pdfDoc: pdfjsLib.PDFDocumentProxy | null;
   loading: boolean;
   error: string | null;
 } {
-  const { t } = useTranslation();
+
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
 
   useEffect(() => {
+    if (bookId === null) {
+      setPdfDoc(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     let cancelled = false;
     let transport: IpcRangeTransport | null = null;
     let loadingTask: pdfjsLib.PDFDocumentLoadingTask | null = null;
@@ -83,7 +102,12 @@ export function usePdfDocumentProxy(bookId: string): {
       try {
         const document = await window.api.library.get(bookId);
         if (cancelled) return;
-        if (!document) throw new Error(t("error.bookGone"));
+        // The i18n instance, not the `t` from a hook: `t` would have to be a dependency of
+        // this effect, and then **switching language rebuilt the document** — re-reading and
+        // re-parsing up to 190MB to translate one sentence that is not even on screen. The
+        // instance reads the language at call time, which is also the language the reader
+        // was looking at when the load failed.
+        if (!document) throw new Error(i18n.t("error.bookGone"));
 
         // The transport must be given the exact byte length of book.pdf up
         // front; a wrong length surfaces as "Invalid PDF structure".
@@ -139,7 +163,7 @@ export function usePdfDocumentProxy(bookId: string): {
         pdfDocRef.current = null;
       }
     };
-  }, [bookId, t]);
+  }, [bookId]);
 
   return { pdfDoc, loading, error };
 }

@@ -9,6 +9,7 @@ import type { OcrBlock, PdfDocument } from "@/types";
 import type { Settings } from "@shared/ipc";
 import { PdfToolbar } from "@/components/viewer/PdfToolbar";
 import { PdfViewer } from "@/components/viewer/PdfViewer";
+import { usePdfDocumentProxy } from "@/hooks/usePdfDocumentProxy";
 import { FlowViewer } from "@/components/viewer/FlowViewer";
 import { OcrSidebar } from "@/components/sidebar/OcrSidebar";
 import { TocPanel } from "@/components/toc/TocPanel";
@@ -57,6 +58,16 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
   // A book is named by its `uid` (its `meta.json` identity), never by a row id or
   // a path: renaming the folder must not disturb what is open.
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
+  /**
+   * The PDF document, here rather than inside the viewers.
+   *
+   * Both viewers are mounted conditionally — the page area goes away while the OCR panel is
+   * expanded, and flip and scroll are alternatives — and the hook destroys the pdf.js
+   * document when it unmounts. Owning it here means one fetch and one parse per book, and
+   * switching views is just a different way of drawing the same open document.
+   */
+  // Named apart from the book's own loading state (below): this is the pdf.js document.
+  const { pdfDoc, loading: viewerLoading, error: viewerError } = usePdfDocumentProxy(selectedBookId);
   const [scale, setScale] = useState(1.0);
   const [currentPage, setCurrentPage] = useState(1);
   const [highlightedBlockId, setHighlightedBlockId] = useState<number | null>(null);
@@ -510,6 +521,9 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
               {flowMode ? (
                 <FlowViewer
                   bookId={selectedBookId}
+                  pdfDoc={pdfDoc}
+                  pdfLoading={viewerLoading}
+                  pdfError={viewerError}
                   scale={scale}
                   overlayOpaque={overlayOpaque}
                   highlightedBlockId={highlightedBlockId}
@@ -525,7 +539,11 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
                 />
               ) : (
                 <PdfViewer
-                  bookId={selectedBookId}
+                  pdfDoc={pdfDoc}
+
+                  pdfLoading={viewerLoading}
+                  pdfError={viewerError}
+
                   pageNum={currentPage}
                   scale={scale}
                   blocks={pageBlocks}

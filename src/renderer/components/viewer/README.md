@@ -14,7 +14,8 @@ PDF 阅读区的渲染与交互：单页模式、Flow 连续滚动模式、OCR �
 
 | 文件 | 说明 |
 |---|---|
-| `PdfViewer.tsx` | 单页模式。监听 Ctrl/Cmd+滚轮缩放，按 `data-block-id` 滚动到指定块 |
+| `PdfViewer.tsx` | 翻页视图（单页模式）：监听 Ctrl/Cmd+滚轮缩放，按 `data-block-id` 滚动到指定块。**PDF 文档不在这里加载**：由 `App` 通过 `pdfDoc`/`pdfLoading`/`pdfError` 三个 prop 传进来，它只负责把这一页画出来 |
+
 | `FlowViewer.tsx` | 连续滚动模式。IntersectionObserver 虚拟化 + 相邻页预取，上报当前可见页 |
 | `PdfPageUnit.tsx` | 把一页 pdf.js 渲染到 `<canvas>`，感知 `devicePixelRatio` |
 | `BlockOverlayLayer.tsx` | OCR 坐标 → PDF 坐标的缩放换算 |
