@@ -256,7 +256,7 @@ function validateRangeRequestCapabilities({ getResponseHeader, isHttp, rangeChun
 
 **撤销是会话内的一份历史**（`src/renderer/lib/editHistory.ts` + `hooks/useEditHistory.ts`）：每次保存只记**差异**——前后两个字符串，不带页字节、不复制文件——按 `uid` 分书存，上限 50 条（上限是为了让长会话有个界，不是指望谁手动撤 50 次）。撤销就是**再走一次写路径**：把 `before` 写回、把 `after` 当 `baseValue`，所以**外部改动会让撤销被拒**而不是悄悄覆盖；被拒的条目留在历史里，读者看得见发生了什么。界面给两个入口：编辑器上那个按钮撤**它自己那次**（记着 entry id：中途改了别处它仍撤自己那次，条目被别的撤销吃掉后按钮自行消失），栏头那个按钮与 `Ctrl+Z` 撤**最近一次**，不论出自哪个编辑器。`Ctrl+Z` 只在焦点不在输入框时接管——在文本框里它属于文本框自己的撤销，抢过来是 bug 不是功能。历史**不落盘**：重启之后文件可能已经被别的东西改过，一次"撤销"悄悄回退本会话没见过的改动，比没有撤销更糟。
 
-**编辑器是 CodeMirror 6**（`src/renderer/lib/sourceEditor.ts` + `components/sidebar/SourceEditorField.tsx`），懒加载。这是"跟 Obsidian 的做法"这条决定的直接结果——Obsidian 官方文档写明它的 Markdown 编辑器由 CM6 驱动——也是三个候选里最小的那个：Monaco 要 2640KB + 一个 296KB 的 worker（还因为 rolldown 的共用模块提升而必须为验证另起一份构建），CM6 是约 570KB、**不需要 worker**、入口 chunk 一个字节不涨（A/B 对照）。高亮、行号、撤销都在编辑器内部；键位与 textarea 时代完全一致（`Mod-Enter` 保存、`Esc` 关闭、失焦不保存），块里的表格按 HTML 上色（表格内容本来就是 HTML）。**查找面板还没开**（要开就得用 `EditorState.phrases` 把 CM6 自带的英文面板换成中文，是下一步的可选项）。工程上的验证是 `npm run check:editor`：真实 Electron + `app://` + 生产 CSP 下六项断言，且 `securitypolicyviolation` 与 `console.error` 都必须为空。
+**编辑器是 CodeMirror 6**（`src/renderer/lib/sourceEditor.ts` + `components/sidebar/SourceEditorField.tsx`），懒加载。这是"跟 Obsidian 的做法"这条决定的直接结果——Obsidian 官方文档写明它的 Markdown 编辑器由 CM6 驱动——也是三个候选里最小的那个：Monaco 要 2640KB + 一个 296KB 的 worker（还因为 rolldown 的共用模块提升而必须为验证另起一份构建），CM6 是约 570KB、**不需要 worker**、入口 chunk 一个字节不涨（A/B 对照）。高亮、行号、撤销都在编辑器内部；键位与 textarea 时代完全一致（`Mod-Enter` 保存、`Esc` 关闭、失焦不保存），块里的表格按 HTML 上色（表格内容本来就是 HTML）。查找面板是**开的**（`Mod-F` 查找、`Mod-Alt-G` 跳行），面板文案用 `EditorState.phrases` 换成了我们的中英文——中文界面里不会冒出英文面板。`Esc` 在面板打开时**让路**给面板（我们的键位排在默认键位之前，不让路就会在关查找的同时把编辑器也关掉），`check:editor` 有一条断言专门验这个先后。工程上的验证是 `npm run check:editor`：真实 Electron + `app://` + 生产 CSP 下六项断言，且 `securitypolicyviolation` 与 `console.error` 都必须为空。
 
 字段区间由字节级状态机给出（`offsetIndex.ts` 那套再深一层），**不是**文本搜索"第 N 个 `block_content`"：块的**内容里**可能恰好出现这个字面量（HTML 片段、代码示例），搜索会改到别的字节。
 
@@ -487,6 +487,7 @@ connect-src 'self' lbook:; worker-src 'self'
 | **OCR 图片不显示** | OCR 里的图片是百度云签名 URL（4227 个），本地从来没有图片文件。`resolveAssetUrls` 已实现并有测试：把 `<img src="imgs/…">` 重写成 `lbook://asset/<uid>/…`，真的把图片放进书文件夹就能显示。 |
 | **`meta.json` 的 `pageCount` 可能与 PDF 真实页数不符** | 页数取自 OCR JSON 的条目数。若 OCR 漏页，它就和 PDF 页数不一致（浏览器的总页数取自它，翻到最后一页可能落到空白上）。对照校验与坏书 UI 已经在了（§5.6）——三者的页数不一致会报成“页码可能整体移位”。 |
 | **撤销只在本会话内** | 勘误历史（§5.8）在内存里、按书分开、只存差异，重启即空。**刻意不落盘**：重启之后文件可能已被别的东西改过，一次“撤销”悄悄回退本会话没见过的改动，比没有撤销更糟。 |
+| **设置是全局的，不按书存** | 主题、界面语言、阅读字号、供应商凭据都在 `%APPDATA%\LBook\config.json`，书文件夹里只有书自己的东西（`meta.json`/`ocr.json`/`toc.json`/封面）。Obsidian 会把 vault 自己的设置放进 vault，我们不跟：眼下没有**按书**的设置项，而 `config.json` 里有密钥、书文件夹却是会被复制和同步的东西（A21 的"故意不跟"第 3 条）。将来若真需要按书的阅读设置，只往 `<book>/.lbook/config.json` 放阅读类字段。 |
 | **无并发写保护** | 单用户桌面应用，未做多实例互斥。开两个实例同时改台账，后写的覆盖先写的。（书本身不受影响：应用从不写书。） |
 | **未签名** | NSIS 包未做代码签名，首次安装会触发 SmartScreen 警告。 |
 | **云厂商密钥明文存于 `config.json`** | 单用户桌面应用没有服务端可托管密钥，且用户看不见的密钥等于修不了的密钥。缓解：只经 `settings:get` 回传、不进日志、建议用子账号密钥。见第 8.2 节。 |

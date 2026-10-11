@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { SourceEditorHandle } from "@/lib/sourceEditor";
 
 /**
@@ -33,8 +34,34 @@ export function SourceEditorField({
   onSave,
   onCancel,
 }: SourceEditorFieldProps) {
+  const { t } = useTranslation();
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * The search panel's labels, in the reader's language.
+   *
+   * The keys are CodeMirror's own (`phrase(view, "Find")` and friends) — read out of the
+   * package, not guessed — and the values are ours. Without this the panel would be English
+   * chrome in a Chinese interface.
+   */
+  const phrases: Record<string, string> = {
+    Find: t("editor.find"),
+    Replace: t("editor.replace"),
+    replace: t("editor.replaceOne"),
+    "replace all": t("editor.replaceAll"),
+    next: t("editor.nextMatch"),
+    previous: t("editor.previousMatch"),
+    all: t("editor.allMatches"),
+    "match case": t("editor.matchCase"),
+    regexp: t("editor.regexp"),
+    "by word": t("editor.byWord"),
+    close: t("editor.close"),
+    "Go to line": t("editor.goToLine"),
+    go: t("editor.go"),
+    "current match": t("editor.currentMatch"),
+    "on line": t("editor.onLine"),
+  };
 
   // The callbacks change identity on every render (they close over state); the editor is
   // created once, so it talks to them through a ref rather than being rebuilt.
@@ -52,9 +79,11 @@ export function SourceEditorField({
           value,
           language,
           dark: document.documentElement.classList.contains("dark"),
+          phrases,
           onSave: () => handlers.current.onSave(),
           onCancel: () => handlers.current.onCancel(),
           onValueChange: (next) => handlers.current.onValueChange(next),
+
         }),
       )
       .then((created) => {

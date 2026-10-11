@@ -226,6 +226,8 @@ npm run typecheck && npm run lint && npm run check:docs && npm run check:i18n &&
 - 改块后 Markdown 视图**不变**（A18），反之亦然——这是设计，不是 bug
 - Markdown 视图（翻页模式）右上角"编辑这一页的 Markdown"→ 编辑框里是 `markdown.text` 的**源码**（CodeMirror：有行号、Markdown 语法上色），标题写明在改哪一份
 - 编辑器里 `Mod-Enter` 保存、`Esc` 关闭；**点别处不保存**；在编辑器里按 `Ctrl+Z` 撤的是**正在打的字**（编辑器自己的撤销），不是上一次落盘的修改
+- `Ctrl+F` 打开查找面板，**文字是中文**（查找 / 替换为 / 下一个 / 区分大小写 / 整词 / 正则）；此时按 `Esc` **只关面板**，编辑器还开着、改动还在；再按 `Esc` 才关编辑器
+- `Ctrl+Alt+G` 跳行：输入行号能跳
 - 表格块进编辑态时，里面是 **HTML 源码**并按 HTML 上色（文本块按 Markdown）
 - 编辑长 Markdown 时滚动条出现在编辑器内部（最高 60vh），页面本身不跳
 - 改完 `Ctrl+Enter` → 视图立刻是新内容，而**块视图不变**（A18）；`Esc` 取消、点别处不保存
@@ -252,7 +254,8 @@ npm run typecheck && npm run lint && npm run check:docs && npm run check:i18n &&
 | React 组件渲染 | 需要 jsdom 或 Electron 环境，收益低于成本；UI 正确性靠第 6 节手工冒烟 |
 | Electron 主进程启动 | 需要真实 Electron 进程；`main/index.ts` 被刻意写得很薄，逻辑都在可测模块里 |
 | `electron-updater` 的真实更新流程 | 需要已发布的 Release；靠发版后的手工验证 |
-| 编辑器（CodeMirror）的渲染与交互 | 需要 DOM/Electron。**能装起来**这件事由 `npm run check:editor` 在真实 Electron + `app://` + 生产 CSP 下验证（六项断言 + CSP 与 console 必须为空）；具体手感（上色、行号、撤销粒度）靠第 6 节手工清单 |
+| 编辑器（CodeMirror）的渲染与交互 | 需要 DOM/Electron。**能装起来、语言懒块到得了、查找面板是我们的文案、`Esc` 先关面板再关编辑器**这些都由 `npm run check:editor` 在真实 Electron + `app://` + 生产 CSP 下验证（十项断言 + CSP 与 console 必须为空）；具体手感（上色、撤销粒度、查找替换的实际操作）靠第 6 节手工清单 |
+
 | `lbook://` 协议处理 |
  需要 Electron 的 `protocol` 模块；它只做"uid → 书文件夹 → 文件"这一步，取文件与路径校验的逻辑已被 `library/` 与 `bookFile` 的单测覆盖 |
 | 并发写同一个台账 | 单用户桌面应用，未做多实例互斥（见 `DESIGN.md` 已知限制）。书本身不受影响：应用从不写书 |

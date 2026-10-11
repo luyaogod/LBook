@@ -42,6 +42,14 @@ export interface SourceEditorOptions {
   onCancel: () => void
   /** Every change, so the caller's Save button can tell whether anything changed. */
   onValueChange: (value: string) => void
+  /**
+   * CodeMirror's own labels for the search panel, in the reader's language.
+   *
+   * Passed in rather than translated here, so this module keeps knowing nothing about the
+   * interface: the caller has `t()`, and the check page (a separate build) does not need to
+   * pull the whole i18n setup in to mount an editor.
+   */
+  phrases?: Record<string, string>
 }
 
 /** The one theme, small enough to keep here rather than pull a package for it. */
@@ -81,11 +89,13 @@ export async function createSourceEditor(options: SourceEditorOptions): Promise<
     { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, dropCursor },
     { defaultKeymap, history, historyKeymap, indentWithTab },
     { syntaxHighlighting, defaultHighlightStyle, indentOnInput },
+    { search, searchKeymap, searchPanelOpen },
   ] = await Promise.all([
     import("@codemirror/state"),
     import("@codemirror/view"),
     import("@codemirror/commands"),
     import("@codemirror/language"),
+    import("@codemirror/search"),
   ])
 
   const language =
@@ -108,7 +118,12 @@ export async function createSourceEditor(options: SourceEditorOptions): Promise<
         },
         {
           key: "Escape",
-          run: () => {
+          // **Yield when the search panel is open.** Our keymap is listed first, so without
+          // this the reader pressing Esc to close Find would instead close the editor and
+          // lose the search — and the default keymap never gets a chance. Returning false
+          // hands the key on, which is what closes the panel.
+          run: (view) => {
+            if (searchPanelOpen(view.state)) return false
             options.onCancel()
             return true
           },
@@ -123,6 +138,11 @@ export async function createSourceEditor(options: SourceEditorOptions): Promise<
       indentOnInput(),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+      // Find (Mod-F) and go-to-line. The panel's labels are CodeMirror's own English
+      // strings unless we replace them, which is what `phrases` is for.
+      search({ top: true }),
+      keymap.of(searchKeymap),
+      EditorState.phrases.of(options.phrases ?? {}),
       EditorView.lineWrapping,
       await themeFor(options.dark),
       language,

@@ -104,7 +104,24 @@ export const zhCN: Record<TranslationKeys, string> = {
   "editBook.renameHint": "改名会同时改文件夹名。应用按书里的 uid 认书，阅读进度不受影响。",
 
   // ---- 内容修正（编辑的是源码，不是渲染结果）----------------------------
+  // 源码编辑器里的查找面板（键名是 CodeMirror 自己的，文案是我们的）
+  "editor.find": "查找",
+  "editor.replace": "替换为",
+  "editor.replaceOne": "替换",
+  "editor.replaceAll": "全部替换",
+  "editor.nextMatch": "下一个",
+  "editor.previousMatch": "上一个",
+  "editor.allMatches": "全部",
+  "editor.matchCase": "区分大小写",
+  "editor.regexp": "正则",
+  "editor.byWord": "整词",
+  "editor.close": "关闭",
+  "editor.goToLine": "跳到行",
+  "editor.go": "跳转",
+  "editor.currentMatch": "当前匹配",
+  "editor.onLine": "在第几行",
   "block.edit": "编辑这个块的文字",
+
   "block.sourceHint":
     "正在编辑 ocr.json 里的源文——PaddleOCR 写下的原文，Markdown 与 HTML 都原样显示。",
   "block.saveHint": "Ctrl+Enter 保存，Esc 取消；点别处不会保存。",

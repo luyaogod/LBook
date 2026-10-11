@@ -61,17 +61,38 @@ function report(checks: Check[]): void {
   console.log(`[editor-spike] ${result.ok ? "ok" : "FAILED"} in ${result.ms}ms`)
 }
 
+/**
+ * Dispatches a keydown where CodeMirror listens for one.
+ *
+ * The target matters: CM6's keymap handler is attached to the **content** element, not to
+ * the editor's wrapper. Dispatching on the wrapper looked plausible and did nothing — and
+ * because the check "Esc closes the panel, not the editor" was then reading state that
+ * never changed, it passed for the wrong reason.
+ */
+function press(editor: Element, key: string, modifiers: { ctrlKey?: boolean } = {}): void {
+  const target = editor.querySelector(".cm-content") ?? editor
+  target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...modifiers }))
+}
+
+
+const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 60))
+
 async function main(): Promise<void> {
   const checks: Check[] = []
   const surface = document.getElementById("surface")!
+  let cancelled = 0
 
   const markdown = await createSourceEditor({
     parent: surface,
     value: "# heading\n\nA paragraph with *emphasis* and a [link](app://bundle/index.html).\n",
     language: "markdown",
     dark: false,
+    // A couple of the panel's labels, to prove the ones we pass are the ones shown.
+    phrases: { Find: "查找", Replace: "替换为", next: "下一个", previous: "上一个", close: "关闭" },
     onSave: () => undefined,
-    onCancel: () => undefined,
+    onCancel: () => {
+      cancelled++
+    },
     onValueChange: () => undefined,
   })
 
@@ -101,8 +122,36 @@ async function main(): Promise<void> {
     ok: markdown.value().startsWith("# heading"),
   })
 
-  // Read-only territory: the editor must not have touched what it was given.
+  // ---- the search panel ---------------------------------------------------------
+  const editorRoot = surface.querySelector(".cm-editor")!
+  press(editorRoot, "f", { ctrlKey: true })
+  await settle()
+
+  const panel = surface.querySelector(".cm-search")
+  const field = panel?.querySelector("input") ?? null
+  checks.push({ what: "Mod-F opens the search panel", ok: panel !== null })
+  checks.push({
+    what: "the panel's labels are the ones we passed, not CodeMirror's English",
+    ok: field?.placeholder === "查找",
+    detail: `placeholder ${JSON.stringify(field?.placeholder ?? null)}`,
+  })
+
+  // The escape that matters: ours is listed first, so it has to yield to the panel. Without
+  // that, Esc would close the editor — losing the search, and the text with it.
+  press(editorRoot, "Escape")
+  await settle()
+  checks.push({
+    what: "Esc closes the panel, not the editor",
+    ok: surface.querySelector(".cm-search") === null && cancelled === 0,
+    detail: `cancelled=${cancelled}`,
+  })
+
+  press(editorRoot, "Escape")
+  await settle()
+  checks.push({ what: "a second Esc closes the editor", ok: cancelled === 1, detail: `cancelled=${cancelled}` })
+
   markdown.destroy()
+
 
   const html = await createSourceEditor({
     parent: surface,

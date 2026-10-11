@@ -115,6 +115,22 @@ export const en = {
     "Renaming also renames the folder. A book is found by the uid inside it, so your reading position is kept.",
 
   // ---- correcting content (the editors work on the source, not on a rendering) --
+  // The search panel inside the source editor. CodeMirror's own labels, ours in every language.
+  "editor.find": "Find",
+  "editor.replace": "Replace",
+  "editor.replaceOne": "replace",
+  "editor.replaceAll": "replace all",
+  "editor.nextMatch": "next",
+  "editor.previousMatch": "previous",
+  "editor.allMatches": "all",
+  "editor.matchCase": "match case",
+  "editor.regexp": "regexp",
+  "editor.byWord": "by word",
+  "editor.close": "close",
+  "editor.goToLine": "Go to line",
+  "editor.go": "go",
+  "editor.currentMatch": "current match",
+  "editor.onLine": "on line",
   "block.edit": "Edit this block's text",
   "block.sourceHint":
     "Editing the source that lives in ocr.json — the text exactly as PaddleOCR wrote it, Markdown and HTML included.",
