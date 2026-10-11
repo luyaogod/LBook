@@ -119,6 +119,11 @@ export const en = {
   "block.saved": "Written to ocr.json",
   "block.undo": "Undo this edit",
   "block.reverted": "Put back",
+  "sidebar.editThisPage": "Edit this page",
+  "markdown.edit": "Edit this page's Markdown",
+  "markdown.editing": "Editing this page's Markdown",
+  "markdown.sourceHint":
+    "Editing the source in ocr.json — the page as PaddleOCR wrote it. The Blocks view reads its own copy and will not change.",
 
   // Messages this app writes itself. A vendor's error text is not translated (I6);
   // these are ours, and they arrive from main as a key with English as the fallback.

@@ -1,9 +1,10 @@
 import { BlockCard } from "./BlockCard";
+import { MarkdownPane } from "./MarkdownPane";
 import type { OcrBlock } from "@/types";
 import { PageNav } from "@/components/viewer/PageNav";
 import { SelectionPopup } from "@/components/translate/SelectionPopup";
 import { useFlowPages } from "@/hooks/useFlowPages";
-import { CheckCircle, Copy, Loader2, AlignLeft, FileText, Eye, EyeOff, ArrowLeftRight, ArrowDownUp, Maximize2, Minimize2, PanelRightClose } from "lucide-react";
+import { CheckCircle, Copy, Loader2, AlignLeft, FileText, Eye, EyeOff, ArrowLeftRight, ArrowDownUp, Maximize2, Minimize2, PanelRightClose, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -83,7 +84,17 @@ function computePageStats(blocks: OcrBlock[]) {
   return { totalChars, textBlocks };
 }
 
-function PageFooterDivider({ blocks, pageNum }: { blocks: OcrBlock[]; pageNum: number }) {
+function PageFooterDivider({
+  blocks,
+  pageNum,
+  onEditPage,
+}: {
+  blocks: OcrBlock[];
+  pageNum: number;
+  /** Present in flow mode: correcting content is done a page at a time, so this is the
+   * way from "I am scrolling" to "I am fixing this page", landing on the same page. */
+  onEditPage?: (pageNum: number) => void;
+}) {
   const { t } = useTranslation();
   const { totalChars, textBlocks } = computePageStats(blocks);
   return (
@@ -95,7 +106,19 @@ function PageFooterDivider({ blocks, pageNum }: { blocks: OcrBlock[]; pageNum: n
           chars: totalChars,
         })}
       </span>
-      <span>{t("sidebar.page", { page: pageNum })}</span>
+      <span className="flex items-center gap-2">
+        {onEditPage && (
+          <button
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-accent hover:text-foreground"
+            onClick={() => onEditPage(pageNum)}
+            title={t("sidebar.editThisPage")}
+          >
+            <Pencil className="h-3 w-3" />
+            {t("sidebar.editThisPage")}
+          </button>
+        )}
+        <span>{t("sidebar.page", { page: pageNum })}</span>
+      </span>
     </div>
   );
 }
@@ -352,6 +375,15 @@ export function OcrSidebar({
   // instead — and the buttons must highlight whichever one is really on screen.
   const effectiveMode = viewMode === "markdown" && hasMarkdown ? "markdown" : "blocks";
 
+  /** Leaves flow mode on the page the reader pointed at, which is where editing lives. */
+  const editPageInFlipMode = useCallback(
+    (page: number) => {
+      onPageChange(page);
+      onFlowModeChange(false);
+    },
+    [onPageChange, onFlowModeChange],
+  );
+
   return (
     <aside
       className={
@@ -487,7 +519,7 @@ export function OcrSidebar({
                         {pageMd}
                       </ReactMarkdown>
                     </div>
-                    <PageFooterDivider blocks={pageBlocks} pageNum={pn} />
+                    <PageFooterDivider blocks={pageBlocks} pageNum={pn} onEditPage={editPageInFlipMode} />
                   </div>
                 );
               }
@@ -511,7 +543,7 @@ export function OcrSidebar({
                       // activity, so the pencil is off in flow mode.
                     />
                   ))}
-                  <PageFooterDivider blocks={pageBlocks} pageNum={pn} />
+                  <PageFooterDivider blocks={pageBlocks} pageNum={pn} onEditPage={editPageInFlipMode} />
                 </div>
               );
             })}
@@ -522,15 +554,27 @@ export function OcrSidebar({
         {!flowMode && (
           <>
             {effectiveMode === "markdown" && markdownText ? (
-              <div className="leading-relaxed markdown-body">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeKatex, rehypeRaw]}
-                  components={markdownComponents}
-                >
-                  {markdownText}
-                </ReactMarkdown>
-              </div>
+              // The pane owns the editing chrome and the editor; the reading view stays
+              // here, with the plugins, so there is one way to render OCR Markdown.
+              <MarkdownPane
+                // Same reason: the editor's "written, undoable" state belongs to this
+                // page and must not ride along to the next one.
+                key={pageNum}
+                uid={bookUid}
+                pageIndex={pageNum - 1}
+                value={markdownText}
+                editable={!loading}
+              >
+                <div className="leading-relaxed markdown-body">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex, rehypeRaw]}
+                    components={markdownComponents}
+                  >
+                    {markdownText}
+                  </ReactMarkdown>
+                </div>
+              </MarkdownPane>
             ) : (
               <>
                 {!loading && blocks.length === 0 && (
@@ -540,7 +584,9 @@ export function OcrSidebar({
                 )}
                 {blocks.map((block) => (
                   <BlockCard
-                    key={block.block_index}
+                    // Page in the key: a block index repeats on every page, and the
+                    // card holds per-page state (what it just wrote, and its undo).
+                    key={`${pageNum}-${block.block_index}`}
                     block={block}
                     isHighlighted={block.block_index === highlightedBlockId}
                     onHover={onBlockHover}

@@ -108,6 +108,11 @@ export const zhCN: Record<TranslationKeys, string> = {
   "block.saved": "已写入 ocr.json",
   "block.undo": "撤销这次修改",
   "block.reverted": "已恢复",
+  "sidebar.editThisPage": "改这一页",
+  "markdown.edit": "编辑这一页的 Markdown",
+  "markdown.editing": "正在编辑：这一页的 Markdown",
+  "markdown.sourceHint":
+    "正在编辑 ocr.json 里的源文——PaddleOCR 写下的这一页原文。块视图读的是另一份，不会跟着变。",
 
   // 应用自己写的提示（厂商报错不翻译，I6）。主进程发来的是 key，英文原文作回落。
   "message.edit.bookGone": "这本书已经不在书库里了。",
