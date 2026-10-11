@@ -3,7 +3,9 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { UpdateBanner } from "@/components/layout/UpdateBanner";
 import { PaneSash } from "@/components/layout/PaneSash";
 import { HomePage } from "@/components/home/HomePage";
-import type { OcrBlock } from "@/types";
+import { AddBookDialog } from "@/components/home/AddBookDialog";
+import { EditBookDialog } from "@/components/home/EditBookDialog";
+import type { OcrBlock, PdfDocument } from "@/types";
 import type { Settings } from "@shared/ipc";
 import { PdfToolbar } from "@/components/viewer/PdfToolbar";
 import { PdfViewer } from "@/components/viewer/PdfViewer";
@@ -17,7 +19,6 @@ import { useBook } from "@/hooks/useBook";
 import { usePdfPage } from "@/hooks/usePdfPage";
 import { useBookToc } from "@/hooks/useBookToc";
 import { fetchReadingProgress, saveReadingProgress } from "@/api/users";
-import { openBookFolder } from "@/api/pdfs";
 import { applyReadingFontSize } from "@/lib/readingFont";
 import { useTranslation } from "react-i18next";
 import { Loader2, AlertTriangle } from "lucide-react";
@@ -61,6 +62,9 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
   const [highlightedBlockId, setHighlightedBlockId] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
   const [showSettings, setShowSettings] = useState(false);
+  const [showAddBook, setShowAddBook] = useState(false);
+  const [editBook, setEditBook] = useState<PdfDocument | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [overlayOpaque, setOverlayOpaque] = useState(false);
   const [flowMode, setFlowMode] = useState(false);
@@ -227,27 +231,8 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
       });
   }, []);
 
-  /**
-   * Adds a book: the main process asks for a folder, checks it, writes a
-   * `meta.json` if the folder is raw PaddleOCR output, and registers it.
-   */
-  const handleAddBook = useCallback(async () => {
-    try {
-      const outcome = await openBookFolder();
-      if (outcome === null) return; // the user closed the picker
-      if (!outcome.ok) {
-        window.alert(outcome.error);
-        return;
-      }
-      setRefreshKey((k) => k + 1);
-      // A folder that was just adopted is what the reader wanted to open; a book
-      // that was already in the library only got its entry refreshed, so leave the
-      // current view alone.
-      if (outcome.adopted) handleOpenBook(outcome.doc.uid);
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : t("home.addFailed"));
-    }
-  }, [handleOpenBook, t]);
+  /** The header and the empty state both open the add-a-book dialog. */
+  const openAddBook = useCallback(() => setShowAddBook(true), []);
 
   const handleBack = useCallback(() => {
     // Save reading progress immediately before navigating away
@@ -396,11 +381,41 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
       <div className="flex h-svh flex-col bg-background">
         <AppHeader
           mode="home"
-          onAddBookClick={handleAddBook}
+          onAddBookClick={openAddBook}
           onSettingsClick={openSettings}
         />
         <UpdateBanner />
-        <HomePage onOpenBook={handleOpenBook} onAddBook={handleAddBook} refreshKey={refreshKey} />
+        <HomePage
+          onOpenBook={handleOpenBook}
+          onAddBook={() => setShowAddBook(true)}
+          onEditBook={setEditBook}
+          notice={notice}
+          refreshKey={refreshKey}
+        />
+        <AddBookDialog
+          open={showAddBook}
+          defaultDestination={appSettings?.libraryDir ?? ""}
+          onClose={() => setShowAddBook(false)}
+          onCreated={(doc) => {
+            setRefreshKey((k) => k + 1);
+            handleOpenBook(doc.uid);
+          }}
+          onOpened={(doc) => {
+            setRefreshKey((k) => k + 1);
+            handleOpenBook(doc.uid);
+          }}
+          onReport={(message) => {
+            setNotice(message);
+            setRefreshKey((k) => k + 1);
+          }}
+        />
+        <EditBookDialog
+          open={editBook !== null}
+          pdf={editBook}
+          onClose={() => setEditBook(null)}
+          onChanged={() => setRefreshKey((k) => k + 1)}
+          onShowFile={(uid, kind) => window.api.library.openPath(uid, kind)}
+        />
         {settingsDialog}
       </div>
     );

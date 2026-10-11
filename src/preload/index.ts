@@ -22,6 +22,8 @@ const api: LbookApi = {
     inspect: (uid, deep) => ipcRenderer.invoke(IPC.libraryInspect, { uid, deep }),
     leftovers: () => ipcRenderer.invoke(IPC.libraryLeftovers),
     openLibraryDir: () => ipcRenderer.invoke(IPC.libraryOpenLibraryDir),
+    previewBook: (input) => ipcRenderer.invoke(IPC.libraryPreviewBook, input),
+    createBook: (input) => ipcRenderer.invoke(IPC.libraryCreateBook, input),
     refresh: () => ipcRenderer.invoke(IPC.libraryRefresh),
   },
 
@@ -29,6 +31,12 @@ const api: LbookApi = {
     getPage: (uid, pageNum) => ipcRenderer.invoke(IPC.bookGetPage, { uid, pageNum }),
     readPdfRange: (uid, begin, end) => ipcRenderer.invoke(IPC.bookReadPdfRange, { uid, begin, end }),
     getToc: (uid) => ipcRenderer.invoke(IPC.bookGetToc, { uid }),
+    replaceFile: (uid, role, value) => ipcRenderer.invoke(IPC.bookReplaceFile, { uid, role, value }),
+  },
+
+  dialog: {
+    pickFiles: (kind) => ipcRenderer.invoke(IPC.dialogPickFiles, { kind }),
+    pickFolder: (defaultPath) => ipcRenderer.invoke(IPC.dialogPickFolder, { defaultPath }),
   },
 
   progress: {

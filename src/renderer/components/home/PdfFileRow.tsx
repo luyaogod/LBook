@@ -8,6 +8,7 @@ import {
   FolderOpen,
   FolderSearch,
   Loader2,
+  Pencil,
   Trash2,
   TriangleAlert,
   ShieldQuestion,
@@ -23,6 +24,8 @@ interface PdfFileRowProps {
   onOpen: (uid: string) => void;
   /** Opens a folder or a file in whatever the OS uses for it. */
   onOpenPath: (uid: string, kind: BookFileKind) => void;
+  /** Opens the maintain dialog. */
+  onEdit: (pdf: PdfDocument) => void;
   /** Forgets the book. The folder and its files are not touched (A11). */
   onRemove: (uid: string) => void;
 }
@@ -75,7 +78,7 @@ function kindOf(issue: BookIssue): BookFileKind {
  * in the app where reading the whole OCR file is worth 300ms, so it is behind a
  * button rather than part of the listing.
  */
-export function PdfFileRow({ pdf, onOpen, onOpenPath, onRemove }: PdfFileRowProps) {
+export function PdfFileRow({ pdf, onOpen, onOpenPath, onEdit, onRemove }: PdfFileRowProps) {
   const { t, i18n } = useTranslation();
   const broken = pdf.problem !== null;
   const [issues, setIssues] = useState<BookIssue[] | null>(null);
@@ -168,6 +171,19 @@ export function PdfFileRow({ pdf, onOpen, onOpenPath, onRemove }: PdfFileRowProp
           ) : (
             <FileWarning className="h-4 w-4" />
           )}
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(pdf);
+          }}
+          title={t("editBook.title", { name: pdf.title })}
+        >
+          <Pencil className="h-4 w-4" />
         </Button>
 
         <Button

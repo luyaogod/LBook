@@ -33,6 +33,10 @@ export const IPC = {
   libraryLeftovers: "library:leftovers",
   /** Opens the default new-book location itself, for the migration hint. */
   libraryOpenLibraryDir: "library:openLibraryDir",
+  /** Validates chosen files and reports what a new book would be. Writes nothing. */
+  libraryPreviewBook: "library:previewBook",
+  /** Creates a book folder from files the reader picked. */
+  libraryCreateBook: "library:createBook",
   /**
    * Asks main to forget what it has cached and tell everyone the library changed.
    *
@@ -44,6 +48,8 @@ export const IPC = {
   bookGetPage: "book:getPage",
   bookReadPdfRange: "book:readPdfRange",
   bookGetToc: "book:getToc",
+  /** Replaces one of a book's files (ocr, cover, toc, pdf) or its title. */
+  bookReplaceFile: "book:replaceFile",
 
   progressGet: "progress:get",
   progressSave: "progress:save",
@@ -59,6 +65,10 @@ export const IPC = {
   windowMinimize: "window:minimize",
   windowToggleMaximize: "window:toggleMaximize",
   windowClose: "window:close",
+
+  /** File and folder pickers. Paths only ever travel *out* of the main process. */
+  dialogPickFiles: "dialog:pickFiles",
+  dialogPickFolder: "dialog:pickFolder",
 
   updatesGetState: "updates:getState",
   updatesCheck: "updates:check",
@@ -183,8 +193,63 @@ export interface SettingsPatch {
  * PaddleOCR output that was never a package).
  */
 export type OpenBookOutcome =
-  | { ok: true; doc: PdfDocument; alreadyKnown: boolean; adopted: boolean }
+  | {
+      ok: true
+      doc: PdfDocument
+      alreadyKnown: boolean
+      adopted: boolean
+      /** Files this call moved into `.lbook/`, for a one-line report to the reader. */
+      moved: string[]
+    }
   | { ok: false; error: string }
+
+/**
+ * Which kind of file a picker offers.
+ *
+ * \`cover\` and \`toc\` are separate from \`json\` because the file dialog's filter is what
+ * stops a reader from picking their OCR output as a table of contents.
+ */
+export type FileKind = "pdf" | "ocr" | "cover" | "toc"
+
+/**
+ * The files a new book would be made from, and where it would go.
+ *
+ * Paths come from a file dialog; nothing here is built by the renderer.
+ */
+export interface CreateBookInput {
+  pdfPath: string
+  ocrPath: string
+  coverPath?: string | null
+  tocPath?: string | null
+  title?: string
+  /** The folder the book folder is created in. */
+  destination: string
+}
+
+/**
+ * What creating a book would do, worked out before anything is written.
+ *
+ * The dialog shows this so the reader sees the name and the page count before
+ * committing, and gets the reason a set of files will not do rather than an error
+ * after the fact.
+ */
+export type CreateBookPreview =
+  | {
+      ok: true
+      title: string
+      dir: string
+      folderName: string
+      pageCount: number
+      ocrBytes: number
+      warnings: string[]
+    }
+  | { ok: false; error: string }
+
+/** A write that either happened or did not; never a half-finished book. */
+export type WriteOutcome<T> = { ok: true; value: T } | { ok: false; error: string }
+
+/** Which of a book's files is being replaced. */
+export type ReplaceRole = "ocr" | "cover" | "toc" | "pdf" | "title"
 
 /** Maps every channel to its request and response payload types. */
 export interface IpcMap {
@@ -200,6 +265,18 @@ export interface IpcMap {
   [IPC.libraryLeftovers]: { req: void; res: LeftoverPackages }
   [IPC.libraryOpenLibraryDir]: { req: void; res: void }
   [IPC.libraryRefresh]: { req: void; res: void }
+  /** Validates the chosen files and reports what would be created. Writes nothing. */
+  [IPC.libraryPreviewBook]: { req: CreateBookInput; res: CreateBookPreview }
+  /** Creates the book folder. */
+  [IPC.libraryCreateBook]: { req: CreateBookInput; res: WriteOutcome<PdfDocument> }
+  /** Replaces one of a book's files, or its title. */
+  [IPC.bookReplaceFile]: {
+    req: { uid: string; role: ReplaceRole; value: string }
+    res: WriteOutcome<Record<string, unknown>>
+  }
+
+  [IPC.dialogPickFiles]: { req: { kind: FileKind }; res: string[] }
+  [IPC.dialogPickFolder]: { req: { defaultPath?: string }; res: string | null }
 
   [IPC.bookGetPage]: { req: { uid: string; pageNum: number }; res: OcrPage | null }
   [IPC.bookReadPdfRange]: { req: { uid: string; begin: number; end: number }; res: Uint8Array }
@@ -275,6 +352,10 @@ export interface LbookApi {
     leftovers(): Promise<LeftoverPackages>
     /** Opens the default new-book location in the OS file manager. */
     openLibraryDir(): Promise<void>
+    /** Validates the chosen files; writes nothing. */
+    previewBook(input: CreateBookInput): Promise<CreateBookPreview>
+    /** Creates the book folder from those files. */
+    createBook(input: CreateBookInput): Promise<WriteOutcome<PdfDocument>>
     /** Re-reads the folders; the window calls this when it regains focus. */
     refresh(): Promise<void>
   }
@@ -283,6 +364,8 @@ export interface LbookApi {
     readPdfRange(uid: string, begin: number, end: number): Promise<Uint8Array>
     /** The book's table of contents, or null when it has none. */
     getToc(uid: string): Promise<BookToc | null>
+    /** Replaces one file, or renames the book. `value` is a path, or the new title. */
+    replaceFile(uid: string, role: ReplaceRole, value: string): Promise<WriteOutcome<Record<string, unknown>>>
   }
   progress: {
     get(uid: string): Promise<ReadingProgress | null>
@@ -305,6 +388,10 @@ export interface LbookApi {
     close(): Promise<void>
     /** Fires with the new maximized state, so the icon can flip. */
     onMaximizeChanged(callback: (maximized: boolean) => void): () => void
+  }
+  dialog: {
+    pickFiles(kind: FileKind): Promise<string[]>
+    pickFolder(defaultPath?: string): Promise<string | null>
   }
   updates: {
     getState(): Promise<UpdateStatus>

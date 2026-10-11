@@ -6,10 +6,14 @@ import {
   UPDATE_STATUS_EVENT,
   type BookChangePayload,
   type BookFileKind,
+  type CreateBookInput,
+  type FileKind,
+  type ReplaceRole,
   type Settings,
   type SettingsPatch,
 } from "../../shared/ipc"
 import { inspectBook } from "../library/inspect"
+import { createBook, previewBook, replaceBookFile } from "../library/create"
 
 /**
  * The extension of the old package format.
@@ -19,6 +23,14 @@ import { inspectBook } from "../library/inspect"
  * notice old files sitting in the default location and point at the one-time script.
  */
 const LEFTOVER_EXTENSION = ".lbook"
+
+/** What each picker offers, so a reader cannot choose their OCR file as a cover. */
+const FILE_FILTERS: Record<FileKind, Electron.FileFilter[]> = {
+  pdf: [{ name: "PDF", extensions: ["pdf"] }],
+  ocr: [{ name: "PaddleOCR output", extensions: ["json"] }],
+  toc: [{ name: "Table of contents", extensions: ["json"] }],
+  cover: [{ name: "Image", extensions: ["jpg", "jpeg", "png", "webp", "gif"] }],
+}
 import type { AppContext } from "../context"
 import type { Theme } from "../config/config"
 import type { Updater } from "../updater"
@@ -174,6 +186,52 @@ export function registerIpcHandlers(
     } catch {
       return { dir, files: [] }
     }
+  })
+
+  // ---- creating and maintaining books -------------------------------------
+  /**
+   * Validates the files the reader picked and says what would be created.
+   *
+   * Writes nothing: the dialog shows the name, the page count and any complaints
+   * before the reader commits, which is the whole reason the app — not the reader —
+   * does the checking (A17).
+   */
+  ipcMain.handle(IPC.libraryPreviewBook, (_event, input: CreateBookInput) => previewBook(input))
+
+  ipcMain.handle(IPC.libraryCreateBook, async (_event, input: CreateBookInput) => {
+    const outcome = await createBook(input, library)
+    if (outcome.ok) broadcastLibraryChanged()
+    return outcome
+  })
+
+  ipcMain.handle(
+    IPC.bookReplaceFile,
+    async (_event, { uid, role, value }: { uid: string; role: ReplaceRole; value: string }) => {
+      const outcome = await replaceBookFile(library, uid, role, value)
+      if (outcome.ok) broadcastLibraryChanged()
+      return outcome
+    },
+  )
+
+  // ---- file and folder pickers --------------------------------------------
+  // Paths travel *out* of the main process here and are handed straight back by the
+  // renderer, which is why nothing in this path needs to be sandboxed.
+  ipcMain.handle(IPC.dialogPickFiles, async (_event, { kind }: { kind: FileKind }) => {
+    const result = await dialog.showOpenDialog({
+      title: "Select a file",
+      properties: ["openFile"],
+      filters: FILE_FILTERS[kind],
+    })
+    return result.canceled ? [] : result.filePaths
+  })
+
+  ipcMain.handle(IPC.dialogPickFolder, async (_event, { defaultPath }: { defaultPath?: string }) => {
+    const result = await dialog.showOpenDialog({
+      title: "Choose a folder",
+      defaultPath: defaultPath ?? context.libraryDir(),
+      properties: ["openDirectory", "createDirectory"],
+    })
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
   })
 
   /**

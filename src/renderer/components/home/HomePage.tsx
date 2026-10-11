@@ -9,8 +9,12 @@ import { useTranslation } from "react-i18next";
 
 interface HomePageProps {
   onOpenBook: (uid: string) => void;
-  /** Opens the folder picker through the main process. */
+  /** Opens the add-a-book dialog. */
   onAddBook: () => void;
+  /** Opens the maintain dialog for one book. */
+  onEditBook: (pdf: PdfDocument) => void;
+  /** A one-line result to show above the list (a folder was adopted, files moved). */
+  notice?: string | null;
   refreshKey?: number;
 }
 
@@ -24,7 +28,7 @@ const ITEMS_PER_PAGE = 10;
  * no import, no copy, and nothing in the folder is modified except the `meta.json`
  * written when a folder of PaddleOCR output is adopted.
  */
-export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProps) {
+export function HomePage({ onOpenBook, onAddBook, onEditBook, notice = null, refreshKey = 0 }: HomePageProps) {
   const { t } = useTranslation();
   const [pdfs, setPdfs] = useState<PdfDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -201,6 +205,9 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {leftoverBanner}
+      {notice !== null && (
+        <p className="mx-auto w-full max-w-4xl px-8 pt-4 text-xs text-muted-foreground">{notice}</p>
+      )}
       {/* Search bar */}
       <div className="p-6 pb-4 bg-background shrink-0">
         <div className="max-w-4xl mx-auto relative">
@@ -259,6 +266,7 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
                   onOpen={onOpenBook}
                   onOpenPath={handleReveal}
                   onRemove={handleRemove}
+                  onEdit={onEditBook}
                 />
               ))
             )}

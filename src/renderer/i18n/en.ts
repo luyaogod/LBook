@@ -33,6 +33,8 @@ export const en = {
   "common.showInFolder": "Show in the file manager",
   "common.openFile": "Open this file in the program you use for it",
   "common.pages": "{{count}} pages",
+  "common.save": "Save",
+  "common.choose": "Choose…",
 
   // ---- home (the library) -------------------------------------------------
   "home.search": "Search by title…",
@@ -61,6 +63,53 @@ export const en = {
   "home.leftoversShowFolder": "Show the folder",
   "home.leftoversHide": "Hide",
   "home.addFailed": "Could not add that folder.",
+
+  // ---- adding and maintaining a book --------------------------------------
+  "addBook.title": "Add a book",
+  "addBook.tabFiles": "From files",
+  "addBook.tabFolder": "An existing folder",
+  "addBook.filesHint":
+    "Pick the scan and its PaddleOCR output; the cover and the outline are optional. Nothing is written until you press Create, and the name and page count below come from the files themselves.",
+  "addBook.pdf": "PDF",
+  "addBook.pdfHint": "The scanned book itself",
+  "addBook.ocr": "OCR JSON",
+  "addBook.ocrHint": "PaddleOCR's own output, copied byte for byte",
+  "addBook.cover": "Cover",
+  "addBook.toc": "Table of contents",
+  "addBook.optional": "Optional",
+  "addBook.choose": "Choose…",
+  "addBook.name": "Title",
+  "addBook.nameFromFile": "Taken from the PDF's file name",
+  "addBook.destination": "Where to put it",
+  "addBook.destinationHint":
+    "The book folder is created inside this one, named after the title. The app never moves or renames it afterwards.",
+  "addBook.browse": "Browse…",
+  "addBook.willCreate": "Will create the folder “{{name}}”",
+  "addBook.create": "Create",
+  "addBook.folderHint":
+    "Point at a book folder that already exists — one somebody sent you, or one you moved here yourself. Anything loose in it (meta.json, ocr.json, toc.json, a cover) is moved into its .lbook directory; book.pdf stays where it is.",
+  "addBook.chooseFolder": "Choose a folder…",
+  "addBook.movedFiles": "Moved {{count}} file(s) into .lbook/ for “{{name}}”",
+  "addBook.alreadyKnown": "“{{name}}” is already in the library",
+  "addBook.previewFailed": "Could not check those files.",
+
+  "editBook.title": "Maintain “{{name}}”",
+  "editBook.hint":
+    "Replace any of the book's four files, or rename it. Each replacement is validated before it is copied, so a file that is not what it claims to be is refused and the book keeps the one it had.",
+  "editBook.name": "Title",
+  "editBook.nameHint": "Shown in the library. The folder's name on disk is never changed.",
+  "editBook.ocr": "OCR JSON",
+  "editBook.ocrHint": "Replacing it updates the page count",
+  "editBook.cover": "Cover",
+  "editBook.coverHint": "Any image; the old cover is removed",
+  "editBook.toc": "Table of contents",
+  "editBook.tocHint": "A toc.json, checked before it is copied",
+  "editBook.pdf": "PDF",
+  "editBook.pdfHint": "The scan itself — check that its length still matches the OCR file",
+  "editBook.replace": "Replace…",
+  "editBook.showFolder": "Show the folder",
+  "editBook.fileReplaced": "Replaced.",
+  "editBook.titleSaved": "Title saved.",
 
   // ---- one book's row -----------------------------------------------------
   "book.needsRepair": "Needs repair",

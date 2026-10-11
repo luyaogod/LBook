@@ -24,6 +24,8 @@ export const zhCN: Record<TranslationKeys, string> = {
   "common.showInFolder": "在文件管理器中显示",
   "common.openFile": "用系统默认程序打开该文件",
   "common.pages": "{{count}} 页",
+  "common.save": "保存",
+  "common.choose": "选择…",
 
   // ---- home (the library) -------------------------------------------------
   "home.search": "按书名搜索…",
@@ -50,6 +52,53 @@ export const zhCN: Record<TranslationKeys, string> = {
   "home.leftoversShowFolder": "打开所在文件夹",
   "home.leftoversHide": "隐藏",
   "home.addFailed": "无法添加这个文件夹。",
+
+  // ---- 新增与维护 ---------------------------------------------------------
+  "addBook.title": "添加书籍",
+  "addBook.tabFiles": "从文件新建",
+  "addBook.tabFolder": "已有的书文件夹",
+  "addBook.filesHint":
+    "选扫描件与它的 PaddleOCR 输出；封面与目录可选。按下“创建”之前不会写任何东西，下面显示的名字与页数都来自文件本身。",
+  "addBook.pdf": "PDF",
+  "addBook.pdfHint": "扫描件本身",
+  "addBook.ocr": "OCR JSON",
+  "addBook.ocrHint": "PaddleOCR 的原始输出，逐字节拷贝",
+  "addBook.cover": "封面",
+  "addBook.toc": "目录",
+  "addBook.optional": "可选",
+  "addBook.choose": "选择…",
+  "addBook.name": "书名",
+  "addBook.nameFromFile": "取自 PDF 的文件名",
+  "addBook.destination": "存放位置",
+  "addBook.destinationHint":
+    "书文件夹会建在这个目录里，名字取自书名。之后应用不会再移动或改名。",
+  "addBook.browse": "浏览…",
+  "addBook.willCreate": "将创建文件夹“{{name}}”",
+  "addBook.create": "创建",
+  "addBook.folderHint":
+    "指向一个已经存在的书文件夹——别人给你的，或你自己搬过来的。里面散放的元数据（meta.json、ocr.json、toc.json、封面）会被移动进它的 .lbook 目录；book.pdf 留在原地。",
+  "addBook.chooseFolder": "选择文件夹…",
+  "addBook.movedFiles": "已把 {{count}} 个文件移进 .lbook/（{{name}}）",
+  "addBook.alreadyKnown": "“{{name}}”已经在书库里",
+  "addBook.previewFailed": "无法检查这些文件。",
+
+  "editBook.title": "维护“{{name}}”",
+  "editBook.hint":
+    "替换这本书的四个文件之一，或者改书名。每次替换都会先校验再拷贝：不是它自称的那种文件会被拒绝，书仍用原来那份。",
+  "editBook.name": "书名",
+  "editBook.nameHint": "列表里显示的名字。磁盘上的文件夹名不会被改。",
+  "editBook.ocr": "OCR JSON",
+  "editBook.ocrHint": "替换后页数会跟着更新",
+  "editBook.cover": "封面",
+  "editBook.coverHint": "任意图片；旧封面会被删掉",
+  "editBook.toc": "目录",
+  "editBook.tocHint": "一个 toc.json，拷贝前会先校验",
+  "editBook.pdf": "PDF",
+  "editBook.pdfHint": "扫描件本身——换完注意它的页数是否仍与 OCR 文件对得上",
+  "editBook.replace": "替换…",
+  "editBook.showFolder": "打开文件夹",
+  "editBook.fileReplaced": "已替换。",
+  "editBook.titleSaved": "书名已保存。",
 
   // ---- one book's row -----------------------------------------------------
   "book.needsRepair": "需要修复",

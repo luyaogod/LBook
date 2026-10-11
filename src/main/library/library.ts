@@ -49,6 +49,14 @@ export interface Library {
   readPdfRange(uid: string, begin: number, end: number): Promise<Buffer>
   getToc(uid: string): Promise<BookToc | null>
   open(dir: string): Promise<OpenBookOutcome>
+  /**
+   * Registers a folder the app has just created, or brought into the `.lbook` layout.
+   *
+   * Separate from `open` because `open` asks the user for a folder and this one is
+   * handed one by the write side (see `library/create.ts`); both end in the same
+   * ledger write and watcher update.
+   */
+  register(dir: string, uid: string): Promise<PdfDocument>
   remove(uid: string): boolean
   /**
    * A book's file by role, or null when that file is not there.
@@ -377,14 +385,23 @@ export function createLibrary(input: LibraryInput): Library {
           return { ok: false, error: "that is a file, not a folder" }
         }
 
-        const { uid, adopted } = await adopt(target)
+        const { uid, adopted, moved } = await adopt(target)
         const added = ledger.add(target, uid)
         const doc = await describe(uid, target)
         syncWatchers()
-        return { ok: true, doc, alreadyKnown: added === null, adopted }
+        return { ok: true, doc, alreadyKnown: added === null, adopted, moved }
       } catch (error) {
         return { ok: false, error: error instanceof Error ? error.message : String(error) }
       }
+    },
+
+    async register(dir, uid) {
+      ledger.add(dir, uid)
+      syncWatchers()
+      // A fresh folder cannot be in the cache, but a book whose files were just
+      // replaced can: dropping the entry is what makes the next read parse them again.
+      books.delete(uid)
+      return describe(uid, dir)
     },
 
     async resolveFile(uid, kind) {

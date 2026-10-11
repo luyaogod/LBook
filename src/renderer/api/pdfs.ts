@@ -1,5 +1,14 @@
 import type { BookToc, OcrPage, PdfDocument } from "@shared/types"
-import type { BookFileKind, LeftoverPackages, OpenBookOutcome } from "@shared/ipc"
+import type {
+  BookFileKind,
+  CreateBookInput,
+  CreateBookPreview,
+  FileKind,
+  LeftoverPackages,
+  OpenBookOutcome,
+  ReplaceRole,
+  WriteOutcome,
+} from "@shared/ipc"
 import type { BookIssue } from "@shared/validateBook"
 
 /**
@@ -62,6 +71,41 @@ export function openLibraryDir(): Promise<void> {
 
 export function fetchPdfPage(uid: string, pageNum: number): Promise<OcrPage | null> {
   return window.api.book.getPage(uid, pageNum)
+}
+
+/**
+ * Validates the chosen files and reports what a new book would be.
+ *
+ * Writes nothing: the dialog uses it to show the folder name and page count before
+ * the reader commits, and to explain why a set of files will not do.
+ */
+export function previewBook(input: CreateBookInput): Promise<CreateBookPreview> {
+  return window.api.library.previewBook(input)
+}
+
+/** Creates the book folder from those files. */
+export function createBook(input: CreateBookInput): Promise<WriteOutcome<PdfDocument>> {
+  return window.api.library.createBook(input)
+}
+
+/** Replaces one of a book's files, or renames it. */
+export function replaceBookFile(
+  uid: string,
+  role: ReplaceRole,
+  value: string,
+): Promise<WriteOutcome<Record<string, unknown>>> {
+  return window.api.book.replaceFile(uid, role, value)
+}
+
+/** Opens the OS file picker. The path it returns is the only kind the app accepts. */
+export async function pickFile(kind: FileKind): Promise<string | null> {
+  const files = await window.api.dialog.pickFiles(kind)
+  return files[0] ?? null
+}
+
+/** Opens the OS folder picker; null when the reader closed it. */
+export function pickFolder(defaultPath?: string): Promise<string | null> {
+  return window.api.dialog.pickFolder(defaultPath)
 }
 
 /** The book's table of contents, read from `toc.json` in the book folder. */
