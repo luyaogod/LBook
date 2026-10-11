@@ -23,12 +23,12 @@ Electron 主进程。唯一有权访问文件系统与网络的层。
 
 ## 依赖方向
 
-只有 `src/preload`（类型层面，共享 `src/shared`）与 `src/main/index.ts` 引用它。它自己引用 `src/shared`，以及同目录下的 `config/`、`ipc/`、`lbook/`、`library/`、`migrate/`、`protocol/`、`translate/`、`tencent/`。
+只有 `src/preload`（类型层面，共享 `src/shared`）与 `src/main/index.ts` 引用它。它自己引用 `src/shared`，以及同目录下的 `config/`、`ipc/`、`lbook/`、`library/`、`protocol/`、`translate/`、`tencent/`。
 
-**本目录（以及 context/paths）是唯一允许 import `electron` 的地方之一**；其子目录中只有 `ipc/` 与 `protocol/` 也用 Electron，其余子目录必须是纯 Node。`migrate/` 特例：它只在一次性迁移脚本里被引用，主进程不 import 它。
+**本目录（以及 context/paths）是唯一允许 import `electron` 的地方之一**；其子目录中只有 `ipc/` 与 `protocol/` 也用 Electron，其余子目录必须是纯 Node。
 
 ## 相关文档
 
 - 父级：[../README.md](../README.md)
-- 子目录：[config/README.md](./config/README.md)、[ipc/README.md](./ipc/README.md)、[lbook/README.md](./lbook/README.md)、[library/README.md](./library/README.md)、[migrate/README.md](./migrate/README.md)、[protocol/README.md](./protocol/README.md)、[tencent/README.md](./tencent/README.md)、[translate/README.md](./translate/README.md)
+- 子目录：[config/README.md](./config/README.md)、[ipc/README.md](./ipc/README.md)、[lbook/README.md](./lbook/README.md)、[library/README.md](./library/README.md)、[protocol/README.md](./protocol/README.md)、[tencent/README.md](./tencent/README.md)、[translate/README.md](./translate/README.md)
 - 相关：[../../DESIGN.md](../../DESIGN.md) 第 3 节（进程模型）

@@ -62,19 +62,14 @@ npx vitest --coverage                     # 带覆盖率（覆盖 src/main 与 s
 |---|---|
 | 重建保真 | `dev-data/Oxford Picture Dictionary 3 ed.ocr.json`（294 页）与旧库 |
 
-第二批是 Phase 1 的一次性迁移，在 `tests/unit/migrate/lbookToFolder.test.ts`（用 `tests/helpers/lbookPackage.ts` 造的、与真库同构的小包）：
-
-- 断言：`book.pdf` 字节相同且 sha256 等于包内自报值、`ocr.json` **逐字节**相同、页数取自 OCR 文件、`toc.json`/封面搬齐。
-- 失败路径：PDF 哈希对不上 / 没有 `ocr.json` / OCR 没有页 / 根本不是包 —— **都不留半个文件夹**。
-- **再跑一次什么都不做**（幂等）：有台账时按 uid 跳过，没台账时按文件夹里的 `meta.json` 认出自己；同名不同 uid 则落到 `-2`。
-- 真实那 5 本：`npm run migrate:folders`（dry run）→ `--apply` → 用独立脚本读包复核（PDF sha256、`ocr.json` 逐字节、页数、进度、原包哈希不变）。**2026-10-11 已跑过，61 项复核全过。**
+第二批是 Phase 1 的一次性迁移（`tests/unit/migrate/lbookToFolder.test.ts`），**2026-10-11 跑过之后随迁移代码一起删掉了**——它验证的是"旧包 → 书文件夹"这件事，而那件事已经做完：5 本真书各自落地、逐本复核 61 项（PDF sha256 对得上包内自报值、`ocr.json` 逐字节相同、页数 = 数组长度 = 包内 pageCount、原包哈希不变）、重跑幂等。要再跑一次：按 `DESIGN.md` 6.4 从 git 历史取回代码。
 
 ---
 
 ## 5. 依赖注入与临时目录约定
 
 - 测试夹具用 `tests/helpers/temp.ts` 的 `createTestContext()` / `createLibraryTestContext()`，它们在 `os.tmpdir()` 下建独立目录，并在 `afterEach` 里清理。
-- `.lbook` 夹具用 `tests/helpers/lbook.ts` 的 `buildLbook()`（基于 yazl，走正常写入路径）与 `writeRawZip()`（手工构造 ZIP，用于 yazl 拒绝生成的恶意条目名）。`buildLbook()` 的 `extra` 选项用来塞入 `toc.json` 这类可选条目。
+- 夹具一律是**真实文件**：`tests/helpers/bookFolder.ts` 写出 `meta.json` + `ocr.json` + `book.pdf` 的完整布局，扫描器因此面对的是真实字节而不是假对象。
 - **绝不写真实的 `%APPDATA%\LBook` 或用户的库目录。**
 
 ---

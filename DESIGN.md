@@ -226,7 +226,7 @@ imgs/…       可选：OCR 内容里引用的图片
 
 ## 6. 旧的 `.lbook` 包（只读一次：迁移输入）
 
-应用本身已经不认识这个格式了：它只在**一次性迁移**（`scripts/migrate-folders.ts`，读法在 `src/main/migrate/`）里被读一次，把每本包摊成 5.2 的书文件夹。本节留着，是因为迁移要正确实现它，也因为"为什么当初是 ZIP"这个问题的答案值得记住。
+**应用与仓库都已经不认识这个格式了。** 本节是历史记录：2026-10-11 的一次性迁移（`scripts/migrate-folders.ts` + `src/main/migrate/`）把每本包摊成了 5.2 的书文件夹，跑完并逐本复核之后，那些代码连同 `better-sqlite3`、`yauzl` 依赖一起删掉了（仍可从 git 历史 `d35a9e6` 取回）。留下的理由有两个：万一要从旧备份恢复，读法得有据可查；以及"为什么当初是 ZIP"这个答案值得记住。
 
 ```
 manifest.json    格式版本 / uid / 标题 / 作者 / 创建时间 / 页数 / PDF 哈希 / 封面引用
@@ -296,9 +296,9 @@ const dataStart = entry.relativeOffsetOfLocalHeader + 30
 - **偏移量必须量，不能猜。** 这些扫描件的正文页脚上印着页码，PaddleOCR 会把它们识别成 `number` 类型的块；把全书这种块抽出来做直方图，偏移量只有一个桶，比逐条猜标题可靠得多。
 - **印刷页号只为显示，`page` 才用于跳转。** 老版 OPD 的目录把跨页写成 `2-3`，而 `printedPage` 在契约里是单个正整数，所以只取起始页。
 
-### 6.4 迁移之后这一段就可以删掉
+### 6.4 迁移代码已经删掉了（2026-10-11）
 
-迁移完成、确认无误后，`src/main/migrate/`、`scripts/migrate-folders.ts` 与 `yauzl`（devDependency）都可以整体删除——它们不在装机包里，也不被主进程 import。
+`src/main/migrate/`、`scripts/migrate-folders.ts`、`tests/unit/migrate/`、`tests/helpers/lbookPackage.ts` 与 `better-sqlite3` / `yauzl` / `yazl` 依赖都不在了；它们从来不在装机包里，也不被主进程 import。要再迁一次：`git checkout d35a9e6 -- src/main/migrate scripts/migrate-folders.ts tests/helpers/lbookPackage.ts`，再 `npm i` 那两个依赖。
 
 ---
 
@@ -401,7 +401,7 @@ main      translate/service.ts                选厂商、取凭据、查缓存�
 ## 10. 打包与更新
 
 - `electron-builder` + NSIS（每用户安装、可改安装目录）。
-- `asar: true`。**装机包里没有原生模块**：索引曾经是 better-sqlite3，如今是三份 JSON，因此 `asarUnpack` 与 `npmRebuild` 都不再需要。（一次性迁移脚本仍用 better-sqlite3，但它跑在普通 Node 下、不进装机包。）
+- `asar: true`。**装机包里没有原生模块，仓库里也没有**：索引曾经是 better-sqlite3，如今是三份 JSON；读旧包的一次性脚本也已删除。`asarUnpack` 与 `npmRebuild` 都不再需要。
 - `package.json` 的 `version` 是唯一来源，`electron-updater` 拿它与 GitHub release tag（`vX.Y.Z`）比对。
 
 更新行为：启动 10 秒后静默检查；后台下载；**就绪后不打断用户**，只出非模态提示条，并设 `autoInstallOnAppQuit`，退出时自动安装。所有错误吞掉只记日志——断网绝不能影响启动。
@@ -439,7 +439,7 @@ connect-src 'self' lbook:; worker-src 'self'
 | **深度检查要 100ms 以上** | "Check"会逐页解析整份 OCR 文件（最大的 6.5MB / 451 页约 100ms）并整份 `JSON.parse` 一次。这是用户按下的按钮，不进列表路径。 |
 | **“删除”容易误解** | 它只从台账里去掉一条（A11），磁盘上的文件夹一个字节都不动。所以界面上必须写清楚，并且给一个“在文件管理器中显示”让人能找到文件。 |
 | **书不见了要用户自己处理** | 台账里的路径失效时，那本仍列出来并给出原因；下一步只能“从书库移除”或自己把文件夹放回原处。“重新定位”（手选新路径）留到 Phase 2（B8）。 |
-| **`.lbook` 只在迁移时读一次** | 应用自身不认识这个格式了：一次性脚本（`scripts/migrate-folders.ts`）把它们摊成书文件夹。迁移确认无误后，脚本、`src/main/migrate/` 与 `yauzl` 依赖都可以删。 |
+| **旧 `.lbook` 已无法在应用里打开** | 一次性迁移把它们摊成了书文件夹，迁移代码随后删除（A12/A13）。库里若还有旧包，首页会提示跑一次脚本——但脚本本身要从 git 历史里取回（见第 6.4 节）。 |
 | **迁移丢失三个字段** | 旧包顶层的 `preprocessedImages`、每页 `outputImages` / `inputImage` 没有被读出来。当前 UI 不读取。第 1 本可从 `dev-data` 的原始 JSON 补回，其余 4 本无法。 |
 | **OCR 图片不显示** | OCR 里的图片是百度云签名 URL（4227 个），本地从来没有图片文件。`resolveAssetUrls` 已实现并有测试：把 `<img src="imgs/…">` 重写成 `lbook://asset/<uid>/…`，真的把图片放进书文件夹就能显示。 |
 | **`meta.json` 的 `pageCount` 可能与 PDF 真实页数不符** | 页数取自 OCR JSON 的条目数。若 OCR 漏页，它就和 PDF 页数不一致（浏览器的总页数取自它，翻到最后一页可能落到空白上）。对照校验与坏书 UI 是 Phase 2。 |

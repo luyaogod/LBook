@@ -15,11 +15,10 @@
 | `watch.ts` | 盯住已登记的每个书文件夹（`fs.watch` + 300ms 去抖），把"这本书的文件变了"报给上层。**它不是让改动可见的机制**（那是 `book.ts` 的 `isStale()`），而是让界面不用等你切窗口就能跟上；网络盘上 watch 挂不上时降级为 30s 轮询 |
 | `inspect.ts` | 把校验规则的输入读齐（`meta.json`、文件列表、PDF 文件头、`toc.json`、`ocr.json` 的扫描结果），然后交给 `shared/validateBook.ts` 判。`deep` 时还会逐页解析并整体 `JSON.parse` 一次（最大那本约 100ms），所以只在用户点"Check"时跑 |
 | `ledger.ts` | **书库台账**（`library.json`）的文件半边：增/删/列、`resolve()` 给出绝对目录、原子写；**`remove()` 从不碰磁盘**（A11） |
-| `hash.ts` | `sha256File()`，流式，不把 200MB 读进内存。迁移校验 PDF 副本用 |
 
 ## 对外接口
 
-`createLibrary()` 与 `Library`；`openBook()`、`readTocText()`、`coverPath()`、`OpenBook`、`fingerprintOf()`；`createLedgerStore()`、`LedgerStore`；`createLibraryWatcher()`、`LibraryWatcher`、`BookChange`；`inspectBook()`、`readDigest()`；`sha256File()`。
+`createLibrary()` 与 `Library`；`openBook()`、`readTocText()`、`coverPath()`、`OpenBook`、`fingerprintOf()`；`createLedgerStore()`、`LedgerStore`；`createLibraryWatcher()`、`LibraryWatcher`、`BookChange`；`inspectBook()`、`readDigest()`。
 
 ## 依赖方向
 

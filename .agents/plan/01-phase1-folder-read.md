@@ -87,9 +87,7 @@
 
 ### T8 迁移器（`src/main/migrate/lbookToFolder.ts` + `scripts/migrate-folders.ts`）✅ 已完成（2026-10-11，已在真实库上跑过）
 
-> 前置工作已经就位：包解析（`zipReader.ts` / `manifest.ts`）已从 `src/main/lbook/` 搬进 `src/main/migrate/`，
-> 应用本身已经不认识 `.lbook`；测试夹具 `tests/helpers/lbookPackage.ts` 能造出与真实包同构的小包
-> （`ocr.json` 是 DEFLATE、`book.pdf` 是 STORE，与真库那 5 本一致）。
+> **这些代码在 Phase 3 已经删除**（迁移做完了）：`src/main/migrate/`、`scripts/migrate-folders.ts`、`tests/unit/migrate/`、`tests/helpers/lbookPackage.ts` 与两个依赖都不在了。要再迁一次，见 `03-phase3-drop-sqlite.md` 里那三行 `git checkout` 恢复法。
 
 > `src/main/migrate/` 是**新目录**：按 `AGENTS.md` §1.1 必须同时加 `README.md`（五个固定小节）。
 

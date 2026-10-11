@@ -9,7 +9,7 @@
 | Python / Visual Studio | **不需要** | 见第 5 节 |
 | 磁盘 | ≥ 2 GB | `node_modules` 含 Electron 二进制约 250MB |
 
-项目**不需要** Python 或 C++ 编译工具链，也不含任何原生模块：装机包里只有 JS（索引曾经是 better-sqlite3，如今是三份 JSON）。一次性迁移脚本仍用 better-sqlite3，但它跑在普通 Node 下、不进装机包。
+项目**不需要** Python 或 C++ 编译工具链，也不含任何原生模块：装机包里只有 JS（索引曾经是 better-sqlite3，如今是三份 JSON）。读旧 `.lbook` 包的那个一次性迁移脚本也已经删掉了。
 
 ---
 
@@ -32,7 +32,7 @@ ls node_modules/electron/dist/electron.exe   # 不存在即为此问题
 ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ node node_modules/electron/install.js
 ```
 
-`npm install` 输出里的 `allow-scripts … not yet covered by allowScripts` 警告是同一件事的提示。`better-sqlite3`（只有迁移脚本用）也在这个列表里，但它**不需要**编译——包内 `prebuilds/win32-x64.node` 就是可直接加载的 N-API 二进制。
+`npm install` 输出里的 `allow-scripts … not yet covered by allowScripts` 警告是同一件事的提示（现在是 `esbuild` 的 postinstall）。仓库里已经没有任何需要编译的包。
 
 ---
 
@@ -88,12 +88,9 @@ out/renderer/            渲染层静态资源，经 app://bundle 提供
 
 ## 5. 原生模块：已经没有要排错的东西了
 
-应用不再链接任何原生模块。索引曾经是 `better-sqlite3`（需要 `asarUnpack` + `npmRebuild` 两件套才能从包里 dlopen），如今书库台账、阅读进度、配置都是普通 JSON，因此 `electron-builder.yml` 里那两项已经删掉。
+应用不再链接任何原生模块。索引曾经是 `better-sqlite3`（需要 `asarUnpack` + `npmRebuild` 两件套才能从包里 dlopen），如今书库台账、阅读进度、配置都是普通 JSON，因此 `electron-builder.yml` 里那两项已经删掉；读旧包的一次性迁移脚本也删掉了，连 `devDependencies` 里的 `better-sqlite3` / `yauzl` 一起。
 
-仍会用到的例外是**一次性迁移脚本**（`scripts/migrate-folders.ts`）：它跑在普通 Node 下读旧的 `lbook.db`，需要的 `better-sqlite3` 在 `devDependencies` 里，不进装机包，也不参与 esbuild 打包主进程。所以：
-
-- 若在**打包之后**跑迁移脚本，二进制可能已被针对 Electron ABI 重建——迁移应在打包前跑完，或 `npx electron-rebuild` 之前跑。
-- 脚本报 `.node` 加载失败时，`npm rebuild better-sqlite3` 会把它装回 Node ABI（迁移专用，用过就可以连同依赖一起删）。
+`npm ls better-sqlite3 yauzl yazl` 应当是空的。要再跑一次迁移（例如从备份恢复），按 `scripts/README.md` 里那三行从 git 历史里取回代码与依赖。
 
 ---
 
@@ -240,7 +237,6 @@ NSIS 配置为**每用户安装**（不需要管理员）、**可修改安装目
 |---|---|---|
 | `npm run dev` 报 `Port 5173 is already in use` | 上次的 Vite 进程没退干净 | `netstat -ano \| findstr :5173` 找到 PID 后 `taskkill /F /PID <pid>` |
 | Electron 窗口打不开、`npx electron --version` 卡住 | 二进制没下载 | 见第 2 节的镜像命令 |
-| 迁移脚本报 `was compiled against a different Node.js version` | `better-sqlite3` 已被针对 Electron ABI 重建 | `npm rebuild better-sqlite3`（迁移跑完就可以删掉这个依赖） |
 | 列表里某本书显示“需要修复” | 文件夹被移走/改名，或 `meta.json`/`ocr.json` 被删 | 鼠标悬停在徒标上看原因；把文件夹放回原处，或“从书库移除”（**不会删文件**） |
 | 打开书报 `Bad end offset: N` | `requestDataRange` 的 `end` 语义搞错 | pdf.js 的 `end` 是**排他**的、IPC 的 `readPdfRange` 是**闭区间**，转换在 `usePdfDocumentProxy.ts` 里，别改动它 |
 | 打开书报 `Invalid PDF structure` | 传给 range transport 的 `length` 不对 | 必须是 `book.pdf` 的精确字节数，即 `PdfDocument.file_size` |

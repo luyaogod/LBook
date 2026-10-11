@@ -14,11 +14,16 @@
 | `perf-probe.ts` | 性能探针：量文件夹式书库的读路径（单个大 OCR JSON + 字节偏移索引 + 内存三进程对照），并**自检**索引与 V8 的解析结果是否逐页一致。见 `PLAN.md` 第 4.2 节 |
 | `check-inspect.ts` | 把一本真书的 `ocr.json` 拷到临时区并**故意弄坏两处**（页与页之间少一个逗号、某一页内部少一个花括号），验证校验器能报出来：损坏页的**字节偏移**、页码移位警告、而且第 1 页仍能读。只动副本，不碰你的库 |
 | `tencent-probe.ts` | 腾讯云连通性探针：用真实密钥各打一次语音合成与机器翻译，原样打印 RequestId 与错误码 |
-| `migrate-folders.ts` | **一次性迁移**：旧 `.lbook` 包 → 书文件夹 + 台账条目 + 进度条目，幂等、失败隔离、可 `--dry-run` |
 
-`migrate-folders.ts` **默认是 dry run**，只有加 `--apply` 才写盘；它读旧包（只读）、写书文件夹与台账，并在最后把旧库里的阅读进度搬过来。
+已删掉的脚本：`apply-toc.ts`、`migrate-legacy.ts`、`seed-library.ts`、`verify-package.ts` 都围绕"写 `.lbook` 包"与"扫描库目录"，而应用既不再写包、也不再扫目录（目录就是书文件夹里的 `toc.json`，拿编辑器改；造测试数据用 `tests/helpers/bookFolder.ts`）。
 
-已删掉的四个脚本（`apply-toc.ts`、`migrate-legacy.ts`、`seed-library.ts`、`verify-package.ts`）都围绕"写 `.lbook` 包"与"扫描库目录"，而应用既不再写包、也不再扫目录：目录就是书文件夹里的 `toc.json`（拿编辑器改），造测试数据用 `tests/helpers/bookFolder.ts`。
+**`migrate-folders.ts`（一次性迁移）也删掉了**：它的活儿在 2026-10-11 干完了——5 本真书各自变成一个书文件夹，逐本复核 61 项、原包原封不动、重跑幂等。如今应用与仓库都不再认识旧格式，`better-sqlite3`/`yauzl` 也随之从 `devDependencies` 里消失。真要再迁一次（比如从旧备份里恢复），代码在 git 历史里：
+
+```bash
+git checkout d35a9e6 -- src/main/migrate scripts/migrate-folders.ts tests/helpers/lbookPackage.ts
+npm i better-sqlite3 yauzl @types/better-sqlite3 @types/yauzl -D
+npm run migrate:folders -- --root <旧库目录>        # 加 --apply 才写
+```
 
 ## 对外接口
 

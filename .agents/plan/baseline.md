@@ -90,7 +90,18 @@
 | 原生模块 | `better-sqlite3` | 无（装机包里只有 JS） |
 
 - **Phase 2**：_待填——watch 的反应延迟、坏文件时的书库表现_
-- **Phase 3**：_待填——删掉迁移器与两个 devDependency 后的体积、启动耗时_
+### Phase 3（2026-10-11 实测）
+
+| 指标 | 0.0.1（旧） | Phase 1 后 | Phase 3 后 |
+|---|---|---|---|
+| NSIS 安装包 | 122,227,577 字节（116.6MB） | 113,386,030 字节（108.1MB） | **113,386,030 字节**（依赖本来就没进包；删掉的是 devDependency） |
+| `resources/app.asar.unpacked` | 有 | 无 | **无** |
+| `npm ls better-sqlite3 yauzl yazl` | 有 | 三个都在 devDependencies | **空** |
+| 仓库里的原生模块 | `better-sqlite3` | 无（只是 devDependency） | **无** |
+| 仓库里需要编译/原生构建的包 | `better-sqlite3` | 无（只是 devDependency） | **无** |
+| 迁移代码 | — | `src/main/migrate/` + `scripts/migrate-folders.ts` + 11 条测试 | **已删除**（约 700 行） |
+
+结论：Phase 3 真正的收益不在装机包体积（那部分 Phase 1 就拿到了），而在**仓库里再也没有需要编译的东西**：`npm install` 不再有 native 构建，`npm run typecheck` 不再需要 `export =` 的兼容开关，`scripts/run.mjs` 的 `external` 只剩 `electron` 与 `electron-updater`。
 
 ---
 

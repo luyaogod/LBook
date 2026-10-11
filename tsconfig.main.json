@@ -7,7 +7,6 @@
     "moduleResolution": "bundler",
     "types": ["node"],
     "skipLibCheck": true,
-    // better-sqlite3, yauzl and yazl use `export =`, so a default import needs this.
     "esModuleInterop": true,
 
     "verbatimModuleSyntax": true,

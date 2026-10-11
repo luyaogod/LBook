@@ -16,10 +16,9 @@ files:
 
 asar: true
 
-# No native modules are bundled any more: the app used to carry better-sqlite3 for
-# its index, and the index is now JSON files the main process reads and writes.
-# (The one-time converter in scripts/ still uses better-sqlite3, but it runs under
-# plain Node and is never shipped.)
+# No native modules are bundled, and none are needed: the index that used to be
+# better-sqlite3 is three JSON files the main process reads and writes, and the
+# one-time converter that read the old packages has been deleted (its work is done).
 win:
   target:
     - target: nsis
