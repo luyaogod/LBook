@@ -9,6 +9,15 @@ import { applyNativeTheme, paintWindow, windowColors } from "./theme"
 import { createUpdater } from "./updater"
 
 
+/**
+ * Called here, at module scope, because `protocol.registerSchemesAsPrivileged` only counts
+ * **before** the app is ready: Electron ignores a later call, the `app://` scheme loses
+ * `standard`/`secure`/`stream`, and the renderer never loads — the window simply never
+ * appears. That is not a theory: extracting this into `bundleHost.ts` put the call inside
+ * `whenReady()` and the app stopped opening at all.
+ */
+registerShellSchemes()
+
 // LBOOK_USE_BUNDLE=1 exercises the production app:// path without packaging.
 const isDev = !app.isPackaged && process.env.LBOOK_USE_BUNDLE !== "1"
 const DEV_SERVER_URL = process.env.LBOOK_DEV_SERVER_URL ?? "http://localhost:5173"
@@ -100,8 +109,8 @@ app.whenReady().then(async () => {
       for (const win of BrowserWindow.getAllWindows()) paintWindow(win, theme)
     },
   })
-  registerShellSchemes()
   registerLbookProtocol(appContext)
+
 
 
   // The OS switched light/dark while we are following it.

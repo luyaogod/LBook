@@ -181,13 +181,16 @@ NSIS 是**每用户安装**，静默装到指定目录：
 MSYS2_ARG_CONV_EXCL='*' ./release/LBook-Setup-0.0.1.exe /S '/D=D:\APPS\LBook'
 ```
 
-装完三件事都要核，缺一件就可能装了个永远不会更新的版本：
+装完四件事都要核，缺一件就可能装了个永远不会更新的版本——或者装了个**打不开**的版本：
 
 ```bash
 cat "D:\APPS\LBook\resources\app-update.yml"   # 应是真实 owner/repo，不是 YOUR_GITHUB_USER
 powershell "(Get-Item 'D:\APPS\LBook\LBook.exe').VersionInfo.FileVersion"   # 应是新版本号
 ls "$LOCALAPPDATA/Programs/LBook"               # 不该存在；存在即 /D= 没生效，装出了第二份
+node scripts/check-launch.mjs                   # 它真的能开吗
 ```
+
+**最后一条不能省，也不能用"进程还活着"代替。** 2026-10-11 我用"启动 10 秒后进程仍在"当作装后确认，结果发出去一个**窗口根本起不来**的版本（`protocol.registerSchemesAsPrivileged` 被放进了 `whenReady()` 之后，`app://` 失去特权、渲染层从不加载——而进程一直活着）。`check-launch.mjs` 等的是主进程自己说的那句 `[main] renderer loaded from app://bundle`（`did-finish-load` 才打），失败则报 `renderer failed to load`；完事用 `taskkill /T` 杀**整棵进程树**——旧写法只杀父进程，九次确认在任务管理器里留下了三十六个 LBook 进程。
 
 ---
 

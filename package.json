@@ -16,6 +16,7 @@
     "check:editor": "npm run build:renderer && vite build --config vite.spike.config.ts && node scripts/run.mjs --electron check-editor",
     "check:i18n": "node scripts/check-i18n.mjs",
     "check:inspect": "node scripts/run.mjs check-inspect",
+    "check:launch": "node scripts/check-launch.mjs",
     "check:locate": "node scripts/run.mjs check-locate",
     "dev": "node scripts/dev.mjs",
     "dev:renderer": "vite",
