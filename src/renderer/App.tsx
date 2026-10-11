@@ -158,7 +158,10 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
     };
   }, [dragTarget]);
 
-  const { pdf, loading: pdfLoading, error: pdfError } = useBook(selectedBookId);
+  // `loading` is deliberately not taken: a fetch in flight is not a reason to stop showing a
+  // book that is already on screen (see the viewer's loading branch below).
+  const { pdf, error: pdfError } = useBook(selectedBookId);
+
   const { page, loading: pageLoading } = usePdfPage(selectedBookId, currentPage);
   const { toc, nodes: tocNodes, loading: tocLoading, error: tocError } = useBookToc(selectedBookId);
 
@@ -432,8 +435,22 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
     );
   }
 
-  // Viewer: loading (or the book is not loaded yet)
-  if (pdfLoading || !pdf) {
+  /**
+   * Viewer: only while there is nothing of **this** book to show yet.
+   *
+   * `useBook` sets `loading` for every fetch in flight, and it runs again whenever the book
+   * changes — which includes the window regaining focus and every correction we just saved
+   * (`book:changed`). Keying this branch on `pdfLoading` therefore replaced the whole viewer
+   * with a spinner on each of those, and everything inside it went back to its initial state:
+   * the panel's view mode jumped from Blocks to Markdown, the scroll position was lost, an
+   * editor that was open closed. That is what "it refreshes when I switch away and back"
+   * was, and the fix is to notice that a re-read of the book already on screen is not a
+   * reason to stop showing it: `useBook` keeps the previous value, so `pdf` stays.
+   *
+   * The comparison with `selectedBookId` keeps the switching case honest: opening a different
+   * book *should* show the spinner rather than the previous book's pages.
+   */
+  if (pdf === null || pdf.uid !== selectedBookId) {
     return (
       <div className="flex h-svh flex-col bg-background">
         <AppHeader mode="viewer" onBack={handleBack} onSettingsClick={openSettings} />
