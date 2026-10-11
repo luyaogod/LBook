@@ -76,5 +76,5 @@ npm run migrate:folders -- --root <旧库目录>     # 默认 dry run，加 --ap
 ## 相关文档
 
 - 父级：[README.md](./README.md)
-- 同级：[`02-phase2-reactivity-validation.md`](./02-phase2-reactivity-validation.md)、[`04-phase4-monaco.md`](./04-phase4-monaco.md)
+- 同级：[`02-phase2-reactivity-validation.md`](./02-phase2-reactivity-validation.md)、[`04-phase4-content-edit.md`](./04-phase4-content-edit.md)
 - 相关：[../../PLAN.md](../../PLAN.md) 第 7、9 节、[`baseline.md`](./baseline.md)

@@ -18,6 +18,7 @@
     "dev:renderer": "vite",
     "lint": "oxlint",
     "pack": "npm run build && electron-builder --win --publish never",
+    "probe:edit": "node scripts/run.mjs edit-probe",
     "probe:perf": "node scripts/run.mjs perf-probe",
     "probe:tencent": "node scripts/run.mjs tencent-probe",
     "release": "npm run build && electron-builder --win --publish always",
