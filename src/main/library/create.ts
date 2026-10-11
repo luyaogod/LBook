@@ -11,6 +11,7 @@ import {
   type BookMeta,
 } from "../../shared/bookFile"
 import { parseToc } from "../../shared/toc"
+import type { WriteOutcome } from "../../shared/ipc"
 import type { PdfDocument } from "../../shared/types"
 import { scanPageSpans } from "../lbook/offsetIndex"
 import { dataDirOf } from "./book"
@@ -64,7 +65,6 @@ export type CreatePreview =
     }
   | { ok: false; error: string }
 
-export type WriteOutcome<T> = { ok: true; value: T } | { ok: false; error: string }
 
 /** Filenames the app will never accept as a source: they are its own. */
 function checkSourceFile(file: string, what: string): string | null {

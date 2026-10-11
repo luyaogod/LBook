@@ -50,6 +50,10 @@ export const IPC = {
   bookGetToc: "book:getToc",
   /** Replaces one of a book's files (ocr, cover, toc, pdf) or its title. */
   bookReplaceFile: "book:replaceFile",
+  /** The current text of one editable field, for an editor to open on. */
+  bookReadField: "book:readField",
+  /** Writes a corrected field back into `ocr.json`, byte for byte. */
+  bookWriteField: "book:writeField",
 
   progressGet: "progress:get",
   progressSave: "progress:save",
@@ -246,10 +250,29 @@ export type CreateBookPreview =
   | { ok: false; error: string }
 
 /** A write that either happened or did not; never a half-finished book. */
-export type WriteOutcome<T> = { ok: true; value: T } | { ok: false; error: string }
+/**
+ * A write that either happened or did not; never a half-finished book.
+ *
+ * A failure carries a `code` when the message is *ours* — a translation key the
+ * interface can render in the reader's language — and only `error` when it is not
+ * (a vendor's own words, an `fs` error). The rule comes from I6: we do not translate
+ * what a vendor said, but we do translate what we said.
+ */
+export type WriteOutcome<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: string; code?: string }
 
 /** Which of a book's files is being replaced. */
 export type ReplaceRole = "ocr" | "cover" | "toc" | "pdf" | "title"
+
+/**
+ * The two fields whose *content* can be corrected.
+ *
+ * Deliberately just two: a block's text and a page's Markdown. Coordinates, labels
+ * and structure are not editable — not by rule, but because no code path writes them
+ * (`.agents/plan/04-phase4-content-edit.md`).
+ */
+export type EditableField = "block_content" | "markdown"
 
 /** Maps every channel to its request and response payload types. */
 export interface IpcMap {
@@ -269,10 +292,32 @@ export interface IpcMap {
   [IPC.libraryPreviewBook]: { req: CreateBookInput; res: CreateBookPreview }
   /** Creates the book folder. */
   [IPC.libraryCreateBook]: { req: CreateBookInput; res: WriteOutcome<PdfDocument> }
-  /** Replaces one of a book's files, or its title. */
+  /** Replaces one of a book's files, or renames it. */
   [IPC.bookReplaceFile]: {
     req: { uid: string; role: ReplaceRole; value: string }
     res: WriteOutcome<Record<string, unknown>>
+  }
+  /**
+   * The two fields a reader may correct, and the write that corrects them.
+   *
+   * `pageIndex` is 0-based (the array index, A8); the UI shows `pageIndex + 1`.
+   * `baseValue` is what the editor loaded: if the file no longer holds it, the write
+   * is refused rather than overwriting somebody else's change.
+   */
+  [IPC.bookReadField]: {
+    req: { uid: string; pageIndex: number; field: EditableField; blockIndex?: number }
+    res: WriteOutcome<{ value: string | null }>
+  }
+  [IPC.bookWriteField]: {
+    req: {
+      uid: string
+      pageIndex: number
+      field: EditableField
+      blockIndex?: number
+      value: string
+      baseValue?: string
+    }
+    res: WriteOutcome<{ charsBefore: number; charsAfter: number; delta: number; pageCount: number }>
   }
 
   [IPC.dialogPickFiles]: { req: { kind: FileKind }; res: string[] }
@@ -366,6 +411,22 @@ export interface LbookApi {
     getToc(uid: string): Promise<BookToc | null>
     /** Replaces one file, or renames the book. `value` is a path, or the new title. */
     replaceFile(uid: string, role: ReplaceRole, value: string): Promise<WriteOutcome<Record<string, unknown>>>
+    /** The current text of an editable field, for an editor to open on. */
+    readField(
+      uid: string,
+      pageIndex: number,
+      field: EditableField,
+      blockIndex?: number,
+    ): Promise<WriteOutcome<{ value: string | null }>>
+    /** Writes a corrected field. `baseValue` guards against overwriting a change. */
+    writeField(input: {
+      uid: string
+      pageIndex: number
+      field: EditableField
+      blockIndex?: number
+      value: string
+      baseValue?: string
+    }): Promise<WriteOutcome<{ charsBefore: number; charsAfter: number; delta: number; pageCount: number }>>
   }
   progress: {
     get(uid: string): Promise<ReadingProgress | null>

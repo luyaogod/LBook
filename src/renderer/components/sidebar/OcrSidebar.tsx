@@ -507,6 +507,8 @@ export function OcrSidebar({
                       onHover={onBlockHover}
                       onClick={onBlockClick}
                       bookUid={bookUid}
+                      // No pageIndex while scrolling: editing is a page-at-a-time
+                      // activity, so the pencil is off in flow mode.
                     />
                   ))}
                   <PageFooterDivider blocks={pageBlocks} pageNum={pn} />
@@ -543,7 +545,10 @@ export function OcrSidebar({
                     isHighlighted={block.block_index === highlightedBlockId}
                     onHover={onBlockHover}
                     onClick={onBlockClick}
-                      bookUid={bookUid}
+                    bookUid={bookUid}
+                    // 0-based: the file's own numbering (A8). This is what enables the
+                    // inline editor — page-flip mode, one page, one field.
+                    pageIndex={pageNum - 1}
                   />
                 ))}
               </>

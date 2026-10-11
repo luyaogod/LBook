@@ -11,6 +11,7 @@
 | 文件 | 说明 |
 |---|---|
 | `pdfs.ts` | 书目列表、单本元数据、**打开一个书文件夹**（`openBookFolder()`）、从书库移除、在文件管理器中显示、读一页 OCR、读 `toc.json` |
+| `pdfs.ts` 里的 `readField()` / `writeField()` | 内容修正：读一个字段、把修正写回 `ocr.json`。**一次一个字段**（块的 `block_content` 或这一页的 `markdown.text`），`pageIndex` 用的是文件自己的 0 基编号（A8）；`baseValue` 是编辑器打开时读到的文本，用于拒绝覆盖别人的改动 |
 | `users.ts` | 阅读进度（按 `uid`） |
 | `translate.ts` | 划词翻译与朗读 |
 

@@ -100,6 +100,25 @@ export const zhCN: Record<TranslationKeys, string> = {
   "editBook.fileReplaced": "已替换。",
   "editBook.titleSaved": "书名已保存。",
 
+  // ---- 内容修正（编辑的是源码，不是渲染结果）----------------------------
+  "block.edit": "编辑这个块的文字",
+  "block.sourceHint":
+    "正在编辑 ocr.json 里的源文——PaddleOCR 写下的原文，Markdown 与 HTML 都原样显示。",
+  "block.saveHint": "Ctrl+Enter 保存，Esc 取消；点别处不会保存。",
+  "block.saved": "已写入 ocr.json",
+  "block.undo": "撤销这次修改",
+  "block.reverted": "已恢复",
+
+  // 应用自己写的提示（厂商报错不翻译，I6）。主进程发来的是 key，英文原文作回落。
+  "message.edit.bookGone": "这本书已经不在书库里了。",
+  "message.edit.noPage": "这本书里没有这一页。",
+  "message.edit.noBlock": "这一页上已经没有这个块了。",
+  "message.edit.noMarkdown": "这一页没有 Markdown 文本。",
+  "message.edit.notString": "那个字段不是文本，本版本不会去改它。",
+  "message.edit.stale": "这段文字在编辑器打开之后变过。重新打开以看到当前版本。",
+  "message.edit.readBack": "改动读不回来，文件保持了原样。",
+  "message.edit.pageCount": "这次改动改变了页数，而内容修正不该改变页数。",
+
   // ---- one book's row -----------------------------------------------------
   "book.needsRepair": "需要修复",
   "book.check": "检查这本书的文件",

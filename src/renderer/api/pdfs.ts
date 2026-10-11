@@ -3,6 +3,7 @@ import type {
   BookFileKind,
   CreateBookInput,
   CreateBookPreview,
+  EditableField,
   FileKind,
   LeftoverPackages,
   OpenBookOutcome,
@@ -95,6 +96,34 @@ export function replaceBookFile(
   value: string,
 ): Promise<WriteOutcome<Record<string, unknown>>> {
   return window.api.book.replaceFile(uid, role, value)
+}
+
+/**
+ * Correcting content: one field of one page.
+ *
+ * `pageIndex` is the file's own numbering (0-based, A8) — the component that shows
+ * page numbers adds one. `writeField` takes the text the editor loaded as
+ * `baseValue`: if the file no longer holds it, the write is refused rather than
+ * quietly overwriting somebody else's change.
+ */
+export function readField(
+  uid: string,
+  pageIndex: number,
+  field: EditableField,
+  blockIndex?: number,
+): Promise<WriteOutcome<{ value: string | null }>> {
+  return window.api.book.readField(uid, pageIndex, field, blockIndex)
+}
+
+export function writeField(input: {
+  uid: string
+  pageIndex: number
+  field: EditableField
+  blockIndex?: number
+  value: string
+  baseValue?: string
+}): Promise<WriteOutcome<{ charsBefore: number; charsAfter: number; delta: number; pageCount: number }>> {
+  return window.api.book.writeField(input)
 }
 
 /** Opens the OS file picker. The path it returns is the only kind the app accepts. */

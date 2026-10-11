@@ -7,7 +7,7 @@ import {
   type PathStep,
 } from "../lbook/fieldRange"
 import { scanPageSpans } from "../lbook/offsetIndex"
-import type { WriteOutcome } from "./create"
+import type { WriteOutcome } from "../../shared/ipc"
 import type { Library } from "./library"
 
 /**
@@ -64,6 +64,23 @@ export interface WriteFieldResult {
   delta: number
   pageCount: number
 }
+
+/**
+ * The messages this module can produce, as translation keys.
+ *
+ * Our own sentences, so the interface may render them in the reader's language; the
+ * English text still travels alongside as the fallback (see `WriteOutcome`).
+ */
+const MSG = {
+  bookGone: "message.edit.bookGone",
+  noPage: "message.edit.noPage",
+  noBlock: "message.edit.noBlock",
+  noMarkdown: "message.edit.noMarkdown",
+  notString: "message.edit.notString",
+  stale: "message.edit.stale",
+  readBack: "message.edit.readBack",
+  pageCount: "message.edit.pageCount",
+} as const
 
 /** Page numbers are 1-based at the edges of the app; the array is 0-based (A8). */
 function pathFor(input: WriteFieldInput): PathStep[] {
@@ -124,7 +141,7 @@ export async function writeField(
   input: WriteFieldInput,
 ): Promise<WriteOutcome<WriteFieldResult>> {
   const doc = await library.get(input.uid)
-  if (!doc) return { ok: false, error: "this book is no longer in the library" }
+  if (!doc) return { ok: false, error: "this book is no longer in the library", code: MSG.bookGone }
 
   try {
     // 1-based for the reader, 0-based in the file (A8).
@@ -137,12 +154,17 @@ export async function writeField(
           input.field === "markdown"
             ? "this page has no markdown text to edit"
             : `this page has no block ${input.blockIndex}`,
+        code: input.field === "markdown" ? MSG.noMarkdown : MSG.noBlock,
       }
     }
 
     const current = decodeString(bytes, range)
     if (current === null) {
-      return { ok: false, error: "the field to edit is not a string, so this build will not touch it" }
+      return {
+        ok: false,
+        error: "the field to edit is not a string, so this build will not touch it",
+        code: MSG.notString,
+      }
     }
     if (input.baseValue !== undefined && current !== input.baseValue) {
       // Somebody (the reader in another program, or a previous edit) changed this
@@ -150,6 +172,7 @@ export async function writeField(
       return {
         ok: false,
         error: "this text has changed since the editor was opened; reopen it to see the current version",
+        code: MSG.stale,
       }
     }
     if (current === input.value) {
@@ -184,12 +207,17 @@ export async function writeField(
     const rangeAfter = locate(after.bytes, input)
     const readBack = rangeAfter === null ? null : decodeString(after.bytes, rangeAfter)
     if (readBack !== input.value) {
-      return { ok: false, error: "the edit could not be read back; the file was left as it was" }
+      return {
+        ok: false,
+        error: "the edit could not be read back; the file was left as it was",
+        code: MSG.readBack,
+      }
     }
     if (pageCount !== doc.page_count) {
       return {
         ok: false,
         error: `the edit changed the page count (${doc.page_count} → ${pageCount}), which a content edit must not do`,
+        code: MSG.pageCount,
       }
     }
 
@@ -223,7 +251,7 @@ export async function readField(
   blockIndex?: number,
 ): Promise<WriteOutcome<{ value: string | null }>> {
   const doc = await library.get(uid)
-  if (!doc) return { ok: false, error: "this book is no longer in the library" }
+  if (!doc) return { ok: false, error: "this book is no longer in the library", code: MSG.bookGone }
   try {
     const { bytes } = await library.pageRange(uid, pageIndex + 1)
     const range = locate(bytes, { uid, pageIndex, field, blockIndex, value: "" })

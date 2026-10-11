@@ -32,6 +32,9 @@ const api: LbookApi = {
     readPdfRange: (uid, begin, end) => ipcRenderer.invoke(IPC.bookReadPdfRange, { uid, begin, end }),
     getToc: (uid) => ipcRenderer.invoke(IPC.bookGetToc, { uid }),
     replaceFile: (uid, role, value) => ipcRenderer.invoke(IPC.bookReplaceFile, { uid, role, value }),
+    readField: (uid, pageIndex, field, blockIndex) =>
+      ipcRenderer.invoke(IPC.bookReadField, { uid, pageIndex, field, blockIndex }),
+    writeField: (input) => ipcRenderer.invoke(IPC.bookWriteField, input),
   },
 
   dialog: {

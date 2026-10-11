@@ -7,6 +7,7 @@ import {
   type BookChangePayload,
   type BookFileKind,
   type CreateBookInput,
+  type EditableField,
   type FileKind,
   type ReplaceRole,
   type Settings,
@@ -14,6 +15,7 @@ import {
 } from "../../shared/ipc"
 import { inspectBook } from "../library/inspect"
 import { createBook, previewBook, replaceBookFile } from "../library/create"
+import { readField, writeField as writeBookField } from "../library/edit"
 
 /**
  * The extension of the old package format.
@@ -209,6 +211,56 @@ export function registerIpcHandlers(
     async (_event, { uid, role, value }: { uid: string; role: ReplaceRole; value: string }) => {
       const outcome = await replaceBookFile(library, uid, role, value)
       if (outcome.ok) broadcastLibraryChanged()
+      return outcome
+    },
+  )
+
+  // ---- correcting content -------------------------------------------------
+  /**
+   * One field of one page, read for an editor to open on.
+   *
+   * Reading through the same locator the write uses means an editor cannot be opened
+   * on something the write would refuse to write.
+   */
+  ipcMain.handle(
+    IPC.bookReadField,
+    (
+      _event,
+      {
+        uid,
+        pageIndex,
+        field,
+        blockIndex,
+      }: { uid: string; pageIndex: number; field: EditableField; blockIndex?: number },
+    ) => readField(library, uid, pageIndex, field, blockIndex),
+  )
+
+  /**
+   * Writes a corrected field into `ocr.json`.
+   *
+   * Only one string literal changes; the rest of the file is untouched (see
+   * `library/edit.ts`). Afterwards the book is announced as changed so the reader
+   * sees the correction without doing anything — and so does every other view of it.
+   */
+  ipcMain.handle(
+    IPC.bookWriteField,
+    async (
+      _event,
+      input: {
+        uid: string
+        pageIndex: number
+        field: EditableField
+        blockIndex?: number
+        value: string
+        baseValue?: string
+      },
+    ) => {
+      const outcome = await writeBookField(library, input)
+      if (outcome.ok) {
+        // `dir` and `changed` are only informational for the renderer; the uid is what
+        // it matches on, so an open book re-reads its page.
+        broadcastBookChanged({ uid: input.uid, dir: "", changed: ["ocr.json"] })
+      }
       return outcome
     },
   )

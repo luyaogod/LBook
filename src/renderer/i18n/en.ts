@@ -111,6 +111,29 @@ export const en = {
   "editBook.fileReplaced": "Replaced.",
   "editBook.titleSaved": "Title saved.",
 
+  // ---- correcting content (the editors work on the source, not on a rendering) --
+  "block.edit": "Edit this block's text",
+  "block.sourceHint":
+    "Editing the source that lives in ocr.json — the text exactly as PaddleOCR wrote it, Markdown and HTML included.",
+  "block.saveHint": "Ctrl+Enter saves, Esc cancels. Clicking away does not save.",
+  "block.saved": "Written to ocr.json",
+  "block.undo": "Undo this edit",
+  "block.reverted": "Put back",
+
+  // Messages this app writes itself. A vendor's error text is not translated (I6);
+  // these are ours, and they arrive from main as a key with English as the fallback.
+  "message.edit.bookGone": "This book is no longer in the library.",
+  "message.edit.noPage": "That page is not in this book.",
+  "message.edit.noBlock": "That block is no longer on this page.",
+  "message.edit.noMarkdown": "This page has no markdown text.",
+  "message.edit.notString": "That field is not text, so this build will not touch it.",
+  "message.edit.stale":
+    "This text changed after the editor was opened. Reopen it to see the current version.",
+  "message.edit.readBack":
+    "The edit could not be read back, so the file was left exactly as it was.",
+  "message.edit.pageCount":
+    "That edit changed the page count, which correcting content must not do.",
+
   // ---- one book's row -----------------------------------------------------
   "book.needsRepair": "Needs repair",
   "book.check": "Check this book's files",
