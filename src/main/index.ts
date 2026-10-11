@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, nativeTheme, net, protocol, session } from "electron"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
-import { WINDOW_MAXIMIZED_EVENT } from "../shared/ipc"
+import { BOOK_CHANGED_EVENT, WINDOW_MAXIMIZED_EVENT } from "../shared/ipc"
 import { createAppContext, type AppContext } from "./context"
 import { registerIpcHandlers } from "./ipc/register"
 import { registerLbookProtocol } from "./protocol/lbookProtocol"
@@ -196,6 +196,27 @@ app.whenReady().then(async () => {
   })
 
   await createWindow()
+
+  // An edit made in the reader's own editor reaches the interface through here.
+  // The watch is per book folder and the payload carries the uid, so the open book
+  // re-reads its page without the library list moving.
+  appContext.library.onBookChanged((change) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(BOOK_CHANGED_EVENT, change)
+    }
+  })
+
+  // Coming back to the window is the second layer of the reactivity story: a watch can
+  // fail to attach (a network share) or silently stop, while focus always happens.
+  app.on("browser-window-focus", () => {
+    const appContext = context
+    if (!appContext) return
+    appContext.library.refresh()
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send("library:changed")
+      window.webContents.send(BOOK_CHANGED_EVENT, { uid: "", dir: "", changed: ["other"] })
+    }
+  })
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow()

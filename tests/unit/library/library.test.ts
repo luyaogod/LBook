@@ -216,6 +216,71 @@ describe("reading a book", () => {
   })
 })
 
+describe("external edits", () => {
+  it("shows an edited meta.json on the next read, without a restart", async () => {
+    const { library, rootDir } = makeLibrary()
+    const folder = createBookFolder({ parent: rootDir, title: "Before" })
+    await library.open(folder.dir)
+    expect((await library.list())[0].title).toBe("Before")
+
+    // What editing the file in another program looks like: same path, new contents.
+    const meta = JSON.parse(fs.readFileSync(path.join(folder.dir, "meta.json"), "utf8")) as Record<
+      string,
+      unknown
+    >
+    meta.title = "After"
+    fs.writeFileSync(path.join(folder.dir, "meta.json"), `${JSON.stringify(meta, null, 2)}\n`)
+
+    expect((await library.list())[0].title).toBe("After")
+  })
+
+  it("re-reads an edited OCR file instead of serving the cached index", async () => {
+    const { library, rootDir } = makeLibrary()
+    const folder = createBookFolder({ parent: rootDir, pageCount: 2 })
+    await library.open(folder.dir)
+    expect((await library.getPage(folder.uid, 1))?.blocks[0].block_content).toBe("page 1")
+
+    // Rewrite the document with the same page count but different text: the page
+    // index is still valid, the bytes are not.
+    const document = JSON.parse(fs.readFileSync(folder.ocrPath, "utf8")) as {
+      layoutParsingResults: Array<{ prunedResult: { parsing_res_list: Array<{ block_content: string }> } }>
+    }
+    document.layoutParsingResults[0].prunedResult.parsing_res_list[0].block_content = "edited"
+    fs.writeFileSync(folder.ocrPath, JSON.stringify(document))
+
+    expect((await library.getPage(folder.uid, 1))?.blocks[0].block_content).toBe("edited")
+  })
+
+  it("re-reads after refresh(), which is what the window calls on focus", async () => {
+    const { library, rootDir } = makeLibrary()
+    const folder = createBookFolder({ parent: rootDir })
+    await library.open(folder.dir)
+
+    const document = JSON.parse(fs.readFileSync(folder.ocrPath, "utf8")) as {
+      layoutParsingResults: Array<{ markdown: { text: string } }>
+    }
+    document.layoutParsingResults[0].markdown.text = "# rewritten"
+    fs.writeFileSync(folder.ocrPath, JSON.stringify(document))
+
+    library.refresh()
+    expect((await library.getPage(folder.uid, 1))?.markdown_text).toBe("# rewritten")
+  })
+
+  it("reports a book that went bad while it was open", async () => {
+    const { library, rootDir } = makeLibrary()
+    const folder = createBookFolder({ parent: rootDir })
+    await library.open(folder.dir)
+    expect((await library.list())[0].problem).toBeNull()
+
+    fs.writeFileSync(path.join(folder.dir, "meta.json"), "{ broken")
+
+    const [doc] = await library.list()
+    expect(doc.problem).toMatch(/meta\.json/)
+    // And the reason is a sentence, not a stack trace.
+    expect(doc.problem).not.toMatch(/at [A-Za-z]+ \(/)
+  })
+})
+
 describe("progress", () => {
   it("keeps a position per book and rejects a page outside the book", async () => {
     const { library, rootDir } = makeLibrary()

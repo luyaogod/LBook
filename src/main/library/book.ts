@@ -22,6 +22,33 @@ import { readSpan, scanPageSpans, type PageSpan } from "../lbook/offsetIndex"
  * `currentPage`); the JSON array is 0-based (A8: page = array index).
  */
 
+/** `mtime` + size of a file: the cheapest fingerprint that changes when it is edited. */
+export interface FileFingerprint {
+  mtimeMs: number
+  size: number
+}
+
+/**
+ * The two files this module holds state for. A changed `ocr.json` invalidates the
+ * page index; a changed `meta.json` invalidates the identity, the title and the page
+ * count everything else is checked against.
+ */
+export interface BookFingerprints {
+  meta: FileFingerprint | null
+  ocr: FileFingerprint | null
+}
+
+export function fingerprintOf(file: string): FileFingerprint | null {
+  try {
+    const stats = fs.statSync(file)
+    return { mtimeMs: stats.mtimeMs, size: stats.size }
+  } catch {
+    // Gone, unreadable, or behind a drive that is not plugged in: the caller treats
+    // "no fingerprint" as "changed" and re-opens.
+    return null
+  }
+}
+
 export interface OpenBook {
   readonly dir: string
   readonly meta: BookMeta
@@ -33,6 +60,17 @@ export interface OpenBook {
    * library listing is what turns this into "needs repair", not this module.
    */
   readonly hasPdf: boolean
+  /**
+   * True when `meta.json` or `ocr.json` has been written since this instance was
+   * opened, so the cached page index and the parsed meta are out of date.
+   *
+   * Two `stat` calls (≈20µs) against a page read measured at 0.05–0.3ms: cheap
+   * enough to ask on every call, which is what keeps a reader who edited a file in
+   * their own editor from having to restart the app (B10).
+   */
+  isStale(): boolean
+  /** The fingerprints this instance was opened with, for the watcher to compare. */
+  readonly fingerprints: BookFingerprints
   /** Pages actually present in the OCR JSON (compare with `meta.pageCount`). */
   pageCount(): Promise<number>
   readPage(pageNum: number): Promise<unknown>
@@ -77,12 +115,27 @@ export async function openBook(dir: string, options: { chunkBytes?: number } = {
     complete = scanned.spans.length < want
   }
 
+  // Read once here rather than on every `isStale()` call: what the comparison needs
+  // is the state the *parsed* data came from, not the current state.
+  const fingerprints: BookFingerprints = {
+    meta: fingerprintOf(metaPath),
+    ocr: fingerprintOf(ocrPath),
+  }
+
   return {
     dir,
     meta,
     ocrPath,
     pdfPath,
     hasPdf: fs.existsSync(pdfPath),
+    fingerprints,
+
+    isStale() {
+      return (
+        !sameFingerprint(fingerprints.meta, fingerprintOf(metaPath)) ||
+        !sameFingerprint(fingerprints.ocr, fingerprintOf(ocrPath))
+      )
+    },
 
     async pageCount() {
       await ensure(1)
@@ -104,6 +157,12 @@ export async function openBook(dir: string, options: { chunkBytes?: number } = {
       return readSpan(ocrPath, known[pageNum - 1])
     },
   }
+}
+
+/** True when the file is still the same file it was when it was read. */
+export function sameFingerprint(a: FileFingerprint | null, b: FileFingerprint | null): boolean {
+  if (a === null || b === null) return a === b
+  return a.mtimeMs === b.mtimeMs && a.size === b.size
 }
 
 /** Raw `toc.json` text, or null when the book has no outline. */

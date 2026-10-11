@@ -61,6 +61,13 @@ export interface ScanResult {
    * comes from, and it is what the progressive-reading claim is measured by.
    */
   scannedBytes: number
+  /**
+   * False when the file has no `layoutParsingResults` array at all.
+   *
+   * "Empty" and "this is not a PaddleOCR file" look the same from `spans.length`,
+   * and they are different things to tell a reader whose file has just been edited.
+   */
+  foundArray: boolean
 }
 
 export interface ScanOptions {
@@ -97,7 +104,7 @@ export async function scanPageSpans(filePath: string, options: ScanOptions = {})
   try {
     const fileBytes = (await handle.stat()).size
     const found = await readArrayStart(handle, fileBytes)
-    if (found === null) return { spans, fileBytes, scannedBytes: 0 }
+    if (found === null) return { spans, fileBytes, scannedBytes: 0, foundArray: false }
     scannedBytes += found.bytesRead
 
     // The part of the prefix already in memory is scanned in place instead of
@@ -121,7 +128,7 @@ export async function scanPageSpans(filePath: string, options: ScanOptions = {})
       position += bytesRead
     }
 
-    return { spans, fileBytes, scannedBytes }
+    return { spans, fileBytes, scannedBytes, foundArray: true }
   } finally {
     await handle.close()
   }

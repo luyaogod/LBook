@@ -1,13 +1,27 @@
+import { useCallback, useState } from "react";
 import type { PdfDocument } from "@/types";
-import { ExternalLink, FolderOpen, Trash2, TriangleAlert } from "lucide-react";
+import type { BookFileKind } from "@shared/ipc";
+import type { BookIssue } from "@shared/validateBook";
+import { inspectBook } from "@/api/pdfs";
+import {
+  ExternalLink,
+  FolderOpen,
+  FolderSearch,
+  Loader2,
+  Trash2,
+  TriangleAlert,
+  ShieldQuestion,
+  CircleAlert,
+  FileWarning,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PdfThumbnail } from "./PdfThumbnail";
 
 interface PdfFileRowProps {
   pdf: PdfDocument;
   onOpen: (uid: string) => void;
-  /** Shows the book folder in the OS file manager. */
-  onReveal: (uid: string) => void;
+  /** Opens a folder or a file in whatever the OS uses for it. */
+  onOpenPath: (uid: string, kind: BookFileKind) => void;
   /** Forgets the book. The folder and its files are not touched (A11). */
   onRemove: (uid: string) => void;
 }
@@ -28,102 +42,228 @@ function formatDate(dateStr: string): string {
   });
 }
 
+/** Which file an issue is in, as a role the main process can resolve. */
+function kindOf(issue: BookIssue): BookFileKind {
+  switch (issue.file) {
+    case "meta.json":
+      return "meta";
+    case "ocr.json":
+      return "ocr";
+    case "toc.json":
+      return "toc";
+    case "book.pdf":
+      return "pdf";
+    default:
+      return "folder";
+  }
+}
+
 /**
  * One book in the library list.
  *
- * A book whose folder has gone missing is still listed, greyed out with the reason
- * and only "remove" available: the folder may be on a drive that is not plugged in,
- * and dropping it silently would look like the app lost the book (B8).
+ * A book whose folder has gone missing or whose files no longer make sense is still
+ * listed — greyed out, with a reason and only "remove" available. Dropping it
+ * silently would look like the app lost the book, and the folder may simply be on a
+ * drive that is not plugged in (B8).
+ *
+ * "Check" runs the validation rules over the book and shows what they found, file by
+ * file, with the byte offset when the OCR file is the problem. That is the one place
+ * in the app where reading the whole OCR file is worth 300ms, so it is behind a
+ * button rather than part of the listing.
  */
-export function PdfFileRow({ pdf, onOpen, onReveal, onRemove }: PdfFileRowProps) {
+export function PdfFileRow({ pdf, onOpen, onOpenPath, onRemove }: PdfFileRowProps) {
   const broken = pdf.problem !== null;
+  const [issues, setIssues] = useState<BookIssue[] | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
+
+  const check = useCallback(async () => {
+    if (issues !== null) {
+      setIssues(null);
+      return;
+    }
+    setChecking(true);
+    setCheckError(null);
+    try {
+      setIssues(await inspectBook(pdf.uid));
+    } catch (error) {
+      setCheckError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setChecking(false);
+    }
+  }, [issues, pdf.uid]);
+
+  const errors = issues?.filter((issue) => issue.level === "error").length ?? 0;
+  const warnings = (issues?.length ?? 0) - errors;
 
   return (
-    <div
-      className={`px-5 py-5 border-b border-border flex items-center gap-4 ${
-        broken ? "" : "hover:bg-accent/30 transition-colors cursor-pointer"
-      }`}
-      onClick={() => {
-        if (!broken) onOpen(pdf.uid);
-      }}
-    >
-      {/* The cover is served from the book folder; a book that moved away has none. */}
-      <PdfThumbnail coverUrl={broken ? null : pdf.cover_url} />
+    <div className="border-b border-border">
+      <div
+        className={`px-5 py-5 flex items-center gap-4 ${broken ? "" : "hover:bg-accent/30 transition-colors cursor-pointer"}`}
+        onClick={() => {
+          if (!broken) onOpen(pdf.uid);
+        }}
+      >
+        {/* The cover is served from the book folder; a book that moved away has none. */}
+        <PdfThumbnail coverUrl={broken ? null : pdf.cover_url} />
 
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{pdf.title}</p>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          <span className="px-1.5 py-0.5 text-xs rounded bg-muted text-muted-foreground font-medium">
-            PDF
-          </span>
-          {broken ? (
-            <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded bg-amber-100 text-amber-800 font-medium dark:bg-amber-500/15 dark:text-amber-300"
-              title={pdf.problem ?? ""}
-            >
-              <TriangleAlert className="h-3 w-3" />
-              Needs repair
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{pdf.title}</p>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <span className="px-1.5 py-0.5 text-xs rounded bg-muted text-muted-foreground font-medium">
+              PDF
             </span>
-          ) : (
-            <>
-              <span className="text-xs text-muted-foreground">{formatFileSize(pdf.file_size)}</span>
-              <span className="text-xs text-border">·</span>
-              <span className="text-xs text-muted-foreground">{pdf.page_count} pages</span>
-              {formatDate(pdf.created_at) && (
-                <>
-                  <span className="text-xs text-border">·</span>
-                  <span className="text-xs text-muted-foreground">{formatDate(pdf.created_at)}</span>
-                </>
-              )}
-            </>
+            {broken ? (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded bg-amber-100 text-amber-800 font-medium dark:bg-amber-500/15 dark:text-amber-300"
+                title={pdf.problem ?? ""}
+              >
+                <TriangleAlert className="h-3 w-3" />
+                Needs repair
+              </span>
+            ) : (
+              <>
+                <span className="text-xs text-muted-foreground">{formatFileSize(pdf.file_size)}</span>
+                <span className="text-xs text-border">·</span>
+                <span className="text-xs text-muted-foreground">{pdf.page_count} pages</span>
+                {formatDate(pdf.created_at) && (
+                  <>
+                    <span className="text-xs text-border">·</span>
+                    <span className="text-xs text-muted-foreground">{formatDate(pdf.created_at)}</span>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          {broken && (
+            <p className="mt-1 text-xs text-muted-foreground truncate" title={pdf.problem ?? ""}>
+              {pdf.problem}
+            </p>
           )}
         </div>
-        {broken && (
-          <p className="mt-1 text-xs text-muted-foreground truncate" title={pdf.problem ?? ""}>
-            {pdf.problem}
-          </p>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            void check();
+          }}
+          title="Check this book's files"
+        >
+          {checking ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : issues === null ? (
+            <ShieldQuestion className="h-4 w-4" />
+          ) : (
+            <FileWarning className="h-4 w-4" />
+          )}
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenPath(pdf.uid, "folder");
+          }}
+          title="Open this folder"
+        >
+          <FolderOpen className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 text-muted-foreground hover:text-destructive"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(pdf.uid);
+          }}
+          title="Remove from the library (the files are not deleted)"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+
+        {!broken && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-1.5"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen(pdf.uid);
+            }}
+          >
+            <span>Open</span>
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Button>
         )}
       </div>
 
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className="shrink-0"
-        onClick={(e) => {
-          e.stopPropagation();
-          onReveal(pdf.uid);
-        }}
-        title="Show this folder in the file manager"
-      >
-        <FolderOpen className="h-4 w-4" />
-      </Button>
+      {(issues !== null || checkError !== null) && (
+        <div className="px-5 pb-5 -mt-1">
+          {checkError && (
+            <p className="text-xs text-destructive">Could not check this book: {checkError}</p>
+          )}
 
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className="shrink-0 text-muted-foreground hover:text-destructive"
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove(pdf.uid);
-        }}
-        title="Remove from the library (the files are not deleted)"
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+          {issues !== null && issues.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              Everything checks out: meta.json, the OCR file, book.pdf and the outline all read.
+            </p>
+          )}
 
-      {!broken && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="shrink-0 gap-1.5"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpen(pdf.uid);
-          }}
-        >
-          <span>Open</span>
-          <ExternalLink className="h-3.5 w-3.5" />
-        </Button>
+          {issues !== null && issues.length > 0 && (
+            <div className="rounded-md border border-border divide-y divide-border">
+              <p className="px-3 py-2 text-xs text-muted-foreground">
+                {errors > 0 && `${errors} problem${errors === 1 ? "" : "s"}`}
+                {errors > 0 && warnings > 0 && ", "}
+                {warnings > 0 && `${warnings} warning${warnings === 1 ? "" : "s"}`}
+                {" — "}
+                {errors > 0
+                  ? "this book cannot be read as it is"
+                  : "this book reads, but something in it is off"}
+              </p>
+              {issues.map((issue, index) => (
+                <div key={index} className="flex items-start gap-2 px-3 py-2">
+                  {issue.level === "error" ? (
+                    <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+                  ) : (
+                    <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-foreground">{issue.message}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {issue.file}
+                      {issue.jsonPath ? ` · ${issue.jsonPath}` : ""}
+                      {issue.offset !== undefined ? ` · byte ${issue.offset}` : ""}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 shrink-0 gap-1 px-2 text-xs"
+                    onClick={() => onOpenPath(pdf.uid, kindOf(issue))}
+                    title="Open this file in the program you use for it"
+                  >
+                    Open
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-7 w-7 shrink-0"
+                    onClick={() => void window.api.library.showInFolder(pdf.uid, kindOf(issue))}
+                    title="Show this file in the file manager"
+                  >
+                    <FolderSearch className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

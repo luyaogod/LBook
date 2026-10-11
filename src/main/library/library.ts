@@ -12,6 +12,8 @@ import { scanPageSpans } from "../lbook/offsetIndex"
 import type { ProgressStore } from "../progress"
 import { coverPath, openBook, readTocText, type OpenBook } from "./book"
 import type { LedgerStore } from "./ledger"
+import type { BookChange, LibraryWatcher } from "./watch"
+import type { BookFileKind } from "../../shared/ipc"
 
 /**
  * The library: the folders the user registered, read as books.
@@ -40,6 +42,29 @@ export interface Library {
   getToc(uid: string): Promise<BookToc | null>
   open(dir: string): Promise<OpenBookOutcome>
   remove(uid: string): boolean
+  /**
+   * A book's file by role, or null when that file is not there.
+   *
+   * Roles rather than names: the OCR file is whatever `meta.json` says, the cover is
+   * whichever of the five names exists, and the renderer should never have to know
+   * either (it asks to open "the OCR file").
+   */
+  resolveFile(uid: string, kind: BookFileKind): Promise<string | null>
+  /**
+   * Fires when a file inside one of the registered book folders changed.
+   *
+   * This is for the interface to react to; nothing here depends on it, because every
+   * read re-checks the files it parsed itself (see `OpenBook.isStale`).
+   */
+  onBookChanged(listener: (change: BookChange) => void): void
+  /**
+   * Drops the cached books, so the next read parses the files again.
+   *
+   * Called when the window regains focus: on a network share or a removable drive a
+   * watch may never fire, and a reader should not have to restart the app to see an
+   * edit (T1 in `02-phase2-reactivity-validation.md`).
+   */
+  refresh(): void
   readonly progress: {
     get(uid: string): ReadingProgress | null
     save(uid: string, pageNum: number): Promise<ReadingProgress>
@@ -50,12 +75,14 @@ export interface Library {
 export interface LibraryInput {
   ledger: LedgerStore
   progress: ProgressStore
+  /** Optional: without it an edit is still picked up, just not announced. */
+  watcher?: LibraryWatcher
   /** Injected for deterministic tests. */
   now?: () => string
 }
 
 export function createLibrary(input: LibraryInput): Library {
-  const { ledger, progress } = input
+  const { ledger, progress, watcher } = input
   const now = input.now ?? (() => new Date().toISOString())
   const books = new Map<string, OpenBook>()
 
@@ -75,11 +102,19 @@ export function createLibrary(input: LibraryInput): Library {
   async function bookFor(uid: string): Promise<OpenBook> {
     const dir = ledger.resolve(refOf(uid))
     const cached = books.get(uid)
-    if (cached && cached.dir === dir) return cached
+    // `isStale()` re-stats meta.json and ocr.json: two syscalls (about 20µs) against a
+    // page read measured at 0.05–0.3ms, and it is what lets a reader edit a file in
+    // their own editor and simply turn back to the app (B10).
+    if (cached && cached.dir === dir && !cached.isStale()) return cached
 
     const book = await openBook(dir)
     books.set(uid, book)
     return book
+  }
+
+  /** Keeps the watcher pointed at exactly the registered folders. */
+  function syncWatchers(): void {
+    watcher?.sync(ledger.list().map((ref) => ({ uid: ref.uid, dir: ledger.resolve(ref) })))
   }
 
   /** The renderer's view of one book: what it needs to draw a row. */
@@ -198,6 +233,8 @@ export function createLibrary(input: LibraryInput): Library {
     return { uid, adopted: true }
   }
 
+  syncWatchers()
+
   return {
     get issues() {
       return ledger.issues
@@ -293,10 +330,22 @@ export function createLibrary(input: LibraryInput): Library {
         const { uid, adopted } = await adopt(target)
         const added = ledger.add(target, uid)
         const doc = await describe(uid, target)
+        syncWatchers()
         return { ok: true, doc, alreadyKnown: added === null, adopted }
       } catch (error) {
         return { ok: false, error: error instanceof Error ? error.message : String(error) }
       }
+    },
+
+    async resolveFile(uid, kind) {
+      const book = await bookFor(uid)
+      if (kind === "folder") return book.dir
+      if (kind === "ocr") return fs.existsSync(book.ocrPath) ? book.ocrPath : null
+      if (kind === "pdf") return fs.existsSync(book.pdfPath) ? book.pdfPath : null
+      if (kind === "cover") return coverPath(book.dir)
+
+      const file = path.join(book.dir, kind === "meta" ? "meta.json" : "toc.json")
+      return fs.existsSync(file) ? file : null
     },
 
     remove(uid) {
@@ -304,8 +353,21 @@ export function createLibrary(input: LibraryInput): Library {
       if (!ref) return false
       books.delete(uid)
       const removed = ledger.remove(ref)
-      if (removed) progress.keep(new Set(ledger.list().map((item) => item.uid)))
+      if (removed) {
+        progress.keep(new Set(ledger.list().map((item) => item.uid)))
+        syncWatchers()
+      }
       return removed
+    },
+
+    onBookChanged(listener) {
+      watcher?.onChange(listener)
+    },
+
+    refresh() {
+      // Nothing else to do: the next read re-parses whatever is on disk, and
+      // `isStale()` is checked on every call anyway.
+      books.clear()
     },
 
     progress: {
@@ -325,6 +387,7 @@ export function createLibrary(input: LibraryInput): Library {
 
     dispose() {
       books.clear()
+      watcher?.dispose()
     },
   }
 }

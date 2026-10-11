@@ -36,6 +36,8 @@ npx vitest --coverage                     # 带覆盖率（覆盖 src/main 与 s
 | `tests/unit/lbook/ocr.test.ts` | 页元素 → 渲染层形状：字段名保持 PaddleOCR 原样、**`block_index` 就是数组下标**（hover/滚动联动的身份）、半写坏的块不抛、页尺寸缺失时按 bbox 推断且**推不出来时是 null 而不是 0**、**`markdown.text` 原样读出且不从块派生**（A10） |
 | `tests/unit/library/book.test.ts` | `openBook()`：1-based 页号对应数组下标 0、小 chunk 跨块结果不变；越界/非整数页号报错；**页数以 OCR 文件为准而不是 meta**；PDF 缺失仍可读；meta 缺失/非 JSON/缺 uid 报错；**`ocrFile` 跳出文件夹被拒**；封面名探测与 `toc.json` 读取 |
 | `tests/unit/library/ledger.test.ts` | 书库台账：根内相对/根外绝对、**整库改名后相对路径仍可解析**、同一本不重复登记、**`remove()` 只删条目而文件夹仍在磁盘上**、手改坏的台账保住好条目并给出 issues、非 JSON 不崩、跨实例持久化 |
+| `tests/unit/library/watch.test.ts` | 书文件夹 watcher：变更带 uid 上报、一次连写只报一次、从列表移除后不再报、watch 挂不上时降级为轮询、`dispose()` 后彻底安静、只动封面这类未跟踪文件也会说"这儿变了" |
+| `tests/unit/shared/validateBook.test.ts` | 校验规则：缺/坏 `meta.json`、`ocr.json` 缺文件/无数组/空数组/坏页（带字节偏移与 JSON 路径）、页数不一致（且浅扫时不说）、PDF 文件头、`toc.json`、**整份 `JSON.parse` 失败但逐页可读**、扫描器与解析器页数不一致（报"这是 LBook 的 bug"）、**永不抛异常** |
 | `tests/unit/library/library.test.ts` | 书库门面：空库；列出一本；**文件夹被移走后仍列出来并带原因**（B8）；`open()` 在已有 meta 时**一个字节都不写**、重复登记、**无 meta 时创建它并把页数取自 OCR 数组**、不是书/是文件/不存在/OCR 没有页时各自说明缺什么；读页与越界返回 null；**`readPdfRange` 是闭区间**（差一字节每页都会坏）；目录缺失/损坏两种行为；进度越界拒绝；**`remove()` 只删台账条目而磁盘上的文件全在**；**书可以放在默认位置之外** |
 | `tests/unit/progress/progress.test.ts` | 阅读进度文件：按 `uid` 记住位置、多本互不干扰、原地更新、**重启后仍能读回**、`keep()` 丢掉已移除的书并写回磁盘、**坏文件降级为空而不是拒绝启动**、逐条容错（坏条目跳过、好条目留下） |
 | `tests/unit/shared/bookFile.test.ts` | 书籍 `meta.json` 契约：缺 title 不当错、未知键忽略、更高 `formatVersion` 拒绝、必需字段逐一拒绝、**`ocrFile` 不得跳出书文件夹**（`../`/子目录/盘符/绝对路径）、垃圾输入只报错不抛；写出的键序稳定且可往返 |
@@ -175,6 +177,18 @@ npx vitest --coverage                     # 带覆盖率（覆盖 src/main 与 s
 73. 选一个空文件夹 → 弹出说明（没有 `meta.json` 也没有 `book.pdf`），**不写任何文件**
 74. 把一本书放在默认位置之外（比如另一个盘）→ 能加、能读；把整个默认目录改名 → 台账里相对路径那几本仍然能打开（A11）
 75. 阅读进度：读到第 30 页退出，重开应用 → 回到第 30 页；把书从书库移除再加回来 → 进度没了（键是 `uid`，移除时一并清掉）
+
+### 外部改动（反应式重读，Phase 2）
+
+- 用外部编辑器改 `toc.json`（改一个标题）→ **切回窗口**，目录栏立刻是新内容（不用重启）
+- 改 `ocr.json` 里某一页的一个字（**页数不变**）→ 切回窗口，右侧 OCR 栏里那一页的文字立刻变；**页码与滚动位置不跳**
+- 把 `ocr.json` 重排一次（缩进/换行变了，内容不变）→ 翻页仍正常（索引按 `mtime+size` 失效重扫）
+- 把某本 `meta.json` 的 `title` 改掉 → 列表里那本的名字跟着变
+- 把某本 `meta.json` 改成非法 JSON → 该行变成“需要修复”并给出原因，其他书照常打开
+- 把 `ocr.json` 第 300 页之后的结构改坏（少一个 `}`）→ 点行上的 **Check**，明细里报出**字节偏移**与 `layoutParsingResults[300]`；同时提示“meta.json 说 451 页但 OCR 文件只有 302 页”，**而第 1 页仍能打开**
+- 把元素之间的一个逗号删掉 → Check 会报“整份无法解析（但逐页仍可读），别的工具会拒绝这个文件”
+- 改回文件后重开一下 Check → 徒标与明细消失（校验每次重算，不缓存“坏”这个结论）
+- 列表右上角的 **Refresh** 按钮：不切窗口也能手动重读一次
 
 ### 存储与更新
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchBookToc } from "../api/pdfs";
+import { useBookChange } from "./useBookChange";
 import { flattenToc } from "@shared/toc";
 import type { BookToc } from "../types";
 
@@ -21,6 +22,7 @@ interface TocEntry {
  * back (A5). The viewer displays what the folder holds right now.
  */
 export function useBookToc(uid: string | null) {
+  const changeVersion = useBookChange(uid);
   const [entry, setEntry] = useState<TocEntry>({ uid: null, toc: null, error: null });
 
   useEffect(() => {
@@ -40,7 +42,7 @@ export function useBookToc(uid: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [uid]);
+  }, [uid, changeVersion]);
 
   // A result that belongs to a different book is not a result for this one.
   const current = entry.uid === uid ? entry : null;

@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { fetchPdfPage } from "@/api/pdfs";
+import { useBookChange } from "./useBookChange";
 import type { OcrPage } from "@/types";
 
 export function useFlowPages(uid: string): {
@@ -10,13 +11,14 @@ export function useFlowPages(uid: string): {
   const cacheRef = useRef<Map<number, OcrPage>>(new Map());
   const inFlightRef = useRef<Set<number>>(new Set());
   const [version, setVersion] = useState(0);
+  const changeVersion = useBookChange(uid);
 
   // Clear the cache when another book is opened.
   useEffect(() => {
     cacheRef.current.clear();
     inFlightRef.current.clear();
     setVersion(0);
-  }, [uid]);
+  }, [uid, changeVersion]);
 
   const getPage = useCallback((pageNum: number): OcrPage | undefined => {
     return cacheRef.current.get(pageNum);

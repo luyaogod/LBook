@@ -17,12 +17,13 @@
 | `toc.ts` | 目录树契约：`toc.json` 的解析与校验、扁平化、当前条目定位 |
 | `translate.ts` | 翻译契约：供应商自述字段、设置视图、译文结果 |
 | `bookFile.ts` | 书籍 `meta.json` 的契约：解析（**不抛异常**）、写出（固定键序）、以及"`ocrFile` 不得跳出书文件夹"的路径校验 |
+| `validateBook.ts` | **校验规则与文案**：吃一份 `BookDigest`（别人读好的摘要），吐 `BookIssue[]`。不做 I/O、**永不抛异常**；`checkOcrPage()` 是逐页规则，主进程扫描时直接调用。列表用它的轻量半边，"这本书怎么了"用它的深度半边 |
 | `ledger.ts` | 书库台账的形状与校验：`library.json` 的解析/序列化（纯函数，路径语义归 main） |
 | `urls.ts` | `lbook://` URL 构造器与 OCR 内容里的相对图片引用重写 |
 
 ## 对外接口
 
-`IPC`、`IPC_MAP` 类型、`LbookApi`、`UpdateStatus`、`Settings`、`SettingsPatch`、`READING_FONT_SIZE`、`ScanResult`、`FileKind`；`BookMeta`、`parseBookMeta()`、`writeBookMeta()`、`isSafeBookFileName()`、`BOOK_FORMAT_VERSION`；`Ledger`、`BookRef`、`parseLedger()`、`serializeLedger()`、`emptyLedger()`、`LEDGER_VERSION`；`PdfDocument` 等全部领域类型；`parseToc()`、`flattenToc()`、`findActiveTocId()`、`tocAncestorIds()`、`countTocNodes()`、`TOC_FORMAT_VERSION`；`coverUrl()`、`assetUrl()`、`resolveAssetUrls()`。
+`IPC`、`LbookApi`、`UpdateStatus`、`Settings`、`SettingsPatch`、`READING_FONT_SIZE`、`OpenBookOutcome`、`BookFileKind`、`LeftoverPackages`、`BookChangePayload`；`BookMeta`、`parseBookMeta()`、`writeBookMeta()`、`isSafeBookFileName()`、`BOOK_FORMAT_VERSION`；`validateBook()`、`checkOcrPage()`、`worstLevel()`、`summaryOf()`、`BookIssue`、`BookDigest`；`Ledger`、`BookRef`、`parseLedger()`、`serializeLedger()`、`emptyLedger()`、`LEDGER_VERSION`；`PdfDocument` 等全部领域类型；`parseToc()`、`flattenToc()`、`findActiveTocId()`、`tocAncestorIds()`、`countTocNodes()`、`TOC_FORMAT_VERSION`；`coverUrl()`、`assetUrl()`、`resolveAssetUrls()`。
 
 ## 依赖方向
 

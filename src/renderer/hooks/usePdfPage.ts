@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { fetchPdfPage } from "../api/pdfs";
+import { useBookChange } from "./useBookChange";
 import type { OcrPage } from "../types";
 
 export function usePdfPage(uid: string | null, pageNum: number) {
   const [page, setPage] = useState<OcrPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const changeVersion = useBookChange(uid);
 
   useEffect(() => {
     if (uid === null) return;
@@ -28,7 +30,7 @@ export function usePdfPage(uid: string | null, pageNum: number) {
     return () => {
       cancelled = true;
     };
-  }, [uid, pageNum]);
+  }, [uid, pageNum, changeVersion]);
 
   return { page, loading, error };
 }

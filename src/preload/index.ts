@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron"
-import { IPC, UPDATE_STATUS_EVENT, WINDOW_MAXIMIZED_EVENT, type LbookApi, type UpdateStatus } from "../shared/ipc"
+import { IPC, UPDATE_STATUS_EVENT, WINDOW_MAXIMIZED_EVENT, BOOK_CHANGED_EVENT, type BookChangePayload, type LbookApi, type UpdateStatus } from "../shared/ipc"
 
 /**
  * The bridge the renderer sees as `window.api`.
@@ -17,7 +17,12 @@ const api: LbookApi = {
     get: (uid) => ipcRenderer.invoke(IPC.libraryGet, { uid }),
     open: (dir) => ipcRenderer.invoke(IPC.libraryOpen, { dir }),
     remove: (uid) => ipcRenderer.invoke(IPC.libraryRemove, { uid }),
-    reveal: (uid) => ipcRenderer.invoke(IPC.libraryReveal, { uid }),
+    openPath: (uid, kind) => ipcRenderer.invoke(IPC.libraryOpenPath, { uid, kind }),
+    showInFolder: (uid, kind) => ipcRenderer.invoke(IPC.libraryShowInFolder, { uid, kind }),
+    inspect: (uid, deep) => ipcRenderer.invoke(IPC.libraryInspect, { uid, deep }),
+    leftovers: () => ipcRenderer.invoke(IPC.libraryLeftovers),
+    openLibraryDir: () => ipcRenderer.invoke(IPC.libraryOpenLibraryDir),
+    refresh: () => ipcRenderer.invoke(IPC.libraryRefresh),
   },
 
   book: {
@@ -63,6 +68,11 @@ const api: LbookApi = {
       const listener = () => callback()
       ipcRenderer.on("library:changed", listener)
       return () => ipcRenderer.removeListener("library:changed", listener)
+    },
+    onBookChanged: (callback) => {
+      const listener = (_event: unknown, change: BookChangePayload) => callback(change)
+      ipcRenderer.on(BOOK_CHANGED_EVENT, listener)
+      return () => ipcRenderer.removeListener(BOOK_CHANGED_EVENT, listener)
     },
     onUpdateStatus: (callback) => {
       const listener = (_event: unknown, status: UpdateStatus) => callback(status)

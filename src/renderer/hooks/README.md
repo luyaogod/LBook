@@ -12,11 +12,12 @@
 | `useBook.ts` | 取一本已注册书的元数据（`library:get`） |
 | `usePdfPage.ts` | 取单页 OCR 数据 |
 | `useFlowPages.ts` | Flow 模式的页面缓存与相邻页预取 |
+| `useBookChange.ts` | 订阅"这本书的文件变了"，返回一个自增的版本号；三个数据 hook 把它当 effect 依赖，于是**只换数据、不动页码与滚动位置** |
 | `useBookToc.ts` | 读取书文件夹里的 `toc.json` 并摊平成树（只读：目录是用户的文件，应用不写回） |
 
 ## 对外接口
 
-`usePdfDocumentProxy(bookId)`、`useBook(uid)`、`usePdfPage(uid, pageNum)`、`useFlowPages(uid)`、`useBookToc(uid)`。
+`usePdfDocumentProxy(bookId)`、`useBook(uid)`、`usePdfPage(uid, pageNum)`、`useFlowPages(uid)`、`useBookToc(uid)`、`useBookChange(uid)`。
 
 ## 依赖方向
 

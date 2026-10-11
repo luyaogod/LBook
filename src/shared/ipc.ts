@@ -5,6 +5,7 @@ import type {
   ReadingProgress,
 } from "./types"
 import type { TranslateResult, TranslateSettingsView } from "./translate"
+import type { BookIssue } from "./validateBook"
 
 /**
  * The IPC contract shared by main, preload and renderer.
@@ -22,7 +23,23 @@ export const IPC = {
   libraryOpen: "library:open",
   /** Forgets an entry. Never touches the disk (A11). */
   libraryRemove: "library:remove",
-  libraryReveal: "library:reveal",
+  /** Opens a book's folder — or one of its files — in the OS's own program. */
+  libraryOpenPath: "library:openPath",
+  /** Shows one of them in the file manager, selected. */
+  libraryShowInFolder: "library:showInFolder",
+  /** Runs the validation rules over one book and returns what is wrong with it. */
+  libraryInspect: "library:inspect",
+  /** Old `.lbook` packages still sitting in the default location. */
+  libraryLeftovers: "library:leftovers",
+  /** Opens the default new-book location itself, for the migration hint. */
+  libraryOpenLibraryDir: "library:openLibraryDir",
+  /**
+   * Asks main to forget what it has cached and tell everyone the library changed.
+   *
+   * Sent when the window regains focus (a network share or a removable drive may
+   * never fire a watch) and by the Refresh button.
+   */
+  libraryRefresh: "library:refresh",
 
   bookGetPage: "book:getPage",
   bookReadPdfRange: "book:readPdfRange",
@@ -51,6 +68,34 @@ export const IPC = {
 export const UPDATE_STATUS_EVENT = "updates:status"
 /** Main -> renderer: the window was maximized or restored. */
 export const WINDOW_MAXIMIZED_EVENT = "window:maximized"
+/**
+ * Main -> renderer: a file inside one book's folder changed on disk.
+ *
+ * Carries the uid so the one open book can re-read its page while the library list
+ * stays where it is. See `BookChange` in `src/main/library/watch.ts`.
+ */
+export const BOOK_CHANGED_EVENT = "book:changed"
+
+/** What a `book:changed` payload says. */
+export interface BookChangePayload {
+  uid: string
+  dir: string
+  changed: Array<"meta.json" | "ocr.json" | "other">
+}
+
+/**
+ * A file of a book, named by role rather than by path.
+ *
+ * The renderer never builds a path: it asks for "the OCR file" and main resolves it
+ * from that book's `meta.json` (the OCR file is not always called `ocr.json`).
+ */
+export type BookFileKind = "folder" | "meta" | "ocr" | "toc" | "pdf" | "cover"
+
+/** Old packages still in the default new-book location, with where they are. */
+export interface LeftoverPackages {
+  dir: string
+  files: string[]
+}
 
 /** Mirrors the main-process updater state; kept here so both sides agree. */
 export type UpdateStatus =
@@ -149,7 +194,12 @@ export interface IpcMap {
   [IPC.libraryGet]: { req: { uid: string }; res: PdfDocument | null }
   [IPC.libraryOpen]: { req: { dir?: string }; res: OpenBookOutcome | null }
   [IPC.libraryRemove]: { req: { uid: string }; res: boolean }
-  [IPC.libraryReveal]: { req: { uid: string }; res: void }
+  [IPC.libraryOpenPath]: { req: { uid: string; kind: BookFileKind }; res: void }
+  [IPC.libraryShowInFolder]: { req: { uid: string; kind: BookFileKind }; res: void }
+  [IPC.libraryInspect]: { req: { uid: string; deep?: boolean }; res: BookIssue[] }
+  [IPC.libraryLeftovers]: { req: void; res: LeftoverPackages }
+  [IPC.libraryOpenLibraryDir]: { req: void; res: void }
+  [IPC.libraryRefresh]: { req: void; res: void }
 
   [IPC.bookGetPage]: { req: { uid: string; pageNum: number }; res: OcrPage | null }
   [IPC.bookReadPdfRange]: { req: { uid: string; begin: number; end: number }; res: Uint8Array }
@@ -212,8 +262,21 @@ export interface LbookApi {
     open(dir?: string): Promise<OpenBookOutcome | null>
     /** Forgets an entry; the folder on disk is left alone (A11). */
     remove(uid: string): Promise<boolean>
-    /** Shows the book folder in the OS file manager. */
-    reveal(uid: string): Promise<void>
+    /** Opens a folder or one of its files in whatever the OS uses for it. */
+    openPath(uid: string, kind: BookFileKind): Promise<void>
+    /** Shows it in the file manager instead, so the reader can see where it lives. */
+    showInFolder(uid: string, kind: BookFileKind): Promise<void>
+    /**
+     * Runs the validation rules. `deep` (the default) also parses every page of the
+     * OCR file, which is what finds a page that was edited into a broken state.
+     */
+    inspect(uid: string, deep?: boolean): Promise<BookIssue[]>
+    /** Old `.lbook` packages in the default location, for the one-time-migration hint. */
+    leftovers(): Promise<LeftoverPackages>
+    /** Opens the default new-book location in the OS file manager. */
+    openLibraryDir(): Promise<void>
+    /** Re-reads the folders; the window calls this when it regains focus. */
+    refresh(): Promise<void>
   }
   book: {
     getPage(uid: string, pageNum: number): Promise<OcrPage | null>
@@ -251,6 +314,8 @@ export interface LbookApi {
   events: {
     /** Fires when the library list changes (a book was added or dropped). */
     onLibraryChanged(callback: () => void): () => void
+    /** Fires when a file inside one book's folder changed. */
+    onBookChanged(callback: (change: BookChangePayload) => void): () => void
     onUpdateStatus(callback: (status: UpdateStatus) => void): () => void
   }
 }

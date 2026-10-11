@@ -1,5 +1,24 @@
+import fs from "node:fs"
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron"
-import { IPC, UPDATE_STATUS_EVENT, type Settings, type SettingsPatch } from "../../shared/ipc"
+import {
+  BOOK_CHANGED_EVENT,
+  IPC,
+  UPDATE_STATUS_EVENT,
+  type BookChangePayload,
+  type BookFileKind,
+  type Settings,
+  type SettingsPatch,
+} from "../../shared/ipc"
+import { inspectBook } from "../library/inspect"
+
+/**
+ * The extension of the old package format.
+ *
+ * A literal rather than an import from `src/main/migrate/`: the running app knows
+ * nothing about `.lbook` (A12), and the only reason this name appears at all is to
+ * notice old files sitting in the default location and point at the one-time script.
+ */
+const LEFTOVER_EXTENSION = ".lbook"
 import type { AppContext } from "../context"
 import type { Theme } from "../config/config"
 import type { Updater } from "../updater"
@@ -25,6 +44,18 @@ function messageOf(error: unknown): string {
 function broadcastLibraryChanged(): void {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send("library:changed")
+  }
+}
+
+/**
+ * Tells every window that a book's files changed.
+ *
+ * An empty uid means "any open book": used by the focus rescan, where the point is
+ * that the renderer cannot know what changed while it was in the background.
+ */
+function broadcastBookChanged(change: BookChangePayload): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(BOOK_CHANGED_EVENT, change)
   }
 }
 
@@ -89,11 +120,73 @@ export function registerIpcHandlers(
     return removed
   })
 
-  ipcMain.handle(IPC.libraryReveal, async (_event, { uid }: { uid: string }) => {
+  /**
+   * Opens a book's folder, or one of its files, in whatever the OS uses for it.
+   *
+   * The renderer names a *role* and the library resolves the path: the OCR file is
+   * not always called `ocr.json`, and a path that came from a dialog is the
+   * renderer's only business with paths at all.
+   */
+  ipcMain.handle(IPC.libraryOpenPath, async (_event, { uid, kind }: { uid: string; kind: BookFileKind }) => {
+    const file = await library.resolveFile(uid, kind)
+    if (!file) throw new Error(`this book has no ${kind} file`)
+    const error = await shell.openPath(file)
+    if (error) throw new Error(error)
+  })
+
+  ipcMain.handle(IPC.libraryShowInFolder, async (_event, { uid, kind }: { uid: string; kind: BookFileKind }) => {
+    const file = await library.resolveFile(uid, kind)
+    if (!file) throw new Error(`this book has no ${kind} file`)
+    shell.showItemInFolder(file)
+  })
+
+  /**
+   * The validation rules, run over one book.
+   *
+   * Deep by default: it parses every page of the OCR file, which is what finds a page
+   * that was edited into a broken state. That takes about 300ms on the largest book
+   * here, so it is always a button the reader pressed rather than something the
+   * library listing does.
+   */
+  ipcMain.handle(IPC.libraryInspect, async (_event, { uid, deep }: { uid: string; deep?: boolean }) => {
     const doc = await library.get(uid)
     if (!doc) throw new Error("this book is no longer in the library")
-    const error = await shell.openPath(doc.dir)
-    if (error) throw new Error(error)
+    return inspectBook(doc.dir, { deep: deep !== false })
+  })
+
+  /**
+   * Old packages sitting in the default location.
+   *
+   * The migration itself is a one-time script, not an app feature (A12): the app has
+   * no zip reader and no SQLite any more. So what the interface can honestly offer is
+   * the list, the folder, and the command.
+   */
+  ipcMain.handle(IPC.libraryLeftovers, async () => {
+    const dir = context.libraryDir()
+    try {
+      return {
+        dir,
+        files: fs
+          .readdirSync(dir)
+          .filter((name) => name.toLowerCase().endsWith(LEFTOVER_EXTENSION))
+          .sort(),
+      }
+    } catch {
+      return { dir, files: [] }
+    }
+  })
+
+  /**
+   * "Look at the folders again".
+   *
+   * The window sends this when it regains focus: a watch is the accelerator, not the
+   * mechanism (see `library/watch.ts`), and on a network share or a removable drive
+   * it may never fire. Broadcasting afterwards is what makes every open view re-read.
+   */
+  ipcMain.handle(IPC.libraryRefresh, () => {
+    library.refresh()
+    broadcastLibraryChanged()
+    broadcastBookChanged({ uid: "", dir: "", changed: ["other"] })
   })
 
   // ---- book ----------------------------------------------------------------

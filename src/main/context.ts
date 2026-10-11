@@ -11,6 +11,7 @@ import {
 import type { LocaleChoice } from "../shared/ipc"
 import { createLibrary, type Library } from "./library/library"
 import { createLedgerStore } from "./library/ledger"
+import { createLibraryWatcher } from "./library/watch"
 import { ensureAppDirs, defaultLibraryDir, resolvePaths, type AppPaths } from "./paths"
 import { createProgressStore } from "./progress"
 import { createTranslateService, type TranslateService } from "./translate/service"
@@ -60,7 +61,10 @@ export function createAppContext(input: AppContextInput): AppContext {
   const ledgerFile = path.join(userDataDir, "library.json")
   let ledger = createLedgerStore({ file: ledgerFile, root: libraryRoot })
   const progress = createProgressStore({ file: path.join(userDataDir, "progress.json") })
-  const library = createLibrary({ ledger, progress })
+  // Watches the folders in the ledger so an external edit reaches the interface
+  // without the reader restarting anything (Phase 2, T1).
+  const watcher = createLibraryWatcher()
+  const library = createLibrary({ ledger, progress, watcher })
 
   const persist = (next: AppConfig): AppConfig => {
     config = next

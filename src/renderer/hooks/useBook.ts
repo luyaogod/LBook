@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { fetchBook } from "../api/pdfs";
+import { useBookChange } from "./useBookChange";
 import type { PdfDocument } from "../types";
 
 /** Loads one book's metadata. `uid` is null on the home page, where nothing is open. */
@@ -7,6 +8,7 @@ export function useBook(uid: string | null) {
   const [pdf, setPdf] = useState<PdfDocument | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const changeVersion = useBookChange(uid);
 
   useEffect(() => {
     if (uid === null) return;
@@ -36,7 +38,7 @@ export function useBook(uid: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [uid]);
+  }, [uid, changeVersion]);
 
   return { pdf, loading, error };
 }
