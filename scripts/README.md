@@ -12,6 +12,7 @@
 | `dev.mjs` | 开发启动器：Vite + esbuild watch + Electron，主进程改动后自动重启 |
 | `run.mjs` | 执行下面那些 TypeScript 脚本：先 esbuild 打包再用 Node 跑 |
 | `perf-probe.ts` | 性能探针：量文件夹式书库的读路径（单个大 OCR JSON + 字节偏移索引 + 内存三进程对照），并**自检**索引与 V8 的解析结果是否逐页一致。见 `PLAN.md` 第 4.2 节 |
+| `check-i18n.mjs` | 守门：扫渲染层的 JSX 文本与可见属性（`title`/`placeholder`/`aria-label`/`alt`），**有任何一条没走 `t()` 就失败**。品牌名与 `console.*` 诊断在白名单里。这次的全面覆盖就是靠它锁住的 |
 | `check-inspect.ts` | 把一本真书的 `ocr.json` 拷到临时区并**故意弄坏两处**（页与页之间少一个逗号、某一页内部少一个花括号），验证校验器能报出来：损坏页的**字节偏移**、页码移位警告、而且第 1 页仍能读。只动副本，不碰你的库 |
 | `tencent-probe.ts` | 腾讯云连通性探针：用真实密钥各打一次语音合成与机器翻译，原样打印 RequestId 与错误码 |
 

@@ -166,6 +166,9 @@ export const en = {
 
   // ---- settings shell -----------------------------------------------------
   "settings.title": "Settings",
+  "settings.section.general": "General",
+  "settings.section.font": "Font",
+  "settings.section.translate": "Translate",
   "settings.close": "Close",
 
   // General.

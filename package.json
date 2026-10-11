@@ -12,6 +12,7 @@
     "build:main": "node scripts/build.mjs",
     "build:renderer": "tsc -b tsconfig.renderer.json && vite build",
     "check:docs": "node scripts/check-docs.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs",
     "check:inspect": "node scripts/run.mjs check-inspect",
     "dev": "node scripts/dev.mjs",
     "dev:renderer": "vite",

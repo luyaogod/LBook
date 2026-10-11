@@ -153,6 +153,9 @@ export const zhCN: Record<TranslationKeys, string> = {
 
   // ---- settings shell -----------------------------------------------------
   "settings.title": "设置",
+  "settings.section.general": "通用",
+  "settings.section.font": "字体",
+  "settings.section.translate": "翻译",
   "settings.close": "关闭",
 
   // General.

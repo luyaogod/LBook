@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Bolt, Languages, Settings2, Type, X } from "lucide-react";
 import type { Settings } from "@shared/ipc";
+import type { TranslationKeys } from "@/i18n/en";
 import { GeneralSettings } from "./GeneralSettings";
 import { FontSettings } from "./FontSettings";
 import { TranslateSettings } from "./TranslateSettings";
@@ -16,10 +17,14 @@ interface SettingsDialogProps {
 
 type SectionId = "general" | "font" | "translate";
 
-const SECTIONS: Array<{ id: SectionId; label: string; icon: typeof Settings2 }> = [
-  { id: "general", label: "General", icon: Settings2 },
-  { id: "font", label: "Font", icon: Type },
-  { id: "translate", label: "Translate", icon: Languages },
+/**
+ * The three sections, as keys rather than labels: a module constant cannot call
+ * `t()`, and the label has to follow the interface language.
+ */
+const SECTIONS: Array<{ id: SectionId; labelKey: TranslationKeys; icon: typeof Settings2 }> = [
+  { id: "general", labelKey: "settings.section.general", icon: Settings2 },
+  { id: "font", labelKey: "settings.section.font", icon: Type },
+  { id: "translate", labelKey: "settings.section.translate", icon: Languages },
 ];
 
 /**
@@ -62,9 +67,9 @@ export function SettingsDialog({ open, onClose, onSettings, settings }: Settings
         {/* Left: sections */}
         <nav className="flex w-56 shrink-0 flex-col border-r border-border bg-muted/30 p-3">
           <p className="px-2 pb-2 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Settings
+            {t("settings.title")}
           </p>
-          {SECTIONS.map(({ id, label, icon: Icon }) => (
+          {SECTIONS.map(({ id, labelKey, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setSection(id)}
@@ -75,7 +80,7 @@ export function SettingsDialog({ open, onClose, onSettings, settings }: Settings
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              {label}
+              {t(labelKey)}
             </button>
           ))}
 
@@ -89,7 +94,7 @@ export function SettingsDialog({ open, onClose, onSettings, settings }: Settings
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
             <h2 className="text-base font-semibold text-foreground">
-              {SECTIONS.find((item) => item.id === section)?.label}
+              {t(SECTIONS.find((item) => item.id === section)?.labelKey ?? "settings.title")}
             </h2>
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground" title={t("settings.close")}>
               <X className="h-4 w-4" />

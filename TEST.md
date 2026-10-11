@@ -25,6 +25,14 @@ npx vitest run -t "readPdfRange"          # 只跑匹配名字的用例
 npx vitest --coverage                     # 带覆盖率（覆盖 src/main 与 src/shared）
 ```
 
+提交前全跑一遍（与 CI/手工验收同一套）：
+
+```bash
+npm run typecheck && npm run lint && npm run check:docs && npm run check:i18n && npm test
+```
+
+`check:i18n` 是守门脚本：渲染层里任何没走 `t()` 的可见文案都会让它失败（品牌名与 `console.*` 诊断在白名单里）。
+
 ---
 
 ## 3. 各测试文件职责
@@ -152,6 +160,8 @@ npx vitest --coverage                     # 带覆盖率（覆盖 src/main 与 s
 58. **日期跟随语言**：书目行上的日期在两种语言下格式不同（不是写死的 en-US）
 59. **未翻译的 key 回落英文**，而不是显示 key 本身；语言名自己叫自己（English / 简体中文），不随界面语言变化
 60. 品牌名 `LBook` 在任何语言下都不变
+61. **翻译厂商的报错只有英文**（I6，用户拍板）：在简体中文下故意填错密钥试一次翻译，错误行是英文/厂商原文——这是**预期行为**，不是漏翻
+62. `npm run check:i18n` 通过：渲染层里没有任何没走 `t()` 的可见文案
 
 ### 字体（阅读区字号）
 59. 设置 → **Font**：只有一个字号滑块（12–24px，默认 14），右侧跟着显示当前数值
