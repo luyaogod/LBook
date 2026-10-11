@@ -185,13 +185,28 @@ async function main(): Promise<void> {
   // A long document must scroll **inside** the editor, and the box around it must not
   // scroll at all: the panel gives the editor an exact height, and the editor is the only
   // thing that moves. Two scrollbars for one document is what the reader reported.
+  //
+  // **The boxes here mirror `SourceEditorField`**: a wrapper that is a flex column (the
+  // caller's `flex-1 min-h-0` lives there) holding the editor's own box at `flex-1`. An
+  // earlier version of this check mounted the editor straight into a fixed-height div — so
+  // it passed while the app could not scroll at all, because the app had that wrapper in
+  // between and `flex-1` resolved against an auto-height block. The structure is the thing
+  // being tested as much as the editor is.
   const outer = document.createElement("div")
   outer.style.height = "200px"
   outer.style.overflow = "hidden"
+  outer.style.display = "flex"
+  outer.style.minHeight = "0"
+  outer.style.flexDirection = "column"
   document.body.appendChild(outer)
+  const host = document.createElement("div")
+  host.style.flex = "1"
+  host.style.minHeight = "0"
+  host.style.overflow = "hidden"
+  outer.appendChild(host)
   const longText = Array.from({ length: 200 }, (_, index) => `line ${index + 1}`).join("\n")
   const longEditor = await createSourceEditor({
-    parent: outer,
+    parent: host,
     value: longText,
     language: "markdown",
     dark: true,
@@ -200,6 +215,7 @@ async function main(): Promise<void> {
     onValueChange: () => undefined,
   })
   const scroller = outer.querySelector(".cm-scroller")
+
   checks.push({
     what: "a long page scrolls inside the editor",
     ok: scroller !== null && scroller.scrollHeight > scroller.clientHeight + 10,

@@ -120,16 +120,22 @@ export function SourceEditorField({
   }, [language]);
 
   return (
-    <div>
+    // **The caller's `className` goes on this wrapper, not on the editor's box.** The pane
+    // says `flex-1 min-h-0` and the card says `max-h-96`, and both are about *this* level:
+    // on the inner box, `flex-1` resolved against a plain block whose height came from its
+    // content, so the editor grew to the height of the whole document, got clipped by the
+    // panel's `overflow-hidden`, and **neither box could scroll**. Two scrollbars was the
+    // complaint before; none at all was the bug after.
+    <div className={`flex min-h-0 flex-col ${className}`}>
       <div
         ref={host}
         // No border: the box is the panel. A block card draws its own outline around the
         // whole card and asks for one; the Markdown pane wants the text, edge to edge.
-        className={`overflow-hidden bg-background ${className}`}
-
+        className="min-h-0 flex-1 overflow-hidden bg-background"
         style={{ fontSize: "var(--reading-font-size, 14px)" }}
       />
-      {error !== null && <p className="mt-1 text-xs text-destructive">{error}</p>}
+      {error !== null && <p className="mt-1 shrink-0 text-xs text-destructive">{error}</p>}
     </div>
   );
+
 }

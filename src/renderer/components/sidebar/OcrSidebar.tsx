@@ -712,8 +712,10 @@ export function OcrSidebar({
                   chars: totalChars,
                 })}
           </span>
-          {/* The pane's buttons are portalled in here — see MarkdownPane. */}
-          <div ref={setPaneActions} className="flex flex-1 items-center justify-end gap-1" />
+          {/* The pane's buttons are portalled in here — see MarkdownPane. Left-aligned, right
+              after the counts: the page number keeps the far end to itself. */}
+          <div ref={setPaneActions} className="flex flex-1 items-center justify-start gap-1 pl-3" />
+
           <span>{t("sidebar.page", { page: pageNum })}</span>
         </div>
       )}
