@@ -179,10 +179,14 @@ export function BlockCard({
       <div
         ref={cardRef}
         data-block-id={block.block_index}
-        className="rounded-md border border-primary p-3"
+        // Small vertical padding on purpose: the editor has no frame of its own (the card is
+        // the frame while editing), so a `p-3` around it reads as two empty bands inside the
+        // text box — the reader asked what they were. Horizontal padding stays so the editor
+        // lines up with the label above it.
+        className="rounded-md border border-primary px-3 pt-2 pb-1"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-1 flex items-center gap-2">
+        <div className="mb-0.5 flex items-center gap-2">
           <BlockLabel label={block.block_label} colors={colors} />
         </div>
 
@@ -205,9 +209,9 @@ export function BlockCard({
           onCancel={() => setEditing(false)}
         />
 
-        <div className="mt-2 flex items-center justify-end gap-1">
+        <div className="mt-1 flex items-center justify-end gap-1">
           <button
-            className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
+            className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent"
             onClick={() => setEditing(false)}
             disabled={saving}
             title={t("block.escapeHint")}
@@ -215,7 +219,7 @@ export function BlockCard({
             {t("common.cancel")}
           </button>
           <button
-            className="rounded bg-primary px-2 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className="rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             onClick={() => void save()}
             disabled={saving || text === baseValue}
             title={t("block.saveKeysHint")}
@@ -223,6 +227,7 @@ export function BlockCard({
             {t("common.save")}
           </button>
         </div>
+
 
         {error !== null && <p className="mt-2 text-xs text-destructive">{error}</p>}
       </div>

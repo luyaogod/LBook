@@ -289,6 +289,45 @@ async function main(): Promise<void> {
   cardEditor.destroy()
   card.remove()
 
+  // ---- a short block should hug its text ----------------------------------------
+  // A card's editor sizes to its content, so the box should be the text plus a couple of
+  // pixels — the reader saw two bands of empty space above and below a block's source, which
+  // is the box being taller than what is in it.
+  const hug = document.createElement("div")
+  hug.style.display = "flex"
+  hug.style.minHeight = "0"
+  hug.style.flexDirection = "column"
+  hug.style.width = "500px"
+  document.body.appendChild(hug)
+  const hugHost = document.createElement("div")
+  hugHost.style.minHeight = "0"
+  hugHost.style.flex = "1"
+  hugHost.style.overflow = "hidden"
+  hug.appendChild(hugHost)
+  const shortEditor = await createSourceEditor({
+    parent: hugHost,
+    value: "line one\nline two\nline three",
+    language: "markdown",
+    dark: true,
+    maxHeightPx: 384,
+    onSave: () => undefined,
+    onCancel: () => undefined,
+    onValueChange: () => undefined,
+  })
+  const hugEditor = hug.querySelector(".cm-editor") as HTMLElement | null
+  const hugContent = hug.querySelector(".cm-content") as HTMLElement | null
+  const slack =
+    hugEditor === null || hugContent === null ? 999 : hugEditor.clientHeight - hugContent.scrollHeight
+  checks.push({
+    what: "a short block hugs its text (no bands above and below)",
+    ok: slack <= 12,
+    detail: `editor ${hugEditor?.clientHeight ?? 0}px, content ${hugContent?.scrollHeight ?? 0}px, slack ${slack}px`,
+  })
+
+  shortEditor.destroy()
+  hug.remove()
+
+
 
   report(checks)
 

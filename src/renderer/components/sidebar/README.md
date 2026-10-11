@@ -13,7 +13,8 @@
 **占满 + 流式是这一栏自己驱动的。** 流式模式平时靠 `FlowViewer` 通过 `onVisiblePagesChange` 喂页面数据，而占满时 `FlowViewer` 连同 PDF 区一起被卸载——不额外处理就会永远停在"Scroll to load pages..."。所以这里用 `useFlowPages` 自己取页：维护一个"当前页前 1 页、后 3 页"的窗口，滚到底自动续 3 页，滚动时把最靠上的可见页通过 `onVisiblePageChange` 报回去（进度保存与目录高亮因此照常工作），工具栏/目录的跳转则由 `scrollToPage` 重新居中窗口并滚到该页。
 | `SourceEditorField.tsx` | 把 `lib/sourceEditor.ts` 挂成一个 React 字段：出现即建、消失即毁，每次改动回报给父组件（父组件据此判断"保存"是否可点）。**两个编辑器共用它**，所以键位与行为只有一处。**调用方的 `className` 落在它自己那层 wrapper 上**（不是编辑器那层）：Markdown 面板给 `min-h-0 flex-1`（铺满、无边框），块卡片给 `max-h-96` 并且**必须同时给 `maxHeightPx={384}`**：卡片是"按内容长"的盒子，没有这个上限，编辑器会长到几千像素、被卡片裁掉、**哪都滚不动**（面板那条路不需要它，因为它被 `flex-1` 定死了高度）。**这条踩过坑**：把 `flex-1` 写在内层时，它对着一个"高度由内容决定"的普通块解析，于是编辑器长到整页高、被面板的 `overflow-hidden` 裁掉，**两个盒子谁都不滚**——先前的抱怨是"两条滚动条"，那次变成"一条也没有" |
 | `MarkdownPane.tsx` | 这一页的 Markdown，以及"怎么改它"。**它自己没有 chrome**：按钮（编辑这一页 / 取消 / 保存 / 撤销）用 portal 送进**栏底那一行**（`actionsSlot`），编辑时 `SourceEditorField` 铺满整块并自己滚动（`onEditingChange` 让栏体在编辑期间去掉内边距与外层滚动）。阅读视图因此只有正文，编辑视图只有编辑器。**阅读视图由父组件通过 `children` 传入**，所以渲染 OCR Markdown 的 remark/rehype 插件只在一个地方配置。字段是 `markdown.text`（不是块），写路径与块相同 |
-| `BlockCard.tsx` | 单块卡片：按块类型渲染 Markdown / 表格 / 图片；**翻页模式下也是编辑器**（铅笔或双击 → 原地换成 `SourceEditorField`，里面是 ocr.json 里那段**源码**——文本块按 Markdown、表格按 HTML 上色；Mod-Enter 保存 / Esc 取消 / 点别处不保存；保存后可就地撤销一次）|
+| `BlockCard.tsx` | 单块卡片：按块类型渲染 Markdown / 表格 / 图片；**翻页模式下也是编辑器**（铅笔或双击 → 原地换成 `SourceEditorField`，里面是 ocr.json 里那段**源码**——文本块按 Markdown、表格按 HTML 上色；Mod-Enter 保存 / Esc 取消 / 点别处不保存；保存后可就地撤销一次）。编辑态的卡片内边距**只留很小的纵向值**（`px-3 pt-2 pb-1`）：编辑器没有自己的框、和卡片同色，`p-3` 那种内边距看上去就是"文本框里上下各空一块" |
+
 
 
 ## 对外接口
