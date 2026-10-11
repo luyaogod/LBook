@@ -163,10 +163,19 @@ export function slugifyTitle(title: string, fallback = "book"): string {
  * only in case, so the check here does too — otherwise the rename at the end fails
  * on a machine where `Laws` already exists as `laws`.
  */
-function freeFolderName(destination: string, title: string): { name: string; dir: string } {
+function freeFolderName(
+  destination: string,
+  title: string,
+  /** The book's own folder, when renaming: it is not "taken", it is what is moving. */
+  ignore?: string,
+): { name: string; dir: string } {
+  const skip = ignore === undefined ? "" : path.basename(ignore).toLowerCase()
   const taken = new Set(
     fs.existsSync(destination)
-      ? fs.readdirSync(destination).map((name) => name.toLowerCase())
+      ? fs
+          .readdirSync(destination)
+          .map((name) => name.toLowerCase())
+          .filter((name) => name !== skip)
       : [],
   )
   const stem = slugifyTitle(title)
@@ -289,8 +298,19 @@ export async function createBook(
   }
 }
 
+/**
+ * Messages this module writes itself, as translation keys.
+ *
+ * The English text still travels beside the key, as everywhere else: a code with no entry
+ * in the dictionary falls back to it rather than showing the reader a key.
+ */
+const MSG = {
+  folderRenameFailed: "message.renameFolder.failed",
+} as const
+
 /** What can be replaced. `title` is the one thing that is not a file. */
 export type ReplaceRole = "ocr" | "cover" | "toc" | "pdf" | "title"
+
 
 /**
  * Copies over a file, keeping the old one until the new one is fully written.
@@ -324,7 +344,18 @@ export async function replaceBookFile(
   uid: string,
   role: ReplaceRole,
   value: string,
-): Promise<WriteOutcome<{ pageCount?: number; title?: string }>> {
+): Promise<
+  WriteOutcome<{
+    pageCount?: number
+    title?: string
+    /** The folder the book lives in after the call, when the title changed. */
+    folderName?: string
+    /** True when the folder was renamed to follow the title. */
+    folderRenamed?: boolean
+    /** Set when the title was saved but the folder could not follow it. */
+    folderProblem?: { code?: string; error: string; detail?: string }
+  }>
+> {
   const doc = await library.get(uid)
   if (!doc) return { ok: false, error: "this book is no longer in the library" }
 
@@ -340,9 +371,47 @@ export async function replaceBookFile(
       const metaPath = path.join(dataDir, BOOK_FILES.meta)
       const parsed = parseBookMeta(JSON.parse(fs.readFileSync(metaPath, "utf8")) as unknown)
       if (!parsed.ok) return { ok: false, error: parsed.error }
+
+      // The name is written first, on purpose: the reader asked for it, so it is worth
+      // keeping even when the folder cannot follow.
       fs.writeFileSync(metaPath, writeBookMeta({ ...parsed.meta, title }), "utf8")
+
+      // **The folder follows the title** (A22). That is Obsidian's rule — a vault's name and
+      // its folder are the same thing — and it is also the only way the two can disagree:
+      // creating a book already derives the folder name from the title, so a rename that
+      // left the old folder behind is what puts one book under two names.
+      const target = freeFolderName(path.dirname(doc.dir), title, doc.dir)
+      const renaming = path.resolve(target.dir) !== path.resolve(doc.dir)
+      let folderName = path.basename(doc.dir)
+      let folderProblem: { code?: string; error: string; detail?: string } | undefined
+
+      if (renaming) {
+        try {
+          // Measured on Windows, not assumed: a file **open inside** the folder makes this
+          // fail with EPERM (which is what `folderProblem` is for), while the app's own
+          // `fs.watch` on that folder does not block it — so there is nothing to unwatch.
+          fs.renameSync(doc.dir, target.dir)
+          folderName = target.name
+        } catch (error) {
+          folderProblem = {
+            code: MSG.folderRenameFailed,
+            error: error instanceof Error ? error.message : String(error),
+            detail: target.name,
+          }
+        }
+      }
+
+      // The ledger follows the folder, exactly as it does for a folder the reader moved by
+      // hand: identity is the uid, and the path is only where the book is now (A21).
+      if (folderName !== path.basename(doc.dir)) {
+        const moved = await library.relocate(uid, target.dir)
+        if (!moved.ok) {
+          folderProblem = { code: moved.code, error: moved.error, detail: moved.detail }
+        }
+      }
+
       library.refresh()
-      return { ok: true, value: { title } }
+      return { ok: true, value: { title, folderName, folderRenamed: renaming && folderProblem === undefined, folderProblem } }
     }
 
     if (role === "ocr") {

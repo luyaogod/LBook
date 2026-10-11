@@ -100,6 +100,8 @@ export const zhCN: Record<TranslationKeys, string> = {
   "editBook.showFolder": "打开文件夹",
   "editBook.fileReplaced": "已替换。",
   "editBook.titleSaved": "书名已保存。",
+  "editBook.titleAndFolderSaved": "书名已保存，文件夹也改成了「{{folder}}」",
+  "editBook.renameHint": "改名会同时改文件夹名。应用按书里的 uid 认书，阅读进度不受影响。",
 
   // ---- 内容修正（编辑的是源码，不是渲染结果）----------------------------
   "block.edit": "编辑这个块的文字",
@@ -128,6 +130,9 @@ export const zhCN: Record<TranslationKeys, string> = {
   "message.relocate.badMeta": "那个文件夹里的 .lbook/meta.json 读不了。",
   "message.relocate.otherBook": "那个文件夹里是另一本书（{{name}}）。",
   "message.relocate.missingOcr": "那个文件夹确实是这本书，但它的 .lbook 里缺 {{name}}。",
+  "message.renameFolder.failed":
+    "文件夹名没能改成「{{name}}」——多半是有程序正占着里面的文件。书名已经保存；关掉那个程序后再存一次即可改名。",
+
   "message.edit.noPage": "这本书里没有这一页。",
   "message.edit.noBlock": "这一页上已经没有这个块了。",
   "message.edit.noMarkdown": "这一页没有 Markdown 文本。",

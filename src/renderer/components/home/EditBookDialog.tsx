@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { ReplaceRole } from "@shared/ipc";
 import type { PdfDocument } from "@/types";
 import { pickFile, replaceBookFile } from "@/api/pdfs";
+import { writeErrorText } from "@/lib/writeError";
+
 import { Button } from "@/components/ui/button";
 import { Check, FileText, FolderOpen, Image as ImageIcon, ListTree, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -36,6 +38,9 @@ export function EditBookDialog({ open, pdf, onClose, onChanged, onShowFile }: Ed
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<ReplaceRole | null>(null);
+  /** Where the book ended up after a title change, or why its folder could not follow. */
+  const [titleNote, setTitleNote] = useState<string | null>(null);
+  const [titleWarning, setTitleWarning] = useState<{ text: string; detail: string } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -74,18 +79,37 @@ export function EditBookDialog({ open, pdf, onClose, onChanged, onShowFile }: Ed
     setBusy("title");
     setError(null);
     setDone(null);
+    setTitleNote(null);
+    setTitleWarning(null);
     try {
       const outcome = await replaceBookFile(pdf.uid, "title", title.trim());
       if (!outcome.ok) {
         setError(outcome.error);
         return;
       }
+      const folderName = typeof outcome.value.folderName === "string" ? outcome.value.folderName : null;
       setDone("title");
+      // The folder follows the title, so saying which folder it is now is part of the answer
+      // — the reader is about to see a different name in their file manager.
+      setTitleNote(
+        outcome.value.folderRenamed === true && folderName !== null
+          ? t("editBook.titleAndFolderSaved", { folder: folderName })
+          : t("editBook.titleSaved"),
+      );
+      // A partial result is reported as one: the name is saved, the folder is not, and the
+      // reader can try again (something is holding a file inside it).
+      const problem = outcome.value.folderProblem;
+      if (problem !== undefined && problem !== null) {
+        setTitleWarning({
+          text: writeErrorText(t, problem),
+          detail: problem.error,
+        });
+      }
       onChanged();
     } finally {
       setBusy(null);
     }
-  }, [pdf, title, onChanged]);
+  }, [pdf, title, onChanged, t]);
 
   if (!open || pdf === null) return null;
 
@@ -163,6 +187,9 @@ export function EditBookDialog({ open, pdf, onClose, onChanged, onShowFile }: Ed
                 </Button>
               </div>
               <span className="text-[11px] text-muted-foreground">{t("editBook.nameHint")}</span>
+              {/* Said before the click, not after: the folder in the reader's file manager
+                  changes name too (A22, Obsidian's rule). */}
+              <span className="text-[11px] text-muted-foreground">{t("editBook.renameHint")}</span>
             </label>
 
             {rows.map((row) => (
@@ -207,7 +234,17 @@ export function EditBookDialog({ open, pdf, onClose, onChanged, onShowFile }: Ed
             )}
             {done !== null && error === null && (
               <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                {done === "title" ? t("editBook.titleSaved") : t("editBook.fileReplaced")}
+                {done === "title"
+                  ? (titleNote ?? t("editBook.titleSaved"))
+                  : t("editBook.fileReplaced")}
+              </p>
+            )}
+            {titleWarning !== null && (
+              <p
+                className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300"
+                title={titleWarning.detail}
+              >
+                {titleWarning.text}
               </p>
             )}
           </div>

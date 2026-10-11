@@ -7,6 +7,7 @@ import type {
   FileKind,
   LeftoverPackages,
   OpenBookOutcome,
+  ReplaceFileResult,
   ReplaceRole,
   WriteOutcome,
 } from "@shared/ipc"
@@ -94,7 +95,7 @@ export function replaceBookFile(
   uid: string,
   role: ReplaceRole,
   value: string,
-): Promise<WriteOutcome<Record<string, unknown>>> {
+): Promise<WriteOutcome<ReplaceFileResult>> {
   return window.api.book.replaceFile(uid, role, value)
 }
 

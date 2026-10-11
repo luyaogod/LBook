@@ -325,17 +325,99 @@ describe("replacing a book's files", () => {
     expect(fs.readFileSync(path.join(dir, "book.pdf")).subarray(0, 8).toString()).toBe("%PDF-1.4")
   })
 
-  it("renames the book without touching the folder", async () => {
+  it("renames the folder with the title, and the ledger follows", async () => {
+    // This expectation flipped on 2026-10-11 (A22), and the reason the old one gave is
+    // worth keeping: the folder used to stay behind because renaming it would have broken
+    // the ledger entry. That is no longer true — identity is the uid inside the book, and
+    // `ledger.add` re-points the entry when a folder moves (A21) — so the two names can
+    // agree instead, which is Obsidian's rule and what the reader asked for.
+    const { library, uid, dir, files } = await bookWithFiles()
+    await library.progress.save(uid, 2)
+
+    const outcome = await replaceBookFile(library, uid, "title", "会计: 实务")
+    expect(outcome).toMatchObject({
+      ok: true,
+      value: { title: "会计: 实务", folderName: "会计- 实务", folderRenamed: true },
+    })
+
+    // The folder moved, and took everything with it; the characters Windows forbids in a
+    // name were replaced on the way.
+    const renamed = path.join(path.dirname(dir), "会计- 实务")
+    expect(fs.existsSync(dir)).toBe(false)
+    expect(fs.existsSync(renamed)).toBe(true)
+    expect(metaOf(renamed).title).toBe("会计: 实务")
+    expect(fs.readFileSync(path.join(renamed, LBOOK_DIR, "ocr.json"), "utf8")).toBe(
+      fs.readFileSync(files.ocrPath, "utf8"),
+    )
+
+    // The library finds the book where it is now, and it is still the *same* book: the uid
+    // did not change, so neither did the reading position.
+    const [doc] = await library.list()
+    expect(doc?.uid).toBe(uid)
+    expect(doc?.dir).toBe(renamed)
+    expect(doc?.problem).toBeNull()
+    expect(library.progress.get(uid)?.last_page_num).toBe(2)
+    expect((await library.getPage(uid, 3))?.blocks.length).toBeGreaterThan(0)
+  })
+
+  it("leaves the folder alone when the new title slugs to the same name", async () => {
     const { library, uid, dir } = await bookWithFiles()
 
-    const outcome = await replaceBookFile(library, uid, "title", "新しい名前")
-    expect(outcome).toMatchObject({ ok: true, value: { title: "新しい名前" } })
-    expect(metaOf(dir).title).toBe("新しい名前")
-    expect((await library.get(uid))?.title).toBe("新しい名前")
-    // The folder keeps the name it was created with: renaming it would break the
-    // ledger entry, other windows and the reader's own bookmarks.
-    expect(path.basename(dir)).toBe("经济法基础2024")
+    // A title that only differs where the folder name cannot: the slug is the same, so
+    // there is nothing to rename — and no `-2` folder appears for what is the same book.
+    const outcome = await replaceBookFile(library, uid, "title", `  ${path.basename(dir)}  `)
+    expect(outcome).toMatchObject({ ok: true, value: { folderRenamed: false } })
+    expect(fs.existsSync(dir)).toBe(true)
+    expect(fs.readdirSync(path.dirname(dir)).filter((name) => name.endsWith("-2"))).toEqual([])
   })
+
+  it("adds -2 when the new name is taken by another book", async () => {
+    const { library, uid, dir } = await bookWithFiles()
+    const sources2 = sources({ pages: 2 })
+    const second = await createBook(
+      { ...sources2, title: "已经占用的名字", destination: path.dirname(dir) },
+      library,
+    )
+    if (!second.ok) throw new Error(second.error)
+
+    const outcome = await replaceBookFile(library, uid, "title", "已经占用的名字")
+    expect(outcome).toMatchObject({ ok: true, value: { folderName: "已经占用的名字-2" } })
+    expect(fs.existsSync(path.join(path.dirname(dir), "已经占用的名字-2"))).toBe(true)
+    // Both books are still listed, each once.
+    expect((await library.list()).map((doc) => doc.uid).sort()).toEqual([uid, second.value.uid].sort())
+  })
+
+  it.skipIf(process.platform !== "win32")(
+    "keeps the title and reports the folder when a file inside it is open",
+    async () => {
+      // Measured, not assumed: on Windows a file held open *inside* a folder makes
+      // renaming that folder fail with EPERM (the app's own `fs.watch` does not). This is
+      // the realistic case — an editor or a scanner sitting on `ocr.json` — so the title is
+      // saved anyway and the reader is told what happened, and was told it can be retried.
+      const { library, uid, dir } = await bookWithFiles()
+      const handle = fs.openSync(path.join(dir, "book.pdf"), "r")
+
+      try {
+        const outcome = await replaceBookFile(library, uid, "title", "改不了文件夹的名字")
+        expect(outcome.ok).toBe(true)
+        if (!outcome.ok) return
+        expect(outcome.value.folderProblem).toMatchObject({ code: "message.renameFolder.failed" })
+        expect(outcome.value.folderRenamed).toBe(false)
+
+        // The name is saved, the folder is where it was, and the book still opens.
+        expect(metaOf(dir).title).toBe("改不了文件夹的名字")
+        expect(fs.existsSync(dir)).toBe(true)
+        expect((await library.get(uid))?.title).toBe("改不了文件夹的名字")
+      } finally {
+        fs.closeSync(handle)
+      }
+
+      // Once whatever held it lets go, saving again moves the folder.
+      expect((await replaceBookFile(library, uid, "title", "现在可以了")).ok).toBe(true)
+      expect(fs.existsSync(path.join(path.dirname(dir), "现在可以了"))).toBe(true)
+    },
+  )
+
 
   it("refuses an empty title, a non-PDF and a non-image cover", async () => {
     const { library, uid } = await bookWithFiles()

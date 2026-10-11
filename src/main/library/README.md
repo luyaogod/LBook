@@ -12,11 +12,11 @@
 |---|---|
 | `library.ts` | `createLibrary()`：门面。`list()`/`get()` 读台账里的每一本；`open()` 把用户选的文件夹登记成书（没有 `meta.json` 时**创建**一个；已在台账里的书换了文件夹就**改写那条路径**）；`relocate(uid, dir)` 是"这本书搬到这儿了"的显式版本——**先核对文件夹里的 uid**，对不上就拒绝（A21）；`getPage()`/`readPdfRange()`/`getToc()` 读书；`remove()` 只删台账条目；`progress` 读写进度 |
 | `book.ts` | **读一个书文件夹**：`openBook()`（读 `meta.json`、懒扫偏移索引、**不持有文件句柄**）、`readTocText()`、`coverPath()` |
-| `create.ts` | **写侧**：`createBook()`（从文件新建一本书：校验 → 暂存目录 → 拷文件 → 写 meta → 改名就位）、`previewBook()`（只校验不写盘，供对话框显示将要创建什么）、`replaceBookFile()`（替换 OCR/封面/目录/PDF，或改标题）。三条规则写在文件头：不留半成品、字节是用户的、替换先落地再覆盖 |
+| `create.ts` | **写侧**：（`title` 这个 role 不是文件：它写 `meta.json` 的标题**并把文件夹改成同名**，A22——先写名字、再搬文件夹，搬不动就保留书名并回报）`createBook()`（从文件新建一本书：校验 → 暂存目录 → 拷文件 → 写 meta → 改名就位）、`previewBook()`（只校验不写盘，供对话框显示将要创建什么）、`replaceBookFile()`（替换 OCR/封面/目录/PDF，或改标题）。三条规则写在文件头：不留半成品、字节是用户的、替换先落地再覆盖 |
 | `edit.ts` | **内容修正的写路径**：`writeField()`（定位一个字段的字节区间 → 与编辑器加载的值比对（乐观并发）→ 只替换那几个字节 → copy+拼接+rename → **回读**确认新值与页数）与 `readField()`。设计上的硬保证：**只会写一个 JSON 字符串字面量**，所以坐标碰不到、结构也破不了 |
 | `watch.ts` | 盯住已登记的每个书文件夹（`fs.watch` + 300ms 去抖），把"这本书的文件变了"报给上层。**它不是让改动可见的机制**（那是 `book.ts` 的 `isStale()`），而是让界面不用等你切窗口就能跟上；网络盘上 watch 挂不上时降级为 30s 轮询 |
 | `inspect.ts` | 把校验规则的输入读齐（`meta.json`、文件列表、PDF 文件头、`toc.json`、`ocr.json` 的扫描结果），然后交给 `shared/validateBook.ts` 判。`deep` 时还会逐页解析并整体 `JSON.parse` 一次（最大那本约 100ms），所以只在用户点"Check"时跑 |
-| `ledger.ts` | **书库台账**（`library.json`）的文件半边：增/删/列、`resolve()` 给出绝对目录、原子写；**`remove()` 从不碰磁盘**（A11） |
+| `ledger.ts` | **书库台账**（`library.json`）的文件半边：增/删/列、`resolve()` 给出绝对目录、原子写；**`remove()` 从不碰磁盘**（A11）。`add()` 有三种结果——`added`/`known`/**`repointed`**：身份是 `uid`、路径只是"现在在哪"，所以同一本书换了文件夹是**改写那一条**而不是多出一行（A21） |
 
 ## 对外接口
 

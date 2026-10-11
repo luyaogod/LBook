@@ -211,6 +211,26 @@ export type OpenBookOutcome =
   | { ok: false; error: string }
 
 /**
+ * What came of replacing a book's file, or renaming it.
+ *
+ * `title` is the one role that is not a file: it writes `meta.json` **and** renames the
+ * folder to match (A22), so the answer has to be able to say "the name is saved but the
+ * folder could not follow" — a partial result, reported as one rather than as a failure.
+ */
+export interface ReplaceFileResult {
+  /** The page count after replacing `ocr.json`. */
+  pageCount?: number
+  /** The new title, after the `title` role. */
+  title?: string
+  /** The folder the book lives in now, after a rename. */
+  folderName?: string
+  /** True when the folder was renamed to follow the title. */
+  folderRenamed?: boolean
+  /** Set when the title was saved but its folder could not follow. */
+  folderProblem?: { code?: string; error: string; detail?: string }
+}
+
+/**
  * Which kind of file a picker offers.
  *
  * \`cover\` and \`toc\` are separate from \`json\` because the file dialog's filter is what

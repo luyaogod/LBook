@@ -3,6 +3,7 @@ import os from "node:os"
 import path from "node:path"
 import { createLedgerStore } from "../src/main/library/ledger"
 import { createLibrary } from "../src/main/library/library"
+import { replaceBookFile } from "../src/main/library/create"
 import { createProgressStore } from "../src/main/progress"
 
 /**
@@ -16,6 +17,10 @@ import { createProgressStore } from "../src/main/progress"
  * It also covers the failure that this check found the first time it ran: the ledger was
  * rewritten before the folder was read, so a half-copied folder left the book pointing
  * somewhere unreadable.
+ *
+ * And it covers renaming (A22): the folder follows the title, the ledger follows the folder,
+ * and when a file inside the folder is held open — which on Windows makes the rename fail —
+ * the title is still saved and the partial result is reported as partial.
  */
 
 const APPDATA = process.env.APPDATA ?? ""
@@ -124,6 +129,51 @@ function main(): void {
       ["and a page reads too", page?.page_num === 2, `page ${page?.page_num ?? "?"}`],
       ["the real library.json was not touched", fs.readFileSync(REAL_LEDGER, "utf8") === before, ""],
     ]
+
+    // ---- renaming: the folder follows the title (A22) -----------------------------
+    const renamed = await replaceBookFile(library, target.uid, "title", "改名后的书名")
+    const afterRename = read()
+    const renamedDir = path.join(path.dirname(moved), "改名后的书名")
+
+    let blocked: Awaited<ReturnType<typeof replaceBookFile>> | null = null
+    const held = path.join(renamedDir, "book.pdf")
+    if (fs.existsSync(renamedDir)) {
+      // A file held open inside the folder makes the rename fail on Windows — measured,
+      // and the realistic case (something is sitting on a file in there).
+      fs.writeFileSync(held, "%PDF-1.4", "utf8")
+      const handle = fs.openSync(held, "r")
+      try {
+        blocked = await replaceBookFile(library, target.uid, "title", "这次改不动")
+      } finally {
+        fs.closeSync(handle)
+      }
+    }
+
+    checks.push(
+      ["renaming moves the folder", renamed.ok && fs.existsSync(renamedDir), renamed.ok ? "" : renamed.error],
+      [
+        "the ledger followed the folder, one row per book",
+        afterRename.books.length === start.books.length &&
+          path.basename(afterRename.books[index]?.path ?? "") === "改名后的书名" &&
+          afterRename.books.filter((book) => book.uid === target.uid).length === 1,
+        path.basename(afterRename.books[index]?.path ?? ""),
+      ],
+      [
+        "the uid survived, so progress did not move",
+        afterRename.books[index]?.uid === target.uid,
+        (await library.progress.get(target.uid)) === null ? "no progress stored" : "progress intact",
+      ],
+      [
+        "a folder held open is reported, and the name is still saved",
+        blocked === null
+          ? false
+          : blocked.ok && blocked.value.folderProblem !== undefined && blocked.value.folderRenamed === false,
+        blocked === null || !blocked.ok ? "could not even try" : String(blocked.value.folderProblem?.code ?? "no problem reported"),
+      ],
+      ["the real library.json is still untouched", fs.readFileSync(REAL_LEDGER, "utf8") === before, ""],
+    )
+
+
 
     console.log("")
     let failed = 0

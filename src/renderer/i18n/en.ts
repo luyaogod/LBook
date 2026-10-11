@@ -110,6 +110,9 @@ export const en = {
   "editBook.showFolder": "Show the folder",
   "editBook.fileReplaced": "Replaced.",
   "editBook.titleSaved": "Title saved.",
+  "editBook.titleAndFolderSaved": "Title saved; the folder is now “{{folder}}”",
+  "editBook.renameHint":
+    "Renaming also renames the folder. A book is found by the uid inside it, so your reading position is kept.",
 
   // ---- correcting content (the editors work on the source, not on a rendering) --
   "block.edit": "Edit this block's text",
@@ -139,6 +142,8 @@ export const en = {
     "That folder has no .lbook/meta.json, so it is not one of this library's book folders.",
   "message.relocate.badMeta": "That folder's .lbook/meta.json could not be read.",
   "message.relocate.otherBook": "That folder holds a different book ({{name}}).",
+  "message.renameFolder.failed":
+    "The folder name could not be changed to “{{name}}” — something is holding a file inside it. The new title is saved; close that program and save again to move the folder.",
   "message.relocate.missingOcr":
     "That folder is this book, but {{name}} is missing from its .lbook folder.",
   "message.edit.noPage": "That page is not in this book.",
