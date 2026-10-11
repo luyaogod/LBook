@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronRight, ListTree, Loader2 } from "lucide-react";
 import { findActiveTocId, tocAncestorIds, type FlatTocNode } from "@shared/toc";
+import { useTranslation } from "react-i18next";
 
 interface TocPanelProps {
   /** Flattened entries, in reading order. */
@@ -55,6 +56,7 @@ function visibleEntryId(id: string, collapsed: Set<string>): string {
  * removed from the book's upload/edit dialog, so this is purely a reading aid.
  */
 export function TocPanel({ nodes, loading, error, currentPage, width, onJump }: TocPanelProps) {
+  const { t } = useTranslation();
   const parents = useMemo(() => parentIdsOf(nodes), [nodes]);
   // Everything starts expanded, which is what makes a book's sections visible
   // without a click. Remounting on a book change (`key` in App.tsx) is what
@@ -92,7 +94,7 @@ export function TocPanel({ nodes, loading, error, currentPage, width, onJump }: 
     <aside className="flex shrink-0 flex-col border-r border-border bg-card" style={{ width }}>
       <div className="flex h-12 shrink-0 items-center gap-1.5 px-3">
         <ListTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        <span className="truncate text-xs font-medium text-foreground">Contents</span>
+        <span className="truncate text-xs font-medium text-foreground">{t("toc.title")}</span>
         {nodes.length > 0 && <span className="text-[11px] text-muted-foreground">{nodes.length}</span>}
       </div>
 
@@ -107,13 +109,13 @@ export function TocPanel({ nodes, loading, error, currentPage, width, onJump }: 
         {loading && (
           <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-xs">Loading contents...</span>
+            <span className="text-xs">{t("toc.loading")}</span>
           </div>
         )}
 
         {!loading && nodes.length === 0 && !error && (
           <p className="px-4 py-8 text-center text-xs text-muted-foreground">
-            No table of contents for this book. Add one from the book's Edit dialog on the home page.
+            {t("toc.empty")} {t("toc.emptyHint")}
           </p>
         )}
 

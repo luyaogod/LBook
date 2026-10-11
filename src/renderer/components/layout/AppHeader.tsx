@@ -1,6 +1,7 @@
 import { Bolt, BookOpen, ChevronRight, FolderPlus } from "lucide-react";
 import { WindowControls } from "./WindowControls";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 
 interface AppHeaderProps {
   mode: "home" | "viewer";
@@ -31,6 +32,8 @@ export function AppHeader({
   onAddBookClick,
   onSettingsClick,
 }: AppHeaderProps) {
+  const { t } = useTranslation();
+
   return (
     <header className="drag-region flex h-14 shrink-0 items-center gap-2 border-b border-border pl-4">
       <BookOpen className="h-5 w-5 text-primary shrink-0" />
@@ -40,7 +43,7 @@ export function AppHeader({
         <div className="flex items-center gap-1.5 text-sm min-w-0">
           <button
             onClick={onBack}
-            title="Back to library"
+            title={t("header.backToLibrary")}
             className="no-drag rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
           >
             LBook
@@ -57,7 +60,7 @@ export function AppHeader({
       {mode === "home" && (
         <Button size="sm" className="no-drag gap-1.5" onClick={onAddBookClick}>
           <FolderPlus className="h-4 w-4" />
-          Add book
+          {t("header.addBook")}
         </Button>
       )}
       {/* Always present, in both modes. It started out as home-only, which was
@@ -69,7 +72,7 @@ export function AppHeader({
         size="icon-sm"
         className="no-drag"
         onClick={onSettingsClick}
-        title="Settings"
+        title={t("header.settings")}
       >
         <Bolt className="h-4 w-4" />
       </Button>

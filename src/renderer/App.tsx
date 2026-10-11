@@ -19,6 +19,7 @@ import { useBookToc } from "@/hooks/useBookToc";
 import { fetchReadingProgress, saveReadingProgress } from "@/api/users";
 import { openBookFolder } from "@/api/pdfs";
 import { applyReadingFontSize } from "@/lib/readingFont";
+import { useTranslation } from "react-i18next";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -51,6 +52,7 @@ interface AppShellProps {
 }
 
 function AppShell({ appSettings, setAppSettings }: AppShellProps) {
+  const { t } = useTranslation();
   // A book is named by its `uid` (its `meta.json` identity), never by a row id or
   // a path: renaming the folder must not disturb what is open.
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
@@ -243,9 +245,9 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
       // current view alone.
       if (outcome.adopted) handleOpenBook(outcome.doc.uid);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Could not add that folder.");
+      window.alert(error instanceof Error ? error.message : t("home.addFailed"));
     }
-  }, [handleOpenBook]);
+  }, [handleOpenBook, t]);
 
   const handleBack = useCallback(() => {
     // Save reading progress immediately before navigating away
@@ -412,7 +414,7 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
         <div className="flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
             <Loader2 className="h-8 w-8 animate-spin" />
-            <span className="text-sm">Loading document...</span>
+            <span className="text-sm">{t("viewer.loading")}</span>
           </div>
         </div>
         {settingsDialog}
@@ -429,11 +431,11 @@ function AppShell({ appSettings, setAppSettings }: AppShellProps) {
           <div className="flex flex-col items-center gap-4 text-center max-w-md">
             <AlertTriangle className="h-10 w-10 text-destructive" />
             <div>
-              <p className="font-semibold text-foreground">Failed to load document</p>
+              <p className="font-semibold text-foreground">{t("viewer.loadFailed")}</p>
               <p className="mt-1 text-sm text-muted-foreground">{pdfError}</p>
             </div>
             <Button variant="outline" onClick={handleBack}>
-              Back to Home
+              {t("viewer.backToHome")}
             </Button>
           </div>
         </div>

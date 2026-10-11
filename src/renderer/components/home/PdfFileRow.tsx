@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PdfThumbnail } from "./PdfThumbnail";
+import { useTranslation } from "react-i18next";
 
 interface PdfFileRowProps {
   pdf: PdfDocument;
@@ -32,10 +33,13 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale: string): string {
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-US", {
+  // Follows the interface language rather than hard-coding en-US: a date is one of the
+  // few places where the written form changes with the language, and "Aug 3" in the
+  // middle of Chinese labels reads as a bug.
+  return d.toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -72,6 +76,7 @@ function kindOf(issue: BookIssue): BookFileKind {
  * button rather than part of the listing.
  */
 export function PdfFileRow({ pdf, onOpen, onOpenPath, onRemove }: PdfFileRowProps) {
+  const { t, i18n } = useTranslation();
   const broken = pdf.problem !== null;
   const [issues, setIssues] = useState<BookIssue[] | null>(null);
   const [checking, setChecking] = useState(false);
@@ -119,17 +124,21 @@ export function PdfFileRow({ pdf, onOpen, onOpenPath, onRemove }: PdfFileRowProp
                 title={pdf.problem ?? ""}
               >
                 <TriangleAlert className="h-3 w-3" />
-                Needs repair
+                {t("book.needsRepair")}
               </span>
             ) : (
               <>
                 <span className="text-xs text-muted-foreground">{formatFileSize(pdf.file_size)}</span>
                 <span className="text-xs text-border">·</span>
-                <span className="text-xs text-muted-foreground">{pdf.page_count} pages</span>
-                {formatDate(pdf.created_at) && (
+                <span className="text-xs text-muted-foreground">
+                  {t("common.pages", { count: pdf.page_count })}
+                </span>
+                {formatDate(pdf.created_at, i18n.language) && (
                   <>
                     <span className="text-xs text-border">·</span>
-                    <span className="text-xs text-muted-foreground">{formatDate(pdf.created_at)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDate(pdf.created_at, i18n.language)}
+                    </span>
                   </>
                 )}
               </>
@@ -150,7 +159,7 @@ export function PdfFileRow({ pdf, onOpen, onOpenPath, onRemove }: PdfFileRowProp
             e.stopPropagation();
             void check();
           }}
-          title="Check this book's files"
+          title={t("book.check")}
         >
           {checking ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -169,7 +178,7 @@ export function PdfFileRow({ pdf, onOpen, onOpenPath, onRemove }: PdfFileRowProp
             e.stopPropagation();
             onOpenPath(pdf.uid, "folder");
           }}
-          title="Open this folder"
+          title={t("book.openFolder")}
         >
           <FolderOpen className="h-4 w-4" />
         </Button>
@@ -182,7 +191,7 @@ export function PdfFileRow({ pdf, onOpen, onOpenPath, onRemove }: PdfFileRowProp
             e.stopPropagation();
             onRemove(pdf.uid);
           }}
-          title="Remove from the library (the files are not deleted)"
+          title={t("home.removeTitle")}
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -197,7 +206,7 @@ export function PdfFileRow({ pdf, onOpen, onOpenPath, onRemove }: PdfFileRowProp
               onOpen(pdf.uid);
             }}
           >
-            <span>Open</span>
+            <span>{t("common.open")}</span>
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>
         )}
@@ -206,25 +215,23 @@ export function PdfFileRow({ pdf, onOpen, onOpenPath, onRemove }: PdfFileRowProp
       {(issues !== null || checkError !== null) && (
         <div className="px-5 pb-5 -mt-1">
           {checkError && (
-            <p className="text-xs text-destructive">Could not check this book: {checkError}</p>
+            <p className="text-xs text-destructive">
+              {t("book.checkFailed", { message: checkError })}
+            </p>
           )}
 
           {issues !== null && issues.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              Everything checks out: meta.json, the OCR file, book.pdf and the outline all read.
-            </p>
+            <p className="text-xs text-muted-foreground">{t("book.allGood")}</p>
           )}
 
           {issues !== null && issues.length > 0 && (
             <div className="rounded-md border border-border divide-y divide-border">
               <p className="px-3 py-2 text-xs text-muted-foreground">
-                {errors > 0 && `${errors} problem${errors === 1 ? "" : "s"}`}
+                {errors > 0 && t("book.problems", { count: errors })}
                 {errors > 0 && warnings > 0 && ", "}
-                {warnings > 0 && `${warnings} warning${warnings === 1 ? "" : "s"}`}
+                {warnings > 0 && t("book.warnings", { count: warnings })}
                 {" — "}
-                {errors > 0
-                  ? "this book cannot be read as it is"
-                  : "this book reads, but something in it is off"}
+                {errors > 0 ? t("book.unreadable") : t("book.readableButOff")}
               </p>
               {issues.map((issue, index) => (
                 <div key={index} className="flex items-start gap-2 px-3 py-2">
@@ -238,7 +245,9 @@ export function PdfFileRow({ pdf, onOpen, onOpenPath, onRemove }: PdfFileRowProp
                     <p className="text-[11px] text-muted-foreground">
                       {issue.file}
                       {issue.jsonPath ? ` · ${issue.jsonPath}` : ""}
-                      {issue.offset !== undefined ? ` · byte ${issue.offset}` : ""}
+                      {issue.offset !== undefined
+                        ? ` · ${t("book.byteOffset", { offset: issue.offset })}`
+                        : ""}
                     </p>
                   </div>
                   <Button
@@ -246,16 +255,16 @@ export function PdfFileRow({ pdf, onOpen, onOpenPath, onRemove }: PdfFileRowProp
                     size="sm"
                     className="h-7 shrink-0 gap-1 px-2 text-xs"
                     onClick={() => onOpenPath(pdf.uid, kindOf(issue))}
-                    title="Open this file in the program you use for it"
+                    title={t("common.openFile")}
                   >
-                    Open
+                    {t("common.open")}
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     className="h-7 w-7 shrink-0"
                     onClick={() => void window.api.library.showInFolder(pdf.uid, kindOf(issue))}
-                    title="Show this file in the file manager"
+                    title={t("common.showInFolder")}
                   >
                     <FolderSearch className="h-3.5 w-3.5" />
                   </Button>

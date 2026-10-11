@@ -4,7 +4,7 @@ import { signTencentRequest, sha256Hex, utcDateOf } from "../../../src/main/tenc
 import { assertTextFits, explainTtsError, isWithinTtsLimit } from "../../../src/main/tencent/tts"
 
 /**
- * The worked example from Tencent Cloud's 签名方法 v3 documentation
+ * The worked example from Tencent Cloud's signature v3 documentation
  * (https://cloud.tencent.com/document/api/213/30654). The vendor masks the
  * SecretKey, so the key-derivation chain cannot be reproduced from it — but the
  * documented intermediate hashes and the final signature pin down everything

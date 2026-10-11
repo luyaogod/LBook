@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { fetchBook } from "../api/pdfs";
+import { useTranslation } from "react-i18next";
 import { useBookChange } from "./useBookChange";
 import type { PdfDocument } from "../types";
 
 /** Loads one book's metadata. `uid` is null on the home page, where nothing is open. */
 export function useBook(uid: string | null) {
+  const { t } = useTranslation();
   const [pdf, setPdf] = useState<PdfDocument | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +25,7 @@ export function useBook(uid: string | null) {
         if (data === null) {
           // The folder was moved or its meta.json was deleted while the app was
           // open: the viewer says so instead of rendering an empty book.
-          setError("This book is no longer in the library.");
+          setError(t("error.bookGone"));
           return;
         }
         setPdf(data);
@@ -38,7 +40,7 @@ export function useBook(uid: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [uid, changeVersion]);
+  }, [uid, changeVersion, t]);
 
   return { pdf, loading, error };
 }

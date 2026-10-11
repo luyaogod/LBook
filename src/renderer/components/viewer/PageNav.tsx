@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface PageNavProps {
   pageNum: number;
@@ -16,6 +17,7 @@ interface PageNavProps {
  * without this the reader could not turn a page at all.
  */
 export function PageNav({ pageNum, totalPages, onPageChange }: PageNavProps) {
+  const { t } = useTranslation();
   // The typed text follows the page number whenever it changes from outside
   // (arrow buttons, the TOC, the keyboard). Adjusting it during render rather
   // than in an effect avoids painting the stale number for one frame.
@@ -49,7 +51,7 @@ export function PageNav({ pageNum, totalPages, onPageChange }: PageNavProps) {
         size="icon-sm"
         onClick={() => onPageChange(1)}
         disabled={pageNum <= 1}
-        title="First page"
+        title={t("page.first")}
       >
         <ChevronsLeft className="h-4 w-4" />
       </Button>
@@ -73,7 +75,7 @@ export function PageNav({ pageNum, totalPages, onPageChange }: PageNavProps) {
           min={1}
           max={totalPages}
         />
-        <span>of {totalPages}</span>
+        <span>{t("page.of", { total: totalPages })}</span>
       </div>
 
       <Button
@@ -89,7 +91,7 @@ export function PageNav({ pageNum, totalPages, onPageChange }: PageNavProps) {
         size="icon-sm"
         onClick={() => onPageChange(totalPages)}
         disabled={pageNum >= totalPages}
-        title="Last page"
+        title={t("page.last")}
       >
         <ChevronsRight className="h-4 w-4" />
       </Button>

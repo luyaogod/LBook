@@ -5,6 +5,7 @@ import type { PdfDocument } from "@/types";
 import { PdfFileRow } from "./PdfFileRow";
 import { Search, ArrowUpDown, ChevronLeft, ChevronRight, Loader2, AlertTriangle, BookOpen, FolderPlus, RefreshCw, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 
 interface HomePageProps {
   onOpenBook: (uid: string) => void;
@@ -24,6 +25,7 @@ const ITEMS_PER_PAGE = 10;
  * written when a folder of PaddleOCR output is adopted.
  */
 export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProps) {
+  const { t } = useTranslation();
   const [pdfs, setPdfs] = useState<PdfDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -93,27 +95,20 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
             <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground">
-                {leftovers.files.length} old .lbook package
-                {leftovers.files.length === 1 ? "" : "s"} in {leftovers.dir}
+                {t("home.leftoversTitle", { count: leftovers.files.length, dir: leftovers.dir })}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                A book is a folder now, so the app cannot read these. Convert them once,
-                from a terminal:
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("home.leftoversBody")}</p>
               <code className="mt-1.5 block rounded bg-background px-2 py-1 text-xs">
                 npm run migrate:folders
               </code>
-              <p className="mt-1 text-xs text-muted-foreground">
-                It only plans by default — add <code>--apply</code> to write the folders.
-                The packages themselves are left exactly where they are.
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("home.leftoversHint")}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => void openLibraryDirInShell()}>
-                Show the folder
+                {t("home.leftoversShowFolder")}
               </Button>
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => setLeftoversHidden(true)}>
-                Hide
+                {t("home.leftoversHide")}
               </Button>
             </div>
           </div>
@@ -123,18 +118,14 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
 
   const handleRemove = useCallback((uid: string) => {
     const book = pdfs.find((item) => item.uid === uid);
-    const name = book?.title ?? "this book";
+    const name = book?.title ?? t("home.unknownBook");
     // The one thing a reader must not be able to misread: this only forgets the
     // folder. Saying it plainly is the whole promise of A11.
-    const confirmed = window.confirm(
-      `Remove "${name}" from the library?\n\n` +
-        "The folder and the files inside it are NOT deleted — the app only stops " +
-        "listing it. You can add the folder again at any time.",
-    );
+    const confirmed = window.confirm(t("home.removeConfirm", { title: name }));
     if (!confirmed) return;
 
     void removeBook(uid).then(() => setLocalRefresh((n) => n + 1));
-  }, [pdfs]);
+  }, [pdfs, t]);
 
   const handleReveal = useCallback((uid: string, kind: BookFileKind = "folder") => {
     void openBookPath(uid, kind);
@@ -161,7 +152,7 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
       <div className="flex flex-1 items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="text-sm">Loading documents...</span>
+          <span className="text-sm">{t("home.loading")}</span>
         </div>
       </div>
     );
@@ -174,11 +165,11 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
         <div className="flex flex-col items-center gap-4 text-center max-w-md">
           <AlertTriangle className="h-10 w-10 text-destructive" />
           <div>
-            <p className="font-semibold text-foreground">Failed to load documents</p>
+            <p className="font-semibold text-foreground">{t("home.loadFailed")}</p>
             <p className="mt-1 text-sm text-muted-foreground">{error}</p>
           </div>
           <Button variant="outline" onClick={() => setLocalRefresh((n) => n + 1)}>
-            Retry
+            {t("common.retry")}
           </Button>
         </div>
       </div>
@@ -194,17 +185,12 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
           <div className="flex flex-col items-center gap-4 text-center max-w-md">
             <BookOpen className="h-10 w-10 text-muted-foreground" />
             <div>
-              <p className="font-semibold text-foreground">No books yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Add a book folder: it holds <strong>book.pdf</strong> and its{" "}
-                <strong>PaddleOCR JSON</strong> (plus an optional <strong>toc.json</strong> and
-                cover). The book can live anywhere — the app remembers the path and never
-                copies or moves your files.
-              </p>
+              <p className="font-semibold text-foreground">{t("home.emptyTitle")}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{t("home.emptyBody")}</p>
             </div>
             <Button className="gap-1.5" onClick={onAddBook}>
               <FolderPlus className="h-4 w-4" />
-              Add a book folder
+              {t("home.addBook")}
             </Button>
           </div>
         </div>
@@ -221,7 +207,7 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
           <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search by title..."
+            placeholder={t("home.search")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full h-11 border border-input rounded-lg pl-10 pr-20 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
@@ -230,7 +216,7 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
             size="sm"
             className="absolute right-1.5 top-1/2 -translate-y-1/2 h-8"
           >
-            Search
+            {t("common.search")}
           </Button>
         </div>
       </div>
@@ -240,20 +226,20 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
         <div className="max-w-4xl mx-auto w-full px-8 flex flex-col">
           {/* Results header */}
           <div className="py-3 border-b border-border flex items-center justify-between shrink-0">
-            <span className="text-sm text-muted-foreground">{filtered.length} results</span>
+            <span className="text-sm text-muted-foreground">{t("home.results", { count: filtered.length })}</span>
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="sm"
                 className="gap-1.5 text-xs"
                 onClick={handleRefresh}
-                title="Read the book folders again (an edit in your own editor shows up on its own too)"
+                title={t("home.refreshTitle")}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                Refresh
+                {t("common.refresh")}
               </Button>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs" disabled>
-                <span>Newest First</span>
+                <span>{t("home.sortNewest")}</span>
                 <ArrowUpDown className="w-3.5 h-3.5" />
               </Button>
             </div>
@@ -263,7 +249,7 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
           <div className="flex-1">
             {filtered.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-12">
-                No documents match "{searchQuery}"
+                {t("home.noMatch", { query: searchQuery })}
               </p>
             ) : (
               pageItems.map((pdf) => (
@@ -282,7 +268,7 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
           {filtered.length > ITEMS_PER_PAGE && (
             <div className="py-4 flex items-center justify-between border-t border-border shrink-0">
               <span className="text-xs text-muted-foreground">
-                Showing {startIdx + 1}–{showingEnd} of {filtered.length} results
+                {t("home.showing", { from: startIdx + 1, to: showingEnd, total: filtered.length })}
               </span>
               <div className="flex items-center gap-1">
                 <Button
@@ -293,7 +279,7 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
                   onClick={() => setCurrentPage((p) => p - 1)}
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
-                  Previous
+                  {t("home.previous")}
                 </Button>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                   <Button
@@ -313,7 +299,7 @@ export function HomePage({ onOpenBook, onAddBook, refreshKey = 0 }: HomePageProp
                   disabled={currentPage >= totalPages}
                   onClick={() => setCurrentPage((p) => p + 1)}
                 >
-                  Next
+                  {t("home.next")}
                   <ChevronRight className="w-3.5 h-3.5" />
                 </Button>
               </div>

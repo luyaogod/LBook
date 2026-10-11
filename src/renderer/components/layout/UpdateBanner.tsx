@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { UpdateStatus } from "@shared/ipc";
 import { Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 
 /**
  * A non-modal notice when a new version is ready.
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
  * never interrupts what the user is doing — it only offers to restart now.
  */
 export function UpdateBanner() {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<UpdateStatus>({ state: "unsupported" });
   const [dismissed, setDismissed] = useState(false);
 
@@ -23,17 +25,15 @@ export function UpdateBanner() {
   return (
     <div className="flex items-center gap-3 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
       <Download className="h-4 w-4 shrink-0" />
-      <span className="flex-1">
-        LBook {status.version} is ready. It will install when you quit.
-      </span>
+      <span className="flex-1">{t("updates.ready", { version: status.version })}</span>
       <Button size="sm" onClick={() => void window.api.updates.install()}>
-        Restart now
+        {t("updates.restartNow")}
       </Button>
       <Button
         variant="ghost"
         size="icon-sm"
         onClick={() => setDismissed(true)}
-        title="Dismiss"
+        title={t("updates.dismiss")}
       >
         <X className="h-4 w-4" />
       </Button>

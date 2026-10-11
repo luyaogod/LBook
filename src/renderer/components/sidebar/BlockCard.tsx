@@ -8,6 +8,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import { resolveAssetUrls } from "@shared/urls";
+import { useTranslation } from "react-i18next";
 
 /**
  * One OCR block, as plain output.
@@ -51,6 +52,7 @@ function handleClick(onClick: (id: number) => void, blockIndex: number) {
 }
 
 export function BlockCard({ block, isHighlighted, onHover, onClick, bookUid }: BlockCardProps) {
+  const { t } = useTranslation();
   // PaddleOCR emits `imgs/x.jpg`, which would otherwise resolve against the app
   // origin and 404. Rewriting to lbook://asset/<uid>/... reads it out of the book
   // folder. Absolute URLs are left alone so the CSP keeps blocking them.
@@ -95,7 +97,7 @@ export function BlockCard({ block, isHighlighted, onHover, onClick, bookUid }: B
         {isImageBlock(block) ? (
           <span className="inline-flex items-center gap-1 text-muted-foreground italic">
             <Image className="h-3.5 w-3.5" />
-            Image block
+            {t("block.image")}
           </span>
         ) : isTableBlock(block) ? (
           block.block_content ? (
@@ -103,7 +105,7 @@ export function BlockCard({ block, isHighlighted, onHover, onClick, bookUid }: B
           ) : (
             <span className="inline-flex items-center gap-1 text-muted-foreground italic">
               <Table2 className="h-3.5 w-3.5" />
-              Table block
+              {t("block.table")}
             </span>
           )
         ) : block.block_content ? (
@@ -113,7 +115,7 @@ export function BlockCard({ block, isHighlighted, onHover, onClick, bookUid }: B
         ) : (
           <span className="text-muted-foreground italic">
             <FileText className="mr-1 inline h-3.5 w-3.5" />
-            Empty
+            {t("block.empty")}
           </span>
         )}
       </div>

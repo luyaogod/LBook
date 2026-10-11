@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { PageNav } from "./PageNav";
 import { Minus, Plus, Maximize, ListTree, PanelRightOpen } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface PdfToolbarProps {
   scale: number;
@@ -34,6 +35,8 @@ export function PdfToolbar({
   sidebarOpen,
   onToggleSidebar,
 }: PdfToolbarProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-3">
       {/* Contents toggle — the leftmost control because it opens the leftmost panel */}
@@ -41,7 +44,13 @@ export function PdfToolbar({
         variant={tocOpen ? "secondary" : "ghost"}
         size="icon-sm"
         onClick={onToggleToc}
-        title={tocOpen ? "Hide contents" : hasToc ? "Show contents" : "Show contents (this book has none yet)"}
+        title={
+          tocOpen
+            ? t("viewer.hideContents")
+            : hasToc
+              ? t("viewer.showContents")
+              : t("viewer.showContentsNoToc")
+        }
       >
         <ListTree className="h-4 w-4" />
       </Button>
@@ -59,7 +68,7 @@ export function PdfToolbar({
         <Plus className="h-4 w-4" />
       </Button>
 
-      <Button variant="ghost" size="icon-sm" onClick={onFitWidth} title="Fit width">
+      <Button variant="ghost" size="icon-sm" onClick={onFitWidth} title={t("viewer.fitWidth")}>
         <Maximize className="h-4 w-4" />
       </Button>
 
@@ -74,7 +83,7 @@ export function PdfToolbar({
         variant={sidebarOpen ? "secondary" : "ghost"}
         size="icon-sm"
         onClick={onToggleSidebar}
-        title={sidebarOpen ? "Hide the OCR panel" : "Show the OCR panel"}
+        title={sidebarOpen ? t("viewer.hideOcrPanel") : t("viewer.showOcrPanel")}
       >
         <PanelRightOpen className="h-4 w-4" />
       </Button>

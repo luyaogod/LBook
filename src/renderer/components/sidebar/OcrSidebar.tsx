@@ -6,6 +6,7 @@ import { useFlowPages } from "@/hooks/useFlowPages";
 import { CheckCircle, Copy, Loader2, AlignLeft, FileText, Eye, EyeOff, ArrowLeftRight, ArrowDownUp, Maximize2, Minimize2, PanelRightClose } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -83,13 +84,18 @@ function computePageStats(blocks: OcrBlock[]) {
 }
 
 function PageFooterDivider({ blocks, pageNum }: { blocks: OcrBlock[]; pageNum: number }) {
+  const { t } = useTranslation();
   const { totalChars, textBlocks } = computePageStats(blocks);
   return (
     <div className="flex h-10 shrink-0 items-center justify-between border-t border-border px-4 text-[11px] text-muted-foreground my-3 pt-2">
       <span>
-        {blocks.length} blocks · {textBlocks.length} text · {totalChars} chars
+        {t("sidebar.stats", {
+          blocks: blocks.length,
+          text: textBlocks.length,
+          chars: totalChars,
+        })}
       </span>
-      <span>Page {pageNum}</span>
+      <span>{t("sidebar.page", { page: pageNum })}</span>
     </div>
   );
 }
@@ -120,6 +126,7 @@ export function OcrSidebar({
   onVisiblePageChange,
   onOpenSettings,
 }: OcrSidebarProps) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   // Markdown is the default: it is the shape the text was reconstructed into,
   // and the one a proof-reader reads top to bottom.
@@ -364,7 +371,7 @@ export function OcrSidebar({
         {expanded && (
           <>
             <PageNav pageNum={pageNum} totalPages={totalPages} onPageChange={onPageChange} />
-            <Button variant="ghost" size="icon-sm" onClick={onCollapse} title="Hide this panel">
+            <Button variant="ghost" size="icon-sm" onClick={onCollapse} title={t("sidebar.hide")}>
               <PanelRightClose className="h-4 w-4" />
             </Button>
             <div className="mx-1 h-5 w-px bg-border" />
@@ -380,7 +387,7 @@ export function OcrSidebar({
             onClick={() => setViewMode("markdown")}
           >
             <FileText className="mr-1 h-3.5 w-3.5" />
-            Markdown
+            {t("sidebar.markdown")}
           </Button>
         )}
         <Button
@@ -390,14 +397,14 @@ export function OcrSidebar({
           onClick={() => setViewMode("blocks")}
         >
           <AlignLeft className="mr-1 h-3.5 w-3.5" />
-          Blocks
+          {t("sidebar.blocks")}
         </Button>
         <Button
           variant={overlayOpaque ? "secondary" : "ghost"}
           size="icon-sm"
           className="h-7 w-7"
           onClick={() => onOverlayOpaqueChange(!overlayOpaque)}
-          title={overlayOpaque ? "Make overlays transparent" : "Make overlays opaque"}
+          title={overlayOpaque ? t("sidebar.makeOverlaysTransparent") : t("sidebar.makeOverlaysOpaque")}
         >
           {overlayOpaque ? (
             <EyeOff className="h-3.5 w-3.5" />
@@ -410,7 +417,7 @@ export function OcrSidebar({
           size="icon-sm"
           className="h-7 w-7"
           onClick={() => onFlowModeChange(!flowMode)}
-          title={flowMode ? "Switch to page mode" : "Switch to scroll mode"}
+          title={flowMode ? t("sidebar.pageMode") : t("sidebar.scrollMode")}
         >
           {flowMode ? (
             <ArrowLeftRight className="h-3.5 w-3.5" />
@@ -424,7 +431,7 @@ export function OcrSidebar({
           size="icon-sm"
           className="ml-auto"
           onClick={effectiveMode === "markdown" ? handleCopyMarkdown : handleCopyAll}
-          title={effectiveMode === "markdown" ? "Copy markdown" : "Copy all text"}
+          title={effectiveMode === "markdown" ? t("sidebar.copyMarkdown") : t("sidebar.copyAll")}
         >
           {copied ? (
             <CheckCircle className="h-4 w-4 text-emerald-500" />
@@ -436,7 +443,7 @@ export function OcrSidebar({
           variant={expanded ? "secondary" : "ghost"}
           size="icon-sm"
           onClick={() => onExpandedChange(!expanded)}
-          title={expanded ? "Show the page again" : "Hide the page and use the full width"}
+          title={expanded ? t("sidebar.showPageAgain") : t("sidebar.useFullWidth")}
         >
           {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </Button>
@@ -455,7 +462,7 @@ export function OcrSidebar({
         {!flowMode && loading && blocks.length === 0 && (
           <div className="flex items-center justify-center gap-2 text-muted-foreground py-8">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-sm">Loading OCR data...</span>
+            <span className="text-sm">{t("sidebar.loading")}</span>
           </div>
         )}
 
@@ -463,9 +470,7 @@ export function OcrSidebar({
         {flowMode ? (
           <>
             {flowPages.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Scroll to load pages...
-              </p>
+              <p className="text-sm text-muted-foreground text-center py-8">{t("sidebar.scrollHint")}</p>
             )}
             {flowPages.map(({ pageNum: pn, blocks: pageBlocks, markdownText: pageMd }) => {
               if (effectiveMode === "markdown" && pageMd) {
@@ -491,7 +496,7 @@ export function OcrSidebar({
                 <div key={pn} data-page-num={pn} className="space-y-2">
                   {pageBlocks.length === 0 && (
                     <p className="text-xs text-muted-foreground text-center py-2">
-                      Page {pn} — loading...
+                      {t("sidebar.pageLoading", { page: pn })}
                     </p>
                   )}
                   {pageBlocks.map((block) => (
@@ -528,7 +533,7 @@ export function OcrSidebar({
               <>
                 {!loading && blocks.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-8">
-                    No blocks on this page
+                    {t("sidebar.empty")}
                   </p>
                 )}
                 {blocks.map((block) => (
@@ -552,10 +557,14 @@ export function OcrSidebar({
         <div className="flex h-10 shrink-0 items-center justify-between border-t border-border px-4 text-[11px] text-muted-foreground">
           <span>
             {effectiveMode === "markdown"
-              ? `${markdownText?.length ?? 0} chars`
-              : `${blocks.length} blocks · ${textBlocks.length} text · ${totalChars} chars`}
+              ? t("sidebar.chars", { count: markdownText?.length ?? 0 })
+              : t("sidebar.stats", {
+                  blocks: blocks.length,
+                  text: textBlocks.length,
+                  chars: totalChars,
+                })}
           </span>
-          <span>Page {pageNum}</span>
+          <span>{t("sidebar.page", { page: pageNum })}</span>
         </div>
       )}
     </aside>

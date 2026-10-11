@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Copy, Minus, Square, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 /**
  * The window's minimize / maximize / close buttons, drawn by the app.
@@ -23,6 +24,7 @@ import { Copy, Minus, Square, X } from "lucide-react";
  *   dark palette's destructive tone is a washed-out pink.
  */
 export function WindowControls() {
+  const { t } = useTranslation();
   const [maximized, setMaximized] = useState(false);
 
   // Double-clicking the drag region, Win+Up or dragging to a screen edge all
@@ -37,21 +39,21 @@ export function WindowControls() {
       <button
         className={`${buttonClass} hover:bg-accent hover:text-foreground`}
         onClick={() => void window.api.window.minimize()}
-        title="Minimize"
+        title={t("window.minimize")}
       >
         <Minus className="h-3.5 w-3.5" />
       </button>
       <button
         className={`${buttonClass} hover:bg-accent hover:text-foreground`}
         onClick={() => void window.api.window.toggleMaximize()}
-        title={maximized ? "Restore" : "Maximize"}
+        title={maximized ? t("window.restore") : t("window.maximize")}
       >
         {maximized ? <Copy className="h-3 w-3" /> : <Square className="h-3 w-3" />}
       </button>
       <button
         className={`${buttonClass} hover:bg-[#e81123] hover:text-white`}
         onClick={() => void window.api.window.close()}
-        title="Close"
+        title={t("window.close")}
       >
         <X className="h-3.5 w-3.5" />
       </button>

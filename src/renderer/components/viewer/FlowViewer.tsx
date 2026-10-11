@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { usePdfDocumentProxy } from "@/hooks/usePdfDocumentProxy";
 import { useFlowPages } from "@/hooks/useFlowPages";
+import { useTranslation } from "react-i18next";
 import { PdfPageUnit } from "./PdfPageUnit";
 import type { OcrBlock, OcrPage } from "@/types";
 import { Loader2 } from "lucide-react";
@@ -55,6 +56,7 @@ export function FlowViewer({
   onWheelZoom,
   initialPage = 1,
 }: FlowViewerProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const pdfPageSizeRef = useRef({ width: 0, height: 0 });
@@ -457,7 +459,7 @@ export function FlowViewer({
   if (pdfError) {
     return (
       <div className="flex h-full items-center justify-center text-destructive">
-        <p>Failed to load PDF: {pdfError}</p>
+        <p>{t("viewer.failedToLoadPdf", { message: pdfError })}</p>
       </div>
     );
   }
@@ -467,7 +469,7 @@ export function FlowViewer({
       {pdfLoading && (
         <div className="flex items-center justify-center gap-2 text-muted-foreground py-20">
           <Loader2 className="h-5 w-5 animate-spin" />
-          Loading PDF...
+          {t("viewer.loadingPdf")}
         </div>
       )}
 
@@ -541,7 +543,7 @@ export function FlowViewer({
       {!pdfLoading && pdfDoc && !pageSizeReady && (
         <div className="flex items-center justify-center gap-2 text-muted-foreground py-20">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading page info...
+          {t("common.loading")}
         </div>
       )}
     </div>

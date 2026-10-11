@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
+import { useTranslation } from "react-i18next";
 // `?url` gives a URL Vite actually emitted, resolved against document.baseURI.
 // `import.meta.url` is not reliable inside a bundled ESM served over app://.
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -62,6 +63,7 @@ export function usePdfDocumentProxy(bookId: string): {
   loading: boolean;
   error: string | null;
 } {
+  const { t } = useTranslation();
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export function usePdfDocumentProxy(bookId: string): {
       try {
         const document = await window.api.library.get(bookId);
         if (cancelled) return;
-        if (!document) throw new Error("This book is no longer in the library.");
+        if (!document) throw new Error(t("error.bookGone"));
 
         // The transport must be given the exact byte length of book.pdf up
         // front; a wrong length surfaces as "Invalid PDF structure".
@@ -137,7 +139,7 @@ export function usePdfDocumentProxy(bookId: string): {
         pdfDocRef.current = null;
       }
     };
-  }, [bookId]);
+  }, [bookId, t]);
 
   return { pdfDoc, loading, error };
 }

@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from "react";
 import { usePdfDocumentProxy } from "@/hooks/usePdfDocumentProxy";
+import { useTranslation } from "react-i18next";
 import { PdfPageUnit } from "./PdfPageUnit";
 import type { OcrBlock } from "@/types";
 import { Loader2 } from "lucide-react";
@@ -35,6 +36,7 @@ export function PdfViewer({
   scrollToBlockId,
   onBlockClick,
 }: PdfViewerProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const onWheelZoomRef = useRef(onWheelZoom);
   onWheelZoomRef.current = onWheelZoom;
@@ -118,7 +120,7 @@ export function PdfViewer({
   if (error) {
     return (
       <div className="flex h-full items-center justify-center text-destructive">
-        <p>Failed to load PDF: {error}</p>
+        <p>{t("viewer.failedToLoadPdf", { message: error })}</p>
       </div>
     );
   }
@@ -129,7 +131,7 @@ export function PdfViewer({
         {loading && (
           <div className="mx-auto flex items-center gap-2 text-muted-foreground py-20">
             <Loader2 className="h-5 w-5 animate-spin" />
-            Loading PDF...
+            {t("viewer.loadingPdf")}
           </div>
         )}
         {!loading && pdfDoc && (

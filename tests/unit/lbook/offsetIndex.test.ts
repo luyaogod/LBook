@@ -11,7 +11,7 @@ afterEach(() => {
   dir = undefined
 })
 
-/** 写一份临时 JSON；同一个测试文件里的多次调用共用一个临时目录。 */
+/** Writes a temporary JSON file; every call in this file shares one temp folder. */
 function tempJson(text: string): string {
   dir ??= fs.mkdtempSync(path.join(os.tmpdir(), "lbook-offset-"))
   const file = path.join(dir, `sample-${String(Math.random()).slice(2)}.json`)
@@ -19,7 +19,7 @@ function tempJson(text: string): string {
   return file
 }
 
-/** 造一份 PaddleOCR 形状的 JSON（两空格缩进，和真实输出一样）。 */
+/** Builds a JSON document in PaddleOCR's shape (two-space indent, like the real thing). */
 function ocrJson(pages: unknown[]): string {
   return JSON.stringify({ dataInfo: { type: "ppstructurev3" }, layoutParsingResults: pages }, null, 2)
 }
@@ -50,8 +50,9 @@ describe("offsetIndex", () => {
   })
 
   it("is byte-based, so chunk boundaries can fall anywhere", async () => {
-    // 7 / 13 / 64 字节的分块会落在引号、逗号、甚至转义序列中间。若状态机需要
-    // "跨块残留缓冲"才能工作，这几个尺寸必然有一个失败。
+    // Chunk sizes of 7 / 13 / 64 bytes land inside quotes, commas and even escape
+    // sequences. If the state machine needed a carry buffer across chunks, one of
+    // these sizes would fail.
     const pages = [page(1), page(2), page(3)]
     const file = tempJson(ocrJson(pages))
 
@@ -88,8 +89,9 @@ describe("offsetIndex", () => {
   })
 
   it("does not care where multi-byte characters fall", async () => {
-    // 5 字节的分块一定会把一个中文字符或 emoji 劈成两半。字符串内部我们只找
-    // `"` 与 `\`（单字节），所以劈开不影响。
+    // A 5-byte chunk is guaranteed to split a Chinese character or an emoji in half.
+    // Inside a string only `"` and `\` matter, and both are single bytes, so the
+    // split changes nothing.
     const content = "中文内容 🀄 emoji 😀 与拉丁 Latin"
     const file = tempJson(ocrJson([page(1, content), page(2, content), page(3, content)]))
 
@@ -100,16 +102,16 @@ describe("offsetIndex", () => {
   })
 
   it("stops reading once the limit is reached", async () => {
-    // 文件要明显大于“前缀（64KB）+ 一个块（1MB）”，这条断言才有意义：这就是
-    // 现实里那种 8–40MB 的 OCR JSON。
+    // The file has to be clearly larger than "the prefix (64KB) plus one chunk (1MB)"
+    // for this assertion to mean anything: this is the 8–40MB OCR JSON of real life.
     const pages = Array.from({ length: 1500 }, (_, i) => page(i + 1, `第 ${i + 1} 页 `.repeat(40)))
     const file = tempJson(ocrJson(pages))
 
     const { spans, fileBytes, scannedBytes } = await scanPageSpans(file, { limit: 30 })
     expect(spans).toHaveLength(30)
     expect(fileBytes).toBeGreaterThan(2 * 1024 * 1024)
-    // 粒度是“前缀 + 一个块”，所以对大文件才省得明显；实测 15.6MB/294 页那次
-    // 首屏是 6.9ms（见 baseline.md）。
+    // The unit of work is "prefix plus one chunk", so it only saves much on a large
+    // file; the measured first screen for 15.6MB / 294 pages was 6.9ms (baseline.md).
     expect(scannedBytes).toBeLessThan(fileBytes / 2)
   })
 
@@ -134,13 +136,15 @@ describe("offsetIndex", () => {
 
   it("keeps the pages it could read when the file is truncated", async () => {
     const text = ocrJson([page(1), page(2), page(3)])
-    // 在第 3 页中间切断：前两页完整，第 3 页不该被假装读出来。
+    // Truncated in the middle of page 3: the first two pages are whole, and page 3
+    // must not be pretended into existence.
     const file = tempJson(text.slice(0, Math.floor(text.length * 0.8)))
 
     const { spans } = await scanPageSpans(file)
     expect(spans).toHaveLength(2)
 
-    // 而且已经拿到的 span 仍然能独立解析（上层因此可以先显示前两页并报错）。
+    // And the spans found so far still parse on their own, which is what lets a caller
+    // show the first two pages and report the third.
     const fd = fs.openSync(file, "r")
     try {
       expect(readSpanAt(fd, spans[1])).toEqual(page(2))
@@ -151,8 +155,8 @@ describe("offsetIndex", () => {
 })
 
 /**
- * 真实 fixture：唯一一份未经数据库中转的 PaddleOCR 输出。它在本机存在时才跑
- * （与 `tests/unit/migration/reconstruct.test.ts` 同一套约定）。
+ * A real fixture: the one copy of PaddleOCR output that never went through a database.
+ * Skipped unless it is present on this machine.
  */
 const GOLDEN_JSON = path.resolve("dev-data/Oxford Picture Dictionary 3 ed.ocr.json")
 
@@ -166,7 +170,8 @@ describe.skipIf(!fs.existsSync(GOLDEN_JSON))("offsetIndex (golden fixture)", () 
     const fd = fs.openSync(GOLDEN_JSON, "r")
     try {
       for (let n = 0; n < spans.length; n++) {
-        // 逐页比对（不是抽查）：扫描器错一位，压缩过的 JSON 上不一定看得出来。
+        // Compared page by page rather than sampled: being one byte out is not always
+        // visible on minified JSON.
         expect(JSON.stringify(readSpanAt(fd, spans[n]))).toBe(JSON.stringify(whole.layoutParsingResults[n]))
       }
     } finally {

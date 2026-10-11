@@ -1,19 +1,20 @@
 /**
- * 腾讯云接口连通性探针。
+ * A connectivity probe for the Tencent Cloud endpoints.
  *
  *   node scripts/run.mjs tencent-probe [--keys <file>] [--text "..."] [--voice 101001]
  *
- * 只做一件事：用真实密钥把两个接口各打一次，把 RequestId、返回体和错误码原样
- * 打出来。**不写库、不碰 `.lbook`、不改配置**——先把"能不能通"和"密钥对不对"
- * 这两个问题从功能开发里隔离出来。
+ * It does one thing: calls both endpoints once with real credentials and prints the
+ * RequestId, the response body and any error code verbatim. **It writes nothing, reads
+ * no book and touches no configuration** — the point is to answer "can we reach it"
+ * and "are the keys right" separately from whether the feature works.
  *
- * 密钥来源（按优先级）：
- *   1. 环境变量 TENCENTCLOUD_SECRET_ID / TENCENTCLOUD_SECRET_KEY（官方 SDK 的命名）
- *      也接受 TENCENT_SECRET_ID / TENCENT_SECRET_KEY 与 TENCENT_SECURITY_TOKEN
- *   2. `--keys <file>` 指向的 JSON：{ "secretId": "...", "secretKey": "...", "token"?: "..." }
- *   3. 默认路径 %TEMP%\lbook-tencent-keys.json
+ * Where the credentials come from, in order:
+ *   1. TENCENTCLOUD_SECRET_ID / TENCENTCLOUD_SECRET_KEY (the official SDK's names);
+ *      TENCENT_SECRET_ID / TENCENT_SECRET_KEY and TENCENT_SECURITY_TOKEN also work
+ *   2. the JSON that `--keys <file>` points at: { "secretId": …, "secretKey": …, "token"?: … }
+ *   3. %TEMP%\lbook-tencent-keys.json
  *
- * 密钥只在本进程内存里，不落盘、不进仓库。
+ * They stay in this process's memory: never written to disk, never committed.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -83,8 +84,8 @@ async function main(): Promise<void> {
   console.log(`SecretKey 长度: ${credentials.secretKey.length}`)
   console.log("")
 
-  // ---- 语音合成 -----------------------------------------------------------
-  console.log("[1/2] 语音合成 TextToVoice")
+  // ---- text to speech ------------------------------------------------------
+  console.log("[1/2] text to speech: TextToVoice")
   try {
     const result = await textToVoice(
       credentials,
@@ -114,11 +115,12 @@ async function main(): Promise<void> {
     reportFailure("  ", error)
   }
 
-  // ---- 机器翻译 -----------------------------------------------------------
-  // 文档说 TextTranslate 已在 2026-07-08 那次发布里删除、并将在 2027-10-01 归零，
-  // 所以这一调用同时也是"这个接口现在还活着吗"的探针。
+  // ---- machine translation -------------------------------------------------
+  // The documentation says TextTranslate was removed in the 2026-07-08 release and
+  // goes to zero QPS on 2027-10-01, so this call is also the probe for "is it still
+  // answering at all".
   console.log("")
-  console.log("[2/2] 机器翻译 TextTranslate（英译中）")
+  console.log("[2/2] machine translation: TextTranslate (English -> Chinese)")
   try {
     const { data, requestId } = await callTencentApi<{ TargetText?: string; Source?: string; Target?: string }>({
       service: "tmt",

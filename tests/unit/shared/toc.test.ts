@@ -111,14 +111,14 @@ describe("findActiveTocId", () => {
   })
 
   it("marks the entry whose range contains the page", () => {
-    // Page 10 is inside 第一节 法律基础 (scan pages 6..19).
+    // Page 10 falls inside the first section (scan pages 6..19).
     expect(findActiveTocId(flat, 10)).toBe("0.0")
     expect(findActiveTocId(flat, 19)).toBe("0.0")
     expect(findActiveTocId(flat, 25)).toBe("0.1")
   })
 
   it("prefers the deeper entry when a chapter and its section share a page", () => {
-    // 第二章 and 第一节 both start on scan page 32.
+    // Both entries start on scan page 32.
     expect(findActiveTocId(flat, 32)).toBe("1.0")
   })
 
